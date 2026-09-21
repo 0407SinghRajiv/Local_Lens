@@ -1,0 +1,86 @@
+# Dependency directories
+node_modules/
+.pnp
+.pnp.js
+
+# Production build outputs
+.next/
+out/
+dist/
+build/
+
+# Python / Environments
+venv/
+.venv/
+env/
+.env_ml/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+eggs/
+.eggs/
+parts/
+var/
+sdist/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing & Coverage
+.coverage
+.coverage.*
+.pytest_cache/
+coverage/
+htmlcov/
+
+# Notebooks
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# Model Weights & Data Binaries
+*.pkl
+*.joblib
+*.pt
+*.pth
+*.onnx
+*.h5
+*.tflite
+*.bin
+*.weights
+
+# Large Datasets & Media
+datasets/raw/*
+!datasets/raw/.gitkeep
+uploads/
+*.tar.gz
+*.zip
+
+# Environment variables & secrets
+.env
+.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+!.env.local.example
+
+# Logs & Databases
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.sqlite
+*.sqlite3
+
+# IDE & OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
