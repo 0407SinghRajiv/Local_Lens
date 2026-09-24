@@ -1,4 +1,4 @@
-# Dependency directories
+# Dependencies
 node_modules/
 .pnp
 .pnp.js
@@ -9,7 +9,15 @@ out/
 dist/
 build/
 
-# Python / Environments
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+ephemeral/
+
+# Python / Virtual Environments
 venv/
 .venv/
 env/
@@ -19,7 +27,6 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
 eggs/
 .eggs/
@@ -41,7 +48,7 @@ htmlcov/
 .ipynb_checkpoints/
 *-checkpoint.ipynb
 
-# Model Weights & Data Binaries
+# Machine Learning Models & Binaries
 *.pkl
 *.joblib
 *.pt
@@ -52,14 +59,14 @@ htmlcov/
 *.bin
 *.weights
 
-# Large Datasets & Media
+# Datasets & Uploads
 datasets/raw/*
 !datasets/raw/.gitkeep
 uploads/
 *.tar.gz
 *.zip
 
-# Environment variables & secrets
+# Environment Files
 .env
 .env.*
 .env.local
@@ -77,7 +84,7 @@ yarn-error.log*
 *.sqlite
 *.sqlite3
 
-# IDE & OS
+# IDE & OS Files
 .DS_Store
 Thumbs.db
 .vscode/

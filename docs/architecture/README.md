@@ -1,47 +1,102 @@
 # LocalLens Architecture Overview
 
-LocalLens is designed as a modular platform with clean boundaries between frontend experiences, backend API services, spatial data persistence, and machine learning pipelines.
+LocalLens is structured as a modular platform with clear boundaries between the mobile traveler client, web provider portal, backend API services, spatial data persistence, real-time caching, and machine learning pipelines.
 
-## High-Level Topology
+## Architecture Diagram
 
 ```text
-               +----------------------------------+
-               |        Next.js Frontend          |
-               | (Traveler, Provider, Discovery)  |
-               +----------------+-----------------+
-                                |
-                         HTTP / REST & WS
-                                |
-               +----------------v-----------------+
-               |         FastAPI Backend          |
-               | (Routing, Auth, Dispatch, Svc)   |
-               +--------+-------+--------+--------+
-                        |       |        |
-         +--------------+       |        +---------------+
-         |                      |                        |
-         v                      v                        v
-+------------------+  +-------------------+  +---------------------+
-| PostgreSQL/GIS   |  |   Redis Cache     |  | ML Inference Engine |
-| Spatial Data &   |  |   & Real-time     |  | (Recommendations &  |
-| Relational Model |  |   Event Broker    |  |  Itinerary Solver)  |
-+------------------+  +-------------------+  +---------------------+
+              ┌──────────────────┐
+              │  Traveler App    │
+              │ Flutter / Dart   │
+              └────────┬─────────┘
+                       │
+                       ↓
+                ┌──────────────┐
+                │   FastAPI    │
+                │   Backend    │
+                └──────┬───────┘
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+   PostgreSQL       Redis          ML
+    + PostGIS
+
+                       ↑
+                       │
+              ┌────────┴─────────┐
+              │  Provider Web    │
+              │ Next.js / React  │
+              └──────────────────┘
 ```
 
-## System Responsibilities
+Future:
 
-### 1. Frontend (`frontend/`)
-- Client interfaces using Next.js App Router, React, TypeScript, and Tailwind CSS.
-- Feature boundaries separated by user personas (`features/traveler`, `features/provider`, `features/rider`).
+```text
+              ┌──────────────────┐
+              │    Rider App     │
+              │ Flutter / Mobile │
+              └────────┬─────────┘
+                       │
+                       ↓
+                    FastAPI
+```
 
-### 2. Backend (`backend/`)
-- High-performance asynchronous API engine powered by FastAPI.
-- Layered pattern: API Router → Service Layer → Repository Layer → Database Engine.
+## System Components & Communication Flows
 
-### 3. Spatial Database (`database/`)
-- PostgreSQL with PostGIS extensions for spatial indexing (`GEOMETRY`), radius querying, and itinerary location ordering.
+### Traveler Application
+- **Stack**: Flutter + Dart
+- **Role**: Mobile application for discovery, itinerary viewing, and ride interactions.
+- **Flow**:
+  ```text
+  Flutter Mobile App
+  ↓
+  FastAPI
+  ↓
+  PostgreSQL / PostGIS
+  ```
 
-### 4. Real-time Broker (`Redis`)
-- Transient state management, WebSocket subscription hubs, and driver telemetry caching.
+### Provider Web Application
+- **Stack**: Next.js + React + TypeScript + Tailwind CSS
+- **Role**: Web portal for experience providers to manage listings, availability, and bookings.
+- **Flow**:
+  ```text
+  Next.js Web App
+  ↓
+  FastAPI
+  ↓
+  PostgreSQL / PostGIS
+  ```
 
-### 5. Machine Learning Pipelines (`ml/`)
-- Preference-based recommendation modeling, route & itinerary constraint optimization, and experience listing quality verification.
+### Rider Application (Future)
+- **Stack**: Mobile Application
+- **Role**: Dedicated client for transit riders/drivers to receive and manage ride requests.
+- **Flow**:
+  ```text
+  Future Rider App
+  ↓
+  FastAPI
+  ```
+
+### Machine Learning Workspace
+- **Stack**: Scikit-learn, XGBoost, Transformers, PyTorch, NumPy, Pandas
+- **Role**: Offline model development and inference logic for recommendation scoring, itinerary synthesis, and experience quality analysis.
+- **Flow**:
+  ```text
+  FastAPI
+  ↓
+  ML inference layer
+  ↓
+  ML models
+  ```
+
+### Real-Time & Caching
+- **Stack**: Redis (+ future WebSockets)
+- **Role**: Transient state caching, itinerary session cache, and event streaming broker.
+- **Flow**:
+  ```text
+  FastAPI
+  ↓
+  Redis
+  ↓
+  real-time/caching features
+  ```

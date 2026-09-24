@@ -2,113 +2,175 @@
 
 LocalLens is an intelligent local discovery and experience platform that helps travelers discover relevant local experiences, generate personalized itineraries, manage rides, and adapt plans when real-world conditions change.
 
+---
+
 ## Tech Stack
 
-- **Frontend**: Next.js, React, TypeScript, Tailwind CSS
-- **Backend**: FastAPI, Python, SQLAlchemy, Pydantic
+- **Traveler**: Flutter + Dart
+- **Provider**: Next.js + React + TypeScript + Tailwind CSS
+- **Backend**: FastAPI + Python
 - **Database**: PostgreSQL + PostGIS
-- **ML**: Scikit-learn, XGBoost, Transformers, PyTorch
-- **Realtime**: Redis + WebSockets
-- **Infrastructure**: Docker & Docker Compose
+- **ML**: Scikit-learn + XGBoost + Transformers + PyTorch
+- **Realtime**: Redis + future WebSockets
+- **Infrastructure**: Docker
+
+---
+
+## Architecture
+
+```text
+              ┌──────────────────┐
+              │  Traveler App    │
+              │ Flutter / Dart   │
+              └────────┬─────────┘
+                       │
+                       ↓
+                ┌──────────────┐
+                │   FastAPI    │
+                │   Backend    │
+                └──────┬───────┘
+                       │
+          ┌────────────┼────────────┐
+          ↓            ↓            ↓
+   PostgreSQL       Redis          ML
+    + PostGIS
+
+                       ↑
+                       │
+              ┌────────┴─────────┐
+              │  Provider Web    │
+              │ Next.js / React  │
+              └──────────────────┘
+```
+
+Future:
+
+```text
+              ┌──────────────────┐
+              │    Rider App     │
+              │ Flutter / Mobile │
+              └────────┬─────────┘
+                       │
+                       ↓
+                    FastAPI
+```
+
+---
 
 ## Project Structure
 
 ```text
 LocalLens/
 │
-├── frontend/          # Next.js (App Router, TypeScript, Tailwind CSS)
-├── backend/           # FastAPI service, routers, repositories, models
-├── ml/                # Machine learning exploration, models, pipelines
-├── database/          # PostgreSQL + PostGIS schemas, migrations, seeds
-├── rider-app/         # Rider mobile/web app workspace & documentation
-├── docs/              # Technical, architectural, API & setup documentation
+├── traveler-app/     # Flutter mobile application for travelers
+├── provider-web/     # Next.js web application for experience providers
+├── backend/          # FastAPI backend services, schemas, and repositories
+├── ml/               # Python machine learning workspace and pipelines
+├── database/         # PostgreSQL + PostGIS schema, migrations, and seeds
+├── rider-app/        # Future separate mobile application for riders
+├── docs/             # Architecture, API, database, and development guides
 │
-├── .gitignore         # Monorepo gitignore rules
-├── .env.example       # Template environment variables
-├── docker-compose.yml # PostgreSQL + PostGIS & Redis container configurations
-├── README.md          # Project overview and instructions
-└── LICENSE            # MIT License
+├── .gitignore        # Root gitignore rules
+├── .env.example      # Root environment template
+├── docker-compose.yml# Container orchestration (PostgreSQL + PostGIS, Redis)
+├── README.md         # Monorepo overview and developer instructions
+└── LICENSE           # Repository license
 ```
 
-## Local Setup
+### Directory Overview
 
-### 1. Prerequisites
-- [Docker](https://www.docker.com/) and Docker Compose
-- [Node.js](https://nodejs.org/) (v18+ or v20+) and `npm`
-- [Python](https://www.python.org/) (v3.10+)
+- **`traveler-app/`**: Flutter mobile application targeting Android and iOS for traveler discovery, itinerary exploration, and ride booking.
+- **`provider-web/`**: Next.js (App Router) TypeScript web application for local experience providers to manage listings, bookings, sponsorships, and analytics.
+- **`backend/`**: Asynchronous Python backend powered by FastAPI with layered architecture (`api` → `services` → `repositories` → `models`).
+- **`ml/`**: Machine learning workspace for recommendation scoring, itinerary synthesis, and experience quality analysis.
+- **`database/`**: Database initialization scripts, spatial extension setup (PostGIS), and migration assets.
+- **`rider-app/`**: Workspace placeholder for the future dedicated rider mobile application.
+- **`docs/`**: Comprehensive architectural, API, database, and developer onboarding documentation.
 
-### 2. Start Database & Redis
+---
+
+## Local Development
+
+### 1. Start Infrastructure (PostgreSQL + PostGIS & Redis)
+
 ```bash
 docker compose up -d
 ```
 
-### 3. Frontend Setup
+Verify service status:
+
 ```bash
-cd frontend
+docker compose ps
+```
+
+### 2. Traveler Application (Flutter)
+
+```bash
+cd traveler-app
+flutter pub get
+flutter run
+```
+
+### 3. Provider Web Application (Next.js)
+
+```bash
+cd provider-web
 npm install
 npm run dev
 ```
-The frontend will be available at `http://localhost:3000`.
 
-### 4. Backend Setup
+### 4. Backend Application (FastAPI)
+
 ```bash
 cd backend
-python -m venv venv
-```
 
-**Windows activation:**
-```powershell
-venv\Scripts\activate
-```
-
-**Linux/macOS activation:**
-```bash
-source venv/bin/activate
-```
-
-**Install dependencies & run:**
-```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload
-```
-The backend API documentation will be available at `http://localhost:8000/docs`.
-
-### 5. ML Workspace Setup
-```bash
-cd ml
+# Create virtual environment
 python -m venv venv
 
-# Windows
+# Activate on Windows:
 venv\Scripts\activate
-# Linux/macOS
+# Activate on macOS/Linux:
 # source venv/bin/activate
 
+# Install dependencies
+pip install -r requirements.txt
+
+# Run FastAPI dev server
+uvicorn app.main:app --reload
+```
+
+Health check verification:
+```bash
+curl http://localhost:8000/health
+```
+
+### 5. Machine Learning Workspace
+
+```bash
+cd ml
+
+# Create virtual environment
+python -m venv venv
+
+# Activate on Windows:
+venv\Scripts\activate
+# Activate on macOS/Linux:
+# source venv/bin/activate
+
+# Install ML dependencies
 pip install -r requirements.txt
 ```
 
-## Health Check
+---
 
-To verify the backend service is running:
+## Git Branching & Workflow
 
-```http
-GET /health
-```
+To maintain clean modular boundaries and enable parallel developer workflows, branch off `main` according to domain scope:
 
-**Response:**
-```json
-{
-  "status": "ok"
-}
-```
-
-## Team Development
-
-To keep work organized across independent developers, follow feature branching conventions:
-
-- `feature/traveler` - Traveler discovery, booking, and itinerary UI/workflows
-- `feature/provider` - Experience host/provider onboarding and experience management
-- `feature/rider` - Rider dispatch, geolocation tracking, and ride status updates
-- `feature/backend` - Core API routes, services, schemas, and database repositories
-- `feature/recommendation` - Recommendation engine algorithms and scoring models
-- `feature/itinerary` - Dynamic itinerary generation and constraint optimization
-- `feature/database` - Migrations, PostGIS spatial queries, and schema evolution
+- `feature/traveler` — Traveler Flutter application
+- `feature/provider` — Provider Next.js web application
+- `feature/rider` — Future rider mobile application
+- `feature/backend` — Backend services, repositories, and API routes
+- `feature/recommendation` — ML recommendation engine
+- `feature/itinerary` — ML itinerary engine
+- `feature/database` — Database schemas and migrations
