@@ -1,30 +1,16 @@
-# LocalLens Rider Application
+# rider_app
 
-The Rider Application is a dedicated interface for local transport drivers and tour shuttles.
+A new Flutter project.
 
-> **Note**: Travelers will NOT use this application. This workspace is strictly for driver/rider dispatch and tracking operations.
+## Getting Started
 
-## Planned Capabilities
+This project is a starting point for a Flutter application.
 
-When implemented, the Rider App will enable riders to:
-- **Receive Ride Requests**: Real-time dispatch notifications when travelers need transit between itinerary stops.
-- **Accept / Reject Rides**: Fast decision controls with distance and estimated payout preview.
-- **View Pickup & Drop Locations**: Turn-by-turn navigation coordinates and traveler contact proxies.
-- **Update Ride Status**: Lifecycle transitions (`ACCEPTED` -> `ARRIVED_AT_PICKUP` -> `IN_TRANSIT` -> `COMPLETED`).
-- **Complete Rides & View Earnings**: Summary receipts and trip logs.
+A few resources to get you started if this is your first Flutter project:
 
-## Workspace Structure
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
 
-```text
-rider-app/
-├── src/           # Application components, screens, and entrypoint
-├── assets/        # Icons, vehicle graphics, map markers
-├── services/      # Geolocation streaming and WebSocket dispatch client
-├── types/         # Rider domain TypeScript interfaces
-├── README.md      # Rider app overview
-└── .env.example   # Rider app environment template
-```
-
-## Setup & Development (Future)
-
-Dependencies and mobile/web packaging will be initialized when rider feature development begins.
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.
