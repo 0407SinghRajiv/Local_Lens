@@ -19,12 +19,13 @@ void main() {
         ),
       );
 
-      // Verify header, inputs, and buttons
+      // Verify header, inputs, Google button, and submit buttons
       expect(find.text('Welcome Back'), findsOneWidget);
       expect(find.text('Sign in to explore tailored travel experiences'), findsOneWidget);
       expect(find.text('Email'), findsOneWidget);
       expect(find.text('Password'), findsOneWidget);
       expect(find.text('Sign In'), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
       expect(find.text('Forgot Password?'), findsOneWidget);
       expect(find.text('Continue as Guest Explorer'), findsOneWidget);
       expect(find.text('Sign Up'), findsOneWidget);
@@ -48,7 +49,7 @@ void main() {
       expect(find.text('Password is required'), findsOneWidget);
     });
 
-    testWidgets('renders SignupScreen with all fields and validation', (tester) async {
+    testWidgets('renders SignupScreen with all fields, Google button and validation', (tester) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
@@ -64,6 +65,7 @@ void main() {
       expect(find.text('Password'), findsOneWidget);
       expect(find.text('Confirm Password'), findsOneWidget);
       expect(find.text('Create Account'), findsNWidgets(2)); // Title + Button
+      expect(find.text('Sign up with Google'), findsOneWidget);
 
       // Scroll to button and tap
       await tester.ensureVisible(find.byType(ElevatedButton));

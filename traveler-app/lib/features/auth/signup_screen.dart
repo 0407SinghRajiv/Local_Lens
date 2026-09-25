@@ -24,6 +24,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
   bool _isPasswordVisible = false;
   bool _isConfirmPasswordVisible = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -50,35 +51,55 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     if (success) {
       final user = ref.read(authControllerProvider).value;
-      // If user session exists immediately
       if (user != null) {
         context.go(AppRoutes.home);
       } else {
-        // Email confirmation is required by Supabase project settings
         _showConfirmationDialog();
       }
     } else {
-      final authState = ref.read(authControllerProvider);
-      final error = authState.error;
-      final message = error is AuthException
-          ? error.message
-          : (error?.toString() ?? 'Registration failed. Please try again.');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(child: Text(message)),
-            ],
-          ),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showErrorSnackBar();
     }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+
+    final success = await ref.read(authControllerProvider.notifier).signInWithGoogle();
+
+    if (!mounted) return;
+    setState(() => _isGoogleLoading = false);
+
+    if (success) {
+      context.go(AppRoutes.home);
+    } else {
+      final authState = ref.read(authControllerProvider);
+      if (authState.hasError) {
+        _showErrorSnackBar();
+      }
+    }
+  }
+
+  void _showErrorSnackBar() {
+    final authState = ref.read(authControllerProvider);
+    final error = authState.error;
+    final message = error is AuthException
+        ? error.message
+        : (error?.toString() ?? 'Registration failed. Please try again.');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _showConfirmationDialog() {
@@ -168,7 +189,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
                   // Full Name Field
                   AuthTextField(
@@ -253,7 +274,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                       return null;
                     },
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
                   // Create Account Button
                   SizedBox(
@@ -288,7 +309,95 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                             ),
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 18),
+
+                  // Divider "OR"
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: isDark ? Colors.white12 : Colors.black12,
+                          thickness: 1,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                        child: Text(
+                          'OR',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: isDark ? Colors.white12 : Colors.black12,
+                          thickness: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Google Sign Up
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+                        foregroundColor: isDark ? Colors.white : AppColors.textPrimaryLight,
+                        side: BorderSide(
+                          color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.12),
+                          width: 1.2,
+                        ),
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _isGoogleLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: AppColors.primaryBlue,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: const BoxDecoration(shape: BoxShape.circle),
+                                  child: Image.network(
+                                    'https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png',
+                                    width: 22,
+                                    height: 22,
+                                    errorBuilder: (ctx, e, st) => const Icon(
+                                      Icons.g_mobiledata_rounded,
+                                      size: 24,
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Sign up with Google',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 22),
 
                   // Login Navigation Link
                   Row(

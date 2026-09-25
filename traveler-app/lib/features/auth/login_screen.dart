@@ -22,6 +22,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   bool _isPasswordVisible = false;
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
   @override
   void dispose() {
@@ -47,27 +48,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (success) {
       context.go(AppRoutes.home);
     } else {
-      final authState = ref.read(authControllerProvider);
-      final error = authState.error;
-      final message = error is AuthException
-          ? error.message
-          : (error?.toString() ?? 'Failed to log in. Please check your credentials.');
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
-              const SizedBox(width: 10),
-              Expanded(child: Text(message)),
-            ],
-          ),
-          backgroundColor: AppColors.error,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      _showErrorSnackBar();
     }
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+
+    final success = await ref.read(authControllerProvider.notifier).signInWithGoogle();
+
+    if (!mounted) return;
+    setState(() => _isGoogleLoading = false);
+
+    if (success) {
+      context.go(AppRoutes.home);
+    } else {
+      final authState = ref.read(authControllerProvider);
+      if (authState.hasError) {
+        _showErrorSnackBar();
+      }
+    }
+  }
+
+  void _showErrorSnackBar() {
+    final authState = ref.read(authControllerProvider);
+    final error = authState.error;
+    final message = error is AuthException
+        ? error.message
+        : (error?.toString() ?? 'Failed to authenticate. Please check your credentials.');
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _showForgotPasswordDialog() {
@@ -256,7 +279,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                     ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 30),
 
                   // Email Field
                   AuthTextField(
@@ -352,29 +375,110 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                     ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 18),
+
+                  // Divider "OR"
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: isDark ? Colors.white12 : Colors.black12,
+                          thickness: 1,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14.0),
+                        child: Text(
+                          'OR',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: isDark ? Colors.white12 : Colors.black12,
+                          thickness: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+
+                  // Sign in with Google Button
+                  SizedBox(
+                    height: 52,
+                    child: OutlinedButton(
+                      onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                      style: OutlinedButton.styleFrom(
+                        backgroundColor: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white,
+                        foregroundColor: isDark ? Colors.white : AppColors.textPrimaryLight,
+                        side: BorderSide(
+                          color: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.12),
+                          width: 1.2,
+                        ),
+                        elevation: 1,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: _isGoogleLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.2,
+                                color: AppColors.primaryBlue,
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 22,
+                                  height: 22,
+                                  decoration: const BoxDecoration(shape: BoxShape.circle),
+                                  child: Image.network(
+                                    'https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png',
+                                    width: 22,
+                                    height: 22,
+                                    errorBuilder: (ctx, e, st) => const Icon(
+                                      Icons.g_mobiledata_rounded,
+                                      size: 24,
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Continue with Google',
+                                  style: TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   // Guest Mode Bypass
-                  OutlinedButton(
+                  TextButton(
                     onPressed: () {
                       context.go(AppRoutes.home);
                     },
-                    style: OutlinedButton.styleFrom(
+                    style: TextButton.styleFrom(
                       foregroundColor: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                      side: BorderSide(
-                        color: isDark ? Colors.white12 : Colors.black12,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      minimumSize: const Size.fromHeight(50),
                     ),
                     child: const Text(
                       'Continue as Guest Explorer',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
                   // Register Navigation Link
                   Row(
