@@ -55,7 +55,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   void _onExplorePressed() {
     ref.read(storageServiceProvider).setFirstLaunchCompleted();
-    context.go(AppRoutes.home);
+    final user = ref.read(authServiceProvider).currentUser;
+    if (user != null) {
+      context.go(AppRoutes.home);
+    } else {
+      context.go(AppRoutes.login);
+    }
   }
 
   @override

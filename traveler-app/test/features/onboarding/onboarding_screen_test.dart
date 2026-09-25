@@ -49,7 +49,7 @@ void main() {
       expect(find.text('SMART ITINERARIES'), findsOneWidget);
     });
 
-    testWidgets('tapping Explore button navigates to home route', (tester) async {
+    testWidgets('tapping Explore button navigates to login route when unauthenticated', (tester) async {
       String navigatedRoute = AppRoutes.onboarding;
 
       final testRouter = GoRouter(
@@ -60,6 +60,13 @@ void main() {
             builder: (context, state) {
               navigatedRoute = AppRoutes.onboarding;
               return const OnboardingScreen();
+            },
+          ),
+          GoRoute(
+            path: AppRoutes.login,
+            builder: (context, state) {
+              navigatedRoute = AppRoutes.login;
+              return const Scaffold(body: Text('Login Screen'));
             },
           ),
           GoRoute(
@@ -86,8 +93,8 @@ void main() {
       await tester.tap(find.text('Explore'));
       await tester.pumpAndSettle();
 
-      expect(navigatedRoute, AppRoutes.home);
-      expect(find.text('Home Screen'), findsOneWidget);
+      expect(navigatedRoute, AppRoutes.login);
+      expect(find.text('Login Screen'), findsOneWidget);
     });
   });
 }

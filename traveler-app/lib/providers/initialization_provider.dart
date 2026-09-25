@@ -62,7 +62,18 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
       return AppInitState.error('Server is currently undergoing scheduled maintenance.');
     }
 
-    final String targetRoute = isFirstLaunch ? AppRoutes.onboarding : AppRoutes.home;
+    // Navigation logic:
+    // 1. If first launch -> Onboarding
+    // 2. If already launched & logged in -> Home (/home)
+    // 3. If already launched & NOT logged in -> Login (/login)
+    String targetRoute;
+    if (isFirstLaunch) {
+      targetRoute = AppRoutes.onboarding;
+    } else if (isAuthenticated) {
+      targetRoute = AppRoutes.home;
+    } else {
+      targetRoute = AppRoutes.login;
+    }
 
     return AppInitState(
       isInitialized: true,
