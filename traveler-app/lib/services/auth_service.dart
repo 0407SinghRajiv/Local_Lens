@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -126,7 +127,6 @@ class AuthService {
             : null,
       );
 
-      // If user or session is created, persist state
       if (response.user != null) {
         await _storageService.setLoggedIn(
           loggedIn: true,
@@ -143,62 +143,65 @@ class AuthService {
     }
   }
 
-  /// Sign in with Google (Native Google Sign-In with OAuth fallback)
+  /// Sign in with Google (Native with serverClientId or Browser OAuth fallback)
   Future<AuthResponse?> signInWithGoogle() async {
     final supaClient = client;
     if (supaClient == null) {
       throw const AuthException('Supabase is not initialized.');
     }
 
+    final webClientId = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim();
+
     try {
-      if (kIsWeb) {
-        await supaClient.auth.signInWithOAuth(
-          OAuthProvider.google,
-          redirectTo: kIsWeb ? null : 'io.supabase.traveler://login-callback/',
+      // 1. Try Native Google Sign In if on mobile and serverClientId configured
+      if (!kIsWeb && webClientId != null && webClientId.isNotEmpty) {
+        final googleSignIn = GoogleSignIn(
+          serverClientId: webClientId,
+          scopes: ['email', 'profile'],
         );
-        return null;
+
+        final googleUser = await googleSignIn.signIn();
+        if (googleUser != null) {
+          final googleAuth = await googleUser.authentication;
+          final idToken = googleAuth.idToken;
+          final accessToken = googleAuth.accessToken;
+
+          if (idToken != null) {
+            final response = await supaClient.auth.signInWithIdToken(
+              provider: OAuthProvider.google,
+              idToken: idToken,
+              accessToken: accessToken,
+            );
+
+            if (response.user != null) {
+              await _storageService.setLoggedIn(
+                loggedIn: true,
+                email: response.user?.email,
+                name: response.user?.userMetadata?['full_name'] as String? ?? googleUser.displayName,
+              );
+            }
+
+            return response;
+          }
+        }
       }
 
-      final googleSignIn = GoogleSignIn(
-        scopes: ['email', 'profile'],
+      // 2. Browser / Custom Tab OAuth fallback via Supabase
+      await supaClient.auth.signInWithOAuth(
+        OAuthProvider.google,
+        redirectTo: kIsWeb ? null : 'io.supabase.traveler://login-callback',
+        authScreenLaunchMode: LaunchMode.externalApplication,
       );
-
-      final googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        // User cancelled Google Sign In picker
-        return null;
-      }
-
-      final googleAuth = await googleUser.authentication;
-      final accessToken = googleAuth.accessToken;
-      final idToken = googleAuth.idToken;
-
-      if (idToken == null) {
-        throw const AuthException('Google Sign In failed: No ID Token found.');
-      }
-
-      final response = await supaClient.auth.signInWithIdToken(
-        provider: OAuthProvider.google,
-        idToken: idToken,
-        accessToken: accessToken,
-      );
-
-      if (response.user != null) {
-        await _storageService.setLoggedIn(
-          loggedIn: true,
-          email: response.user?.email,
-          name: response.user?.userMetadata?['full_name'] as String? ?? googleUser.displayName,
-        );
-      }
-
-      return response;
+      return null;
     } on AuthException {
       rethrow;
     } catch (e) {
-      // If native GoogleSignIn fails, attempt Supabase browser OAuth fallback
+      // Direct OAuth fallback
       try {
         await supaClient.auth.signInWithOAuth(
           OAuthProvider.google,
+          redirectTo: kIsWeb ? null : 'io.supabase.traveler://login-callback',
+          authScreenLaunchMode: LaunchMode.externalApplication,
         );
         return null;
       } catch (fallbackError) {
