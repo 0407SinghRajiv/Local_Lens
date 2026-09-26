@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
+import '../../widgets/common/locallens_components.dart';
 
 /// Screen 11: Explore Screen with Real-Time Search, Filters, and Interactive Cards
 class ExploreScreen extends StatefulWidget {
@@ -174,17 +175,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
             // Experience Vertical Card List
             Expanded(
               child: filteredExperiences.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.search_off_rounded, size: 48, color: LocalLensColors.textMuted),
-                          const SizedBox(height: 12),
-                          Text('No experiences found for "$_searchQuery"', style: LocalLensTypography.titleMedium),
-                          const SizedBox(height: 4),
-                          Text('Try a different keyword or category', style: LocalLensTypography.caption),
-                        ],
-                      ),
+                  ? EmptyStateWidget(
+                      icon: Icons.search_off_rounded,
+                      title: 'No experiences found',
+                      message: 'We couldn\'t find any match for "$_searchQuery". Try a different category or search term.',
+                      buttonText: 'Clear Filters',
+                      onButtonTap: () {
+                        setState(() {
+                          _searchQuery = '';
+                          _selectedFilter = 'All';
+                        });
+                      },
                     )
                   : ListView.separated(
                       padding: const EdgeInsets.symmetric(
@@ -197,173 +198,34 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         final exp = filteredExperiences[index];
                         final isSaved = _savedIds.contains(exp.id);
 
-                        return GestureDetector(
-                          onTap: () {
-                            context.push(AppRoutes.experienceDetails);
+                        return ExperienceCard(
+                          title: exp.title,
+                          imageUrl: exp.imageUrl,
+                          rating: exp.rating,
+                          category: exp.category,
+                          priceInr: exp.priceInr,
+                          location: exp.location,
+                          distanceKm: exp.distanceKm,
+                          durationHours: exp.durationHours,
+                          isSaved: isSaved,
+                          onTap: () => context.push(AppRoutes.experienceDetails),
+                          onSaveTap: () {
+                            setState(() {
+                              if (isSaved) {
+                                _savedIds.remove(exp.id);
+                              } else {
+                                _savedIds.add(exp.id);
+                              }
+                            });
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(isSaved ? 'Removed from wishlist' : 'Saved to wishlist!'),
+                                duration: const Duration(seconds: 1),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
                           },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                              boxShadow: LocalLensDimensions.softCardShadow,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Image with Category & Rating Badges + Favorite Button
-                                Stack(
-                                  children: [
-                                    Container(
-                                      height: 160,
-                                      decoration: BoxDecoration(
-                                        borderRadius: const BorderRadius.vertical(
-                                          top: Radius.circular(LocalLensDimensions.radiusMedium),
-                                        ),
-                                        image: DecorationImage(
-                                          image: AssetImage(exp.imageUrl),
-                                          fit: BoxFit.cover,
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      top: 12,
-                                      left: 12,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                        decoration: BoxDecoration(
-                                          color: Colors.black.withValues(alpha: 0.65),
-                                          borderRadius: BorderRadius.circular(8),
-                                        ),
-                                        child: Text(
-                                          exp.category,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    Positioned(
-                                      top: 12,
-                                      right: 12,
-                                      child: Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.black.withValues(alpha: 0.65),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
-                                                const SizedBox(width: 3),
-                                                Text(
-                                                  '${exp.rating}',
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 11,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          // Interactive Heart Button
-                                          GestureDetector(
-                                            onTap: () {
-                                              setState(() {
-                                                if (isSaved) {
-                                                  _savedIds.remove(exp.id);
-                                                } else {
-                                                  _savedIds.add(exp.id);
-                                                }
-                                              });
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(isSaved ? 'Removed from saved' : 'Saved to your wishlist!'),
-                                                  duration: const Duration(seconds: 1),
-                                                  behavior: SnackBarBehavior.floating,
-                                                ),
-                                              );
-                                            },
-                                            child: Container(
-                                              padding: const EdgeInsets.all(5),
-                                              decoration: BoxDecoration(
-                                                color: Colors.white.withValues(alpha: 0.9),
-                                                shape: BoxShape.circle,
-                                              ),
-                                              child: Icon(
-                                                isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                                                color: isSaved ? LocalLensColors.accentOrange : LocalLensColors.textPrimary,
-                                                size: 18,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              exp.title,
-                                              style: LocalLensTypography.titleLarge.copyWith(fontSize: 18),
-                                            ),
-                                          ),
-                                          Text(
-                                            '₹${exp.priceInr.toInt()}',
-                                            style: LocalLensTypography.titleLarge.copyWith(
-                                              color: LocalLensColors.primaryTeal,
-                                              fontWeight: FontWeight.w800,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        exp.description,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                        style: LocalLensTypography.bodyMedium,
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          const Icon(Icons.schedule_rounded, size: 14, color: LocalLensColors.textMuted),
-                                          const SizedBox(width: 4),
-                                          Text('${exp.durationHours} hrs', style: LocalLensTypography.caption),
-                                          const SizedBox(width: 14),
-                                          const Icon(Icons.place_outlined, size: 14, color: LocalLensColors.textMuted),
-                                          const SizedBox(width: 4),
-                                          Text('${exp.distanceKm} km away', style: LocalLensTypography.caption),
-                                          const Spacer(),
-                                          Text(
-                                            'View Details >',
-                                            style: LocalLensTypography.caption.copyWith(
-                                              color: LocalLensColors.primaryTeal,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                          width: double.infinity,
                         );
                       },
                     ),
