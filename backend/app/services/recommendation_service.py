@@ -44,19 +44,12 @@ class RecommendationService:
             model_dir = Path(os.getenv("MODEL_DIR", ml_dir / "models"))
             dataset_dir = Path(os.getenv("DATASET_DIR", ml_dir / "datasets"))
 
-            logger.info(f"Initializing RecommendationEngine: model_dir={model_dir}, dataset_dir={dataset_dir}")
+            logger.info(f"Initializing RecommendationEngine with all_experiences_with_images.csv: model_dir={model_dir}, dataset_dir={dataset_dir}")
             cls._engine_instance = RecommendationEngine(
                 model_dir=model_dir,
                 dataset_dir=dataset_dir,
+                dataset_filename="all_experiences_with_images.csv",
             )
-
-            # Attempt initial sync with Supabase experience table
-            try:
-                supa_df = SupabaseService.fetch_experiences_from_supabase()
-                if supa_df is not None and not supa_df.empty:
-                    cls._engine_instance.set_experiences_df(supa_df)
-            except Exception as e:
-                logger.warning(f"Supabase sync warning on startup: {e}")
 
         return cls._engine_instance
 

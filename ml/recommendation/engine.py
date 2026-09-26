@@ -53,7 +53,7 @@ class RecommendationEngine:
         dataset_dir: Optional[Union[str, Path]] = None,
         pipeline_filename: str = "preprocessing_pipeline.pkl",
         model_filename: str = "recommendation_model.pkl",
-        dataset_filename: str = "all_experiences_cleaned.csv",
+        dataset_filename: str = "all_experiences_with_images.csv",
     ):
         base_dir = Path(__file__).resolve().parent.parent
 
@@ -79,13 +79,19 @@ class RecommendationEngine:
         self._load_artifacts()
 
     def _load_artifacts(self) -> None:
-        """Load trained preprocessing pipeline, model, and cleaned dataset into memory."""
+        """Load trained preprocessing pipeline, model, and experiences with images dataset."""
         if not self.pipeline_path.exists():
             raise FileNotFoundError(f"Preprocessing pipeline not found at {self.pipeline_path}")
         if not self.model_path.exists():
             raise FileNotFoundError(f"Recommendation model not found at {self.model_path}")
+        
+        # Fallback to cleaned dataset if with_images file is missing
         if not self.dataset_path.exists():
-            raise FileNotFoundError(f"Experience dataset not found at {self.dataset_path}")
+            fallback_dataset = self.dataset_dir / "all_experiences_cleaned.csv"
+            if fallback_dataset.exists():
+                self.dataset_path = fallback_dataset
+            else:
+                raise FileNotFoundError(f"Experience dataset not found at {self.dataset_path}")
 
         logger.info(f"Loading preprocessing pipeline from {self.pipeline_path}")
         self.preprocessor = joblib.load(self.pipeline_path)
@@ -95,7 +101,29 @@ class RecommendationEngine:
 
         logger.info(f"Loading experiences dataset from {self.dataset_path}")
         self.experiences_df = pd.read_csv(self.dataset_path)
-        logger.info(f"Loaded {len(self.experiences_df)} experiences.")
+
+        # Ensure image_url is populated with verified images
+        cat_defaults = {
+            "Heritage": "https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&q=80",
+            "Food": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800&q=80",
+            "Culture": "https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=800&q=80",
+            "Nature": "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80",
+            "Adventure": "https://images.unsplash.com/photo-1533240332313-0db49b459ad6?w=800&q=80",
+            "Religious": "https://images.unsplash.com/photo-1609766857041-ed402ea8069a?w=800&q=80",
+            "Museum": "https://images.unsplash.com/photo-1565008447742-97f6f38c985c?w=800&q=80",
+            "Beach": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80",
+            "Shopping": "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=800&q=80",
+        }
+        if "image_url" in self.experiences_df.columns:
+            def _resolve_img(row):
+                url = row.get("image_url")
+                if pd.notna(url) and str(url).strip() and str(url).strip().lower() != "nan":
+                    return str(url).strip()
+                cat = str(row.get("category", "Heritage"))
+                return cat_defaults.get(cat, "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
+            self.experiences_df["image_url"] = self.experiences_df.apply(_resolve_img, axis=1)
+
+        logger.info(f"Loaded {len(self.experiences_df)} experiences with images.")
 
     def get_experiences_df(self) -> pd.DataFrame:
         """Return the current in-memory experiences DataFrame."""
