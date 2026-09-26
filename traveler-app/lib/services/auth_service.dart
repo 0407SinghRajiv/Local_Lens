@@ -72,6 +72,32 @@ class AuthService {
   Stream<AuthState>? get authStateChanges => client?.auth.onAuthStateChange;
 
   /// Sign In with Email & Password
+  /// Formats raw authentication errors into clear, friendly guidance
+  String formatAuthError(dynamic error) {
+    if (error is AuthException) {
+      final msg = error.message.toLowerCase();
+      if (msg.contains('invalid login credentials')) {
+        return 'Incorrect email or password. If you haven\'t created an account yet, tap "Sign Up" below.';
+      }
+      if (msg.contains('email not confirmed')) {
+        return 'Email confirmation required. Please check your inbox or sign in with another email.';
+      }
+      if (msg.contains('user already registered')) {
+        return 'An account with this email already exists. Please tap "Sign In".';
+      }
+      if (msg.contains('password should be at least')) {
+        return 'Password must be at least 6 characters long.';
+      }
+      return error.message;
+    }
+    final errStr = error?.toString().toLowerCase() ?? '';
+    if (errStr.contains('socketexception') || errStr.contains('connection refused') || errStr.contains('network')) {
+      return 'Network connection issue. Please check your internet connection.';
+    }
+    return error?.toString() ?? 'Authentication failed. Please check your credentials.';
+  }
+
+  /// Sign In with Email & Password
   Future<AuthResponse> signInWithEmail({
     required String email,
     required String password,
@@ -98,10 +124,10 @@ class AuthService {
       }
 
       return response;
-    } on AuthException {
-      rethrow;
+    } on AuthException catch (e) {
+      throw AuthException(formatAuthError(e));
     } catch (e) {
-      throw AuthException(e.toString());
+      throw AuthException(formatAuthError(e));
     }
   }
 
@@ -136,10 +162,10 @@ class AuthService {
       }
 
       return response;
-    } on AuthException {
-      rethrow;
+    } on AuthException catch (e) {
+      throw AuthException(formatAuthError(e));
     } catch (e) {
-      throw AuthException(e.toString());
+      throw AuthException(formatAuthError(e));
     }
   }
 

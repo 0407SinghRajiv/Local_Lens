@@ -52,6 +52,41 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _handleDemoLogin() async {
+    setState(() => _isLoading = true);
+    // Auto-fill demo credentials
+    _emailController.text = 'traveler@locallens.app';
+    _passwordController.text = 'locallens123';
+    
+    // Attempt sign-in, if user does not exist, auto-create or navigate
+    final success = await ref.read(authControllerProvider.notifier).signIn(
+          email: _emailController.text,
+          password: _passwordController.text,
+        );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (success) {
+      context.go(AppRoutes.home);
+    } else {
+      // If demo account not registered yet in supabase, register it
+      final signupSuccess = await ref.read(authControllerProvider.notifier).signUp(
+            email: _emailController.text,
+            password: _passwordController.text,
+            fullName: 'Local Traveler',
+          );
+      if (mounted) {
+        if (signupSuccess) {
+          context.go(AppRoutes.home);
+        } else {
+          // Fallback directly to home for seamless demo testing
+          context.go(AppRoutes.home);
+        }
+      }
+    }
+  }
+
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
 
@@ -411,7 +446,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 12),
+
+                  // Quick Demo Sign-In Button
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _handleDemoLogin,
+                    icon: const Icon(Icons.flash_on_rounded, color: LocalLensColors.accentOrange, size: 20),
+                    label: Text(
+                      'Quick Demo Sign-In',
+                      style: LocalLensTypography.button.copyWith(
+                        color: LocalLensColors.textPrimary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: LocalLensColors.border),
+                      minimumSize: const Size(double.infinity, LocalLensDimensions.buttonHeight),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(LocalLensDimensions.buttonRadius),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
 
                   // Sign Up Link
                   Row(
