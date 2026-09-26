@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React from "react";
 import { ExperienceListing } from "@/types/experience";
@@ -104,10 +104,15 @@ export const AiQualityAuditModal: React.FC<AiQualityAuditModalProps> = ({
                   <CheckCircle2 className="w-4 h-4" />
                   <span>Good to List (Optimal)</span>
                 </div>
-              ) : (
+              ) : audit.score >= 50 ? (
                 <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Needs Quality Refinement</span>
+                  <span>Eligible to Publish</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-bold">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Publishing Locked (&lt; 50)</span>
                 </div>
               )}
             </div>

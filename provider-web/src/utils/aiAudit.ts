@@ -1,4 +1,4 @@
-﻿import { ExperienceListing } from "@/types/experience";
+import { ExperienceListing } from "@/types/experience";
 
 export interface AuditCheckItem {
   id: string;
@@ -11,6 +11,8 @@ export interface AuditCheckItem {
 
 export interface AuditResult {
   score: number;
+  canPublish: boolean;
+  minPublishScore: number;
   status: "excellent" | "good" | "needs_improvement";
   summary: string;
   checks: AuditCheckItem[];
@@ -100,10 +102,15 @@ export function performAIAudit(listing: ExperienceListing): AuditResult {
   } else if (score >= 75) {
     status = "good";
     summary = "Solid listing! A couple of quick enhancements can unlock maximum booking conversion.";
+  } else if (score < 50) {
+    status = "needs_improvement";
+    summary = "Quality score is below 50. Publishing is disabled until essential listing standards are met.";
   }
 
   return {
     score,
+    canPublish: score >= 50,
+    minPublishScore: 50,
     status,
     summary,
     checks,

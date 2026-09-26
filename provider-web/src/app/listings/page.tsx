@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
@@ -12,6 +12,7 @@ import { ExperienceListing, BoostPackage } from "@/types/experience";
 import { formatINR } from "@/utils/geoMath";
 import { AiQualityAuditModal } from "@/components/modals/AiQualityAuditModal";
 import { SponsorshipBoostModal } from "@/components/modals/SponsorshipBoostModal";
+import { SponsorCampaignsTable } from "@/components/sponsors/SponsorCampaignsTable";
 import {
   Plus,
   Search,
@@ -22,12 +23,15 @@ import {
   CheckCircle2,
   PauseCircle,
   PlayCircle,
+  LayoutGrid,
+  Table,
 } from "lucide-react";
 
 export default function ListingsPage() {
   const [experiences, setExperiences] = useState<ExperienceListing[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
+  const [activeTab, setActiveTab] = useState<"listings" | "sponsor_campaigns">("listings");
 
   // Modals
   const [selectedForAudit, setSelectedForAudit] = useState<ExperienceListing | null>(null);
@@ -36,13 +40,29 @@ export default function ListingsPage() {
   const [selectedForBoost, setSelectedForBoost] = useState<ExperienceListing | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
 
-  const loadExperiences = () => {
-    setExperiences(getStoredExperiences());
+  const loadExperiences = async () => {
+    try {
+      const resp = await fetch("/api/experiences?all=true");
+      const res = await resp.json();
+      if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+        setExperiences(res.data);
+        return;
+      }
+    } catch (e) {
+      console.warn("API experience load notice:", e);
+    }
+    // Fallback to local storage only if offline/unreachable
+    const stored = getStoredExperiences();
+    if (stored && stored.length > 0) {
+      setExperiences(stored);
+    }
   };
 
   useEffect(() => {
     loadExperiences();
-    const handleUpdate = () => loadExperiences();
+    const handleUpdate = () => {
+      loadExperiences();
+    };
     window.addEventListener("experiences_updated", handleUpdate);
     return () => window.removeEventListener("experiences_updated", handleUpdate);
   }, []);
@@ -88,6 +108,10 @@ export default function ListingsPage() {
     saveStoredExperiences(updated);
   };
 
+  const boostedCount = useMemo(() => {
+    return experiences.filter((e) => e.status === "boosted").length;
+  }, [experiences]);
+
   const filtered = useMemo(() => {
     return experiences.filter((exp) => {
       const matchesSearch =
@@ -104,65 +128,129 @@ export default function ListingsPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-500 selection:text-white pb-20">
       <ProviderNavbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-6">
         {/* Header Strip */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
           <div>
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
               <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-                My Registered Experiences
+                Provider Experience Hub &amp; Sponsorships
               </h1>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Manage status, review AI quality compliance, and activate sponsored promotions
+              Manage status, review AI quality compliance, track database sponsor campaigns, and activate 3D radar boosts
             </p>
           </div>
 
-          <Link
-            href="/listings/new"
-            className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5"
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (experiences.length > 0) {
+                  setSelectedForBoost(experiences[0]);
+                  setIsBoostOpen(true);
+                }
+              }}
+              className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-95 text-white font-extrabold text-xs shadow-lg shadow-violet-600/25 transition-all flex items-center gap-1.5"
+            >
+              <Zap className="w-4 h-4 fill-white" />
+              <span>Boost / Sponsor</span>
+            </button>
+
+            <Link
+              href="/experiences/new"
+              className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Listing</span>
+            </Link>
+          </div>
+        </div>
+
+        {/* Tab Switcher: "Experiences & Listings" vs "Sponsor Campaigns Table" */}
+        <div className="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-fit">
+          <button
+            onClick={() => setActiveTab("listings")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === "listings"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
           >
-            <Plus className="w-4 h-4" />
-            <span>Create New Listing</span>
-          </Link>
+            <LayoutGrid className="w-3.5 h-3.5" />
+            <span>My Listings</span>
+            <span className="px-1.5 py-0.5 rounded-full bg-slate-100 text-[10px] font-extrabold">
+              {experiences.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("sponsor_campaigns")}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              activeTab === "sponsor_campaigns"
+                ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm"
+                : "text-slate-600 hover:text-slate-900"
+            }`}
+          >
+            <Table className="w-3.5 h-3.5" />
+            <Zap className="w-3.5 h-3.5 fill-current text-yellow-300" />
+            <span>Sponsor Campaigns Table</span>
+            <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+              activeTab === "sponsor_campaigns" ? "bg-white/20 text-white" : "bg-violet-100 text-violet-700"
+            }`}>
+              {boostedCount > 0 ? `${boostedCount} Active` : "Database"}
+            </span>
+          </button>
         </div>
 
-        {/* Search & Categories Bar */}
-        <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="relative w-full md:w-96">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search listings by title, city, or tags..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
-            />
-          </div>
+        {/* Render Tab Contents */}
+        {activeTab === "sponsor_campaigns" ? (
+          <SponsorCampaignsTable
+            onOpenBoostModal={() => {
+              if (experiences.length > 0) {
+                setSelectedForBoost(experiences[0]);
+                setIsBoostOpen(true);
+              }
+            }}
+          />
+        ) : (
+          <>
+            {/* Search & Categories Bar */}
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+              <div className="relative w-full md:w-96">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search listings by title, city, or tags..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-white border border-slate-200 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600"
+                />
+              </div>
 
-          <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-1 scrollbar-none text-xs font-semibold">
-            {["All", "Heritage", "Culinary & Food", "Nature & Adventure", "Culture & Arts"].map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setFilterCategory(cat)}
-                className={`px-3.5 py-1.5 rounded-xl shrink-0 transition-all ${
-                  filterCategory === cat
-                    ? "bg-emerald-600 text-white font-bold shadow-sm"
-                    : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
-        </div>
+              <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-1 scrollbar-none text-xs font-semibold">
+                {["All", "Heritage", "Culinary & Food", "Nature & Adventure", "Culture & Arts"].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFilterCategory(cat)}
+                    className={`px-3.5 py-1.5 rounded-xl shrink-0 transition-all ${
+                      filterCategory === cat
+                        ? "bg-emerald-600 text-white font-bold shadow-sm"
+                        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-100"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Listings Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filtered.map((exp) => {
-            const isBoosted = exp.status === "boosted";
-            const isNeedsAudit = exp.status === "needs_improvement";
+            {/* Listings Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filtered.map((exp) => {
+                const isBoosted = exp.status === "boosted";
+                const isNeedsAudit = exp.status === "needs_improvement";
+
             const isPaused = exp.status === "paused";
 
             return (
@@ -306,7 +394,9 @@ export default function ListingsPage() {
             );
           })}
         </div>
-      </main>
+      </>
+    )}
+  </main>
 
       {/* MODALS */}
       <AiQualityAuditModal

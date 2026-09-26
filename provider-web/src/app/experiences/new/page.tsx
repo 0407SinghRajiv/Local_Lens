@@ -3,11 +3,9 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   Compass,
-  ArrowLeft,
   ArrowRight,
   Save,
   CheckCircle2,
@@ -18,34 +16,39 @@ import {
   X,
   MapPin,
   Clock,
-  Calendar,
-  Sparkles,
   ChevronDown,
   ChevronUp,
   Eye,
   Rocket,
-  ShieldCheck,
   Star,
   Users,
-  Layers,
   Search,
   Loader2,
+  Lock,
+  ShieldAlert,
+  ShieldCheck,
+  Scan,
+  ExternalLink,
+  FileText,
+  Sparkles,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { searchPlaceLocation } from "@/services/geocodingService";
 import { supabase } from "@/lib/supabaseClient";
 import {
-  getStoredExperiences,
-  saveStoredExperiences,
   getStoredExperiencesForProvider,
   saveStoredExperiencesForProvider,
 } from "@/services/mockExperiences";
-import { getProviderProfile } from "@/lib/authSession";
+import { getProviderProfile, ProviderProfile } from "@/lib/authSession";
 import { ExperienceListing, ExperienceCategory } from "@/types/experience";
 import { AIContentValidatorWidget } from "@/components/ai/AIContentValidatorWidget";
-import { checkProfanity, checkClarity, validateExperienceLocations } from "@/lib/aiValidator";
+import {
+  validateFullListing,
+  MIN_PUBLISH_AI_SCORE,
+} from "@/lib/aiValidator";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { AadhaarOcrVerificationModal } from "@/components/modals/AadhaarOcrVerificationModal";
 
 // Google Maps & OpenStreetMap Pin Dropper dynamically loaded client-side
 const GoogleMapPinDropper = dynamic(
@@ -80,25 +83,30 @@ const SAMPLE_PHOTOS = [
 ];
 
 export default function SimplifiedExperienceCreationPage() {
-  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { t } = useI18n();
 
   // Active Provider Identity (Multi-tenant isolation)
   const [currentProviderId, setCurrentProviderId] = useState<string>("provider_default");
   const [currentProviderEmail, setCurrentProviderEmail] = useState<string>("provider@locallens.in");
+  const [providerProfile, setProviderProfile] = useState<ProviderProfile | null>(null);
+  const [showAadhaarModal, setShowAadhaarModal] = useState<boolean>(false);
+
+  const isVerified = Boolean(providerProfile?.verified && providerProfile?.aadhaarVerified);
 
   useEffect(() => {
     async function initProviderIdentity() {
       try {
         const prof = await getProviderProfile();
-        let sessionData: any = null;
+        setProviderProfile(prof);
+
+        let sessionData: Record<string, unknown> | null = null;
         try {
           const { data } = await supabase.auth.getSession();
-          sessionData = data?.session?.user;
+          sessionData = (data?.session?.user as unknown as Record<string, unknown>) || null;
         } catch {}
 
-        let localSession: any = null;
+        let localSession: Record<string, unknown> | null = null;
         if (typeof window !== "undefined") {
           try {
             const raw = localStorage.getItem("locallens_provider_session");
@@ -121,13 +129,25 @@ export default function SimplifiedExperienceCreationPage() {
           prof?.email ||
           "provider@locallens.in";
 
-        setCurrentProviderId(uid);
-        setCurrentProviderEmail(uemail);
+        setCurrentProviderId(String(uid));
+        setCurrentProviderEmail(String(uemail));
       } catch (e) {
         console.warn("Provider identity notice:", e);
       }
     }
     initProviderIdentity();
+
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail) {
+        setProviderProfile(e.detail);
+      } else {
+        getProviderProfile().then((p) => setProviderProfile(p));
+      }
+    };
+    window.addEventListener("locallens_profile_updated", handleProfileUpdate);
+    return () => {
+      window.removeEventListener("locallens_profile_updated", handleProfileUpdate);
+    };
   }, []);
 
   // -------------------------------------------------------------
@@ -203,6 +223,7 @@ export default function SimplifiedExperienceCreationPage() {
   const [saveToast, setSaveToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [publishedListing, setPublishedListing] = useState<ExperienceListing | null>(null);
+  const [showLowQualityModal, setShowLowQualityModal] = useState(false);
 
   // Multi-show objects for validation & saving
   const show1Data = useMemo(
@@ -234,6 +255,24 @@ export default function SimplifiedExperienceCreationPage() {
           }
         : null,
     [hasShow2, meetingPoint2, coords2, startTime2, endTime2]
+  );
+
+  const hasValidPhotos = useMemo(
+    () => photos.some((p) => p && p.trim().length > 0),
+    [photos]
+  );
+
+  // Real-time AI Quality Check score calculation (0 - 100)
+  const aiQuality = useMemo(
+    () =>
+      validateFullListing(
+        experienceName,
+        description,
+        show1Data,
+        show2Data,
+        hasValidPhotos
+      ),
+    [experienceName, description, show1Data, show2Data, hasValidPhotos]
   );
 
   // Active show convenience accessors for map
@@ -355,8 +394,9 @@ export default function SimplifiedExperienceCreationPage() {
       setFormError("Please write a short description explaining what travelers will do (at least 15 characters).");
       return false;
     }
-    if (photos.length === 0) {
-      setFormError("Please add at least one photo for your experience.");
+    const validPhotos = photos.filter((p) => p && p.trim().length > 0);
+    if (validPhotos.length === 0) {
+      setFormError("An image of the shop or experience listing is COMPULSORY. Please upload at least one photo of your venue/shop.");
       return false;
     }
     return true;
@@ -396,6 +436,12 @@ export default function SimplifiedExperienceCreationPage() {
   const handleSaveDraft = async () => {
     setSaveToast(null);
     setFormError(null);
+
+    const validPhotos = photos.filter((p) => p && p.trim().length > 0);
+    if (validPhotos.length === 0) {
+      setFormError("An image of the shop or experience listing is COMPULSORY before saving a draft.");
+      return;
+    }
 
     const currentList = getStoredExperiencesForProvider(currentProviderId);
     const draftId = `EXP-DFT-${Date.now().toString().slice(-4)}`;
@@ -458,7 +504,14 @@ export default function SimplifiedExperienceCreationPage() {
         category: draftListing.category,
         sub_category: draftListing.sub_category,
         description: draftListing.description,
-        tags: highlights.concat([`provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`]).join(", "),
+        tags: highlights.concat([
+          `provider:${currentProviderId}`,
+          `provider_email:${currentProviderEmail}`,
+          `google_map:https://www.google.com/maps?q=${coords1.lat},${coords1.lng}`,
+          `lat:${coords1.lat}`,
+          `lng:${coords1.lng}`,
+          `meeting_point:${meetingPoint1}`
+        ]).join(", "),
         price_inr: `₹${draftListing.price_inr_clean}`,
         duration_hours: `${draftListing.duration_hours_clean} hours`,
         best_for: "Travelers & Explorers",
@@ -477,7 +530,7 @@ export default function SimplifiedExperienceCreationPage() {
         hidden_gem: isHiddenGem ? "Yes" : "No",
         image_url: photos[0] || "",
         source_name: `provider:${currentProviderId}`,
-        source_url: `https://locallens.in/provider/${currentProviderId}`,
+        source_url: `https://www.google.com/maps?q=${coords1.lat},${coords1.lng}`,
         last_verified: new Date().toISOString(),
       };
 
@@ -500,7 +553,32 @@ export default function SimplifiedExperienceCreationPage() {
   // Publish Experience Handler
   // -------------------------------------------------------------
   const handlePublish = async () => {
+    // 1. Aadhaar Card OCR Verification Gate: unverified providers cannot publish listings
+    if (!isVerified) {
+      setShowAadhaarModal(true);
+      setFormError(
+        "Government Aadhaar Card OCR Verification is compulsory! Please scan and verify your Aadhaar card before publishing this experience listing."
+      );
+      return;
+    }
+
     if (!validateStep1() || !validateStep2()) {
+      return;
+    }
+
+    // 2. Compulsory shop/listing image validation
+    const validPhotos = photos.filter((p) => p && p.trim().length > 0);
+    if (validPhotos.length === 0) {
+      setFormError("An image of the shop or experience listing is COMPULSORY. Please add at least one photo.");
+      return;
+    }
+
+    // 3. AI Quality Check Gate: Minimum score of 50 required to publish
+    if (aiQuality.overallScore < MIN_PUBLISH_AI_SCORE) {
+      setShowLowQualityModal(true);
+      setFormError(
+        `Cannot upload experience: AI Quality Check score is ${aiQuality.overallScore}/100. A minimum score of ${MIN_PUBLISH_AI_SCORE}/100 is strictly required to publish.`
+      );
       return;
     }
 
@@ -544,14 +622,14 @@ export default function SimplifiedExperienceCreationPage() {
       best_time: startTime1,
       season: "All Year",
       accessibility: "Standard",
-      images: photos.length > 0 ? photos : SAMPLE_PHOTOS,
+      images: validPhotos,
       description: description.trim(),
       meeting_point: meetingPoint1,
       inclusions: highlights,
       rules: ["Valid government ID required", "Arrive 10 minutes before start time"],
       cancellation_policy: "100% refund up to 24 hours prior",
       status: "active",
-      health_score: 95,
+      health_score: aiQuality.overallScore,
       earnings_generated_inr: 0,
       bookings_count: 0,
       rating: 5.0,
@@ -574,7 +652,14 @@ export default function SimplifiedExperienceCreationPage() {
       category: newListing.category,
       sub_category: newListing.sub_category,
       description: newListing.description,
-      tags: highlights.concat([`provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`]).join(", "),
+      tags: highlights.concat([
+        `provider:${currentProviderId}`,
+        `provider_email:${currentProviderEmail}`,
+        `google_map:https://www.google.com/maps?q=${newListing.latitude},${newListing.longitude}`,
+        `lat:${newListing.latitude}`,
+        `lng:${newListing.longitude}`,
+        `meeting_point:${meetingPoint1}`
+      ]).join(", "),
       price_inr: `₹${newListing.price_inr_clean}`,
       price_inr_clean: newListing.price_inr_clean,
       duration_hours: `${newListing.duration_hours_clean} hours`,
@@ -592,10 +677,12 @@ export default function SimplifiedExperienceCreationPage() {
       accessibility: newListing.accessibility,
       local_experience: isAuthenticLocal ? "Yes" : "No",
       hidden_gem: isHiddenGem ? "Yes" : "No",
-      image_url: photos[0] || "",
-      images: photos.length > 0 ? photos : SAMPLE_PHOTOS,
+      image_url: validPhotos[0] || "",
+      images: validPhotos,
+      verified: isVerified,
+      provider_verified: isVerified,
       source_name: `provider:${currentProviderId}`,
-      source_url: `https://locallens.in/provider/${currentProviderId}`,
+      source_url: `https://www.google.com/maps?q=${newListing.latitude},${newListing.longitude}`,
       last_verified: new Date().toISOString(),
     };
 
@@ -609,7 +696,7 @@ export default function SimplifiedExperienceCreationPage() {
       await fetch("/api/experiences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, provider_id: currentProviderId, provider_email: currentProviderEmail, images: photos.length > 0 ? photos : SAMPLE_PHOTOS }),
+        body: JSON.stringify({ ...payload, provider_id: currentProviderId, provider_email: currentProviderEmail, images: validPhotos }),
       });
     } catch (apiErr) {
       console.warn("API sync note:", apiErr);
@@ -617,6 +704,9 @@ export default function SimplifiedExperienceCreationPage() {
 
     setIsSubmitting(false);
     setPublishedListing(newListing);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event("experiences_updated"));
+    }
 
     // Launch celebratory confetti
     try {
@@ -758,6 +848,52 @@ export default function SimplifiedExperienceCreationPage() {
       {/* Main Wizard Content Area */}
       {/* ------------------------------------------------------------- */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 space-y-5">
+        {/* Provider Verification Gate Banner */}
+        {!isVerified ? (
+          <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-amber-500/5 border-2 border-amber-500/30 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-amber-500/30">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="font-black text-sm text-slate-900 flex items-center gap-2">
+                  <span>Government Aadhaar OCR Verification Required</span>
+                  <span className="text-[10px] uppercase font-black px-2 py-0.5 rounded-full bg-amber-500 text-white shadow-xs">
+                    Compulsory
+                  </span>
+                </div>
+                <div className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                  You must scan and verify your Aadhaar card via OCR. Without completing verification, you cannot upload or publish experience listings.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAadhaarModal(true)}
+              className="w-full md:w-auto px-5 py-2.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-black shadow-lg shadow-amber-600/25 flex items-center justify-center gap-2 shrink-0 transition-all cursor-pointer"
+            >
+              <Scan className="w-4 h-4" />
+              <span>Scan &amp; Verify Aadhaar with OCR</span>
+            </button>
+          </div>
+        ) : (
+          <div className="p-3 px-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-950">
+            <div className="flex items-center gap-2.5">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-bold">
+                Aadhaar Verified Provider:{" "}
+                <span className="font-semibold text-emerald-800">
+                  {providerProfile?.aadhaarName || providerProfile?.name}
+                </span>{" "}
+                (Aadhaar UID: {providerProfile?.aadhaarNumber ? `•••• ${providerProfile.aadhaarNumber.slice(-4)}` : "Verified"})
+              </span>
+            </div>
+            <span className="text-[10.5px] font-extrabold text-emerald-700 px-2.5 py-0.5 rounded-full bg-emerald-100/80 border border-emerald-300 w-fit">
+              ✓ Verified &amp; Authorized to Publish
+            </span>
+          </div>
+        )}
+
         {/* Save Draft Toast */}
         {saveToast && (
           <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in">
@@ -795,6 +931,7 @@ export default function SimplifiedExperienceCreationPage() {
           onApplyPolish={(polished) => setDescription(polished)}
           show1={show1Data}
           show2={show2Data}
+          hasImage={hasValidPhotos}
         />
 
         {/* ========================================================= */}
@@ -894,13 +1031,28 @@ export default function SimplifiedExperienceCreationPage() {
             {/* Photos (Functional Upload & Delete) */}
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700">
-                  Photos ({photos.length}) <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center gap-2">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Photos of Shop / Venue ({photos.length}) <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                    Compulsory
+                  </span>
+                </div>
                 <span className="text-[10.5px] text-slate-400">
                   JPG / PNG • Upload from computer or paste image link
                 </span>
               </div>
+              <p className="text-[11px] text-slate-500">
+                An image of the shop, venue, or activity is strictly compulsory. Submissions without photos will be rejected.
+              </p>
+
+              {photos.length === 0 && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>An image of the shop or experience listing is COMPULSORY. Please upload a photo or add an image URL.</span>
+                </div>
+              )}
 
               {/* Photo Thumbnails Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
@@ -1533,6 +1685,63 @@ export default function SimplifiedExperienceCreationPage() {
                 </div>
               </div>
 
+              {/* Aadhaar Verification Gate Warning Banner if unverified */}
+              {!isVerified && (
+                <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs flex items-start gap-3 shadow-xs animate-in fade-in">
+                  <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="font-extrabold text-amber-900 flex items-center gap-2">
+                      <span>Government Aadhaar Verification Required</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 font-black uppercase">
+                        Unverified Provider
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-snug">
+                      Without completing Aadhaar Card OCR verification, you cannot publish experience listings. Please scan and verify your Aadhaar card to activate your host privileges.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAadhaarModal(true)}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-black text-xs shadow-sm flex items-center gap-1.5 cursor-pointer mt-1"
+                    >
+                      <Scan className="w-3.5 h-3.5" />
+                      <span>Verify Aadhaar via OCR Now</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Quality Check Warning Banner if score < 50 */}
+              {aiQuality.overallScore < MIN_PUBLISH_AI_SCORE && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-3 shadow-xs animate-in fade-in">
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <div className="font-extrabold text-rose-800 flex items-center gap-2">
+                      <span>Publishing Blocked — AI Quality Score: {aiQuality.overallScore}/100</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-200 text-rose-900 font-black uppercase">
+                        Min {MIN_PUBLISH_AI_SCORE} Required
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 leading-snug">
+                      To safeguard traveler satisfaction, LocalLens requires an AI Quality Check score of at least {MIN_PUBLISH_AI_SCORE}/100 before an experience can be published.
+                      {aiQuality.profanity.hasBadWords && " Inappropriate content was detected."}
+                      {aiQuality.clarity.issues.length > 0 && ` ${aiQuality.clarity.issues[0]}`}
+                      {!aiQuality.location.isValid && " Location map pin must be verified."}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStep(1);
+                        window.scrollTo({ top: 0, behavior: "smooth" });
+                      }}
+                      className="mt-1 text-[11px] font-bold text-rose-800 underline hover:text-rose-950 cursor-pointer block"
+                    >
+                      &larr; Return to Step 1 to improve listing details
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Bottom Actions for Step 3 */}
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
                 <button
@@ -1554,12 +1763,50 @@ export default function SimplifiedExperienceCreationPage() {
 
                   <button
                     type="button"
-                    onClick={handlePublish}
+                    onClick={() => {
+                      if (!isVerified) {
+                        setShowAadhaarModal(true);
+                        setFormError("Government Aadhaar OCR Verification is compulsory before publishing.");
+                        return;
+                      }
+                      if (aiQuality.overallScore < MIN_PUBLISH_AI_SCORE) {
+                        setShowLowQualityModal(true);
+                      } else {
+                        handlePublish();
+                      }
+                    }}
                     disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] disabled:opacity-50 text-white text-xs font-black shadow-md shadow-emerald-700/25 flex items-center gap-1.5 cursor-pointer transition-all"
+                    title={
+                      !isVerified
+                        ? "Aadhaar OCR verification is compulsory to publish. Click to scan Aadhaar."
+                        : aiQuality.overallScore < MIN_PUBLISH_AI_SCORE
+                        ? `AI Quality score is ${aiQuality.overallScore}/100. Minimum ${MIN_PUBLISH_AI_SCORE} required to publish. Click to review fixes.`
+                        : "Publish Experience"
+                    }
+                    className={`px-6 py-2.5 rounded-xl text-white text-xs font-black shadow-md flex items-center gap-1.5 transition-all cursor-pointer ${
+                      !isVerified
+                        ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/25"
+                        : aiQuality.overallScore < MIN_PUBLISH_AI_SCORE
+                        ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/25"
+                        : "bg-[#0e8a5b] hover:bg-[#0b744d] shadow-emerald-700/25"
+                    }`}
                   >
-                    <Rocket className="w-3.5 h-3.5" />
-                    <span>{isSubmitting ? "Publishing..." : "Publish Experience"}</span>
+                    {!isVerified ? (
+                      <Lock className="w-3.5 h-3.5 text-white" />
+                    ) : aiQuality.overallScore < MIN_PUBLISH_AI_SCORE ? (
+                      <Lock className="w-3.5 h-3.5 text-white" />
+                    ) : (
+                      <Rocket className="w-3.5 h-3.5" />
+                    )}
+                    <span>
+                      {isSubmitting
+                        ? "Publishing..."
+                        : !isVerified
+                        ? "Verify Aadhaar to Publish"
+                        : aiQuality.overallScore < MIN_PUBLISH_AI_SCORE
+                        ? `Publishing Blocked (${aiQuality.overallScore}/100)`
+                        : "Publish Experience"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1674,6 +1921,61 @@ export default function SimplifiedExperienceCreationPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Attached Google Map Location Card */}
+              <div className="bg-white rounded-3xl border border-slate-200 p-5 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-50 text-[#0e8a5b] flex items-center justify-center font-bold">
+                      <MapPin className="w-4 h-4 text-[#0e8a5b]" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">
+                        Attached Google Map Location
+                      </h4>
+                      <p className="text-[10px] text-slate-400">Stored in database &amp; traveler feed</p>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    GPS Coordinates
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold text-[10.5px]">Coordinates:</span>
+                    <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">
+                      {coords1.lat.toFixed(6)}, {coords1.lng.toFixed(6)}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold text-[10.5px]">Meeting Point / Venue:</span>
+                    <span className="font-semibold text-slate-800 text-[11px] truncate max-w-[200px]">
+                      {meetingPoint1}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 font-bold text-[10.5px]">City &amp; District:</span>
+                    <span className="font-semibold text-slate-800 text-[11px]">
+                      {coords1.district}, {coords1.city}
+                    </span>
+                  </div>
+                </div>
+
+                <a
+                  href={`https://www.google.com/maps?q=${coords1.lat},${coords1.lng}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-colors shadow-xs"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Open Attached Location on Google Maps</span>
+                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                </a>
+              </div>
             </div>
           </div>
         )}
@@ -1733,6 +2035,198 @@ export default function SimplifiedExperienceCreationPage() {
           </div>
         </div>
       )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* 7. Low AI Quality Score Pop-up Modal (Score < 50 Lock Alert)  */}
+      {/* ------------------------------------------------------------- */}
+      {showLowQualityModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white border border-rose-200 rounded-3xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Red/Rose Header */}
+            <div className="px-6 py-5 bg-gradient-to-r from-rose-950 via-red-900 to-slate-900 text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-600/60 border border-rose-400/40 text-rose-200 flex items-center justify-center shadow-lg">
+                  <Lock className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-extrabold tracking-tight">
+                      Listing Cannot Be Uploaded
+                    </h2>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500/40 border border-rose-400 text-rose-200">
+                      Score &lt; 50
+                    </span>
+                  </div>
+                  <p className="text-xs text-rose-200/80">
+                    AI Quality Check score must reach at least 50/100 to publish
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowLowQualityModal(false)}
+                className="p-1.5 rounded-xl text-rose-300 hover:text-white hover:bg-rose-800/50 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 text-xs text-slate-700">
+              {/* Score comparison display */}
+              <div className="p-4 rounded-2xl bg-rose-50/70 border border-rose-200/80 space-y-2.5">
+                <div className="flex items-center justify-between font-bold">
+                  <span className="text-slate-600 uppercase tracking-wider text-[10px]">
+                    Current AI Quality Check Score
+                  </span>
+                  <span className="text-rose-700 font-black text-sm">
+                    {aiQuality.overallScore} / 100
+                  </span>
+                </div>
+
+                {/* Progress bar */}
+                <div className="w-full h-3 rounded-full bg-rose-200/70 overflow-hidden relative">
+                  <div
+                    className={`h-full transition-all duration-500 ${
+                      aiQuality.overallScore < 30
+                        ? "bg-rose-600"
+                        : aiQuality.overallScore < 50
+                        ? "bg-amber-500"
+                        : "bg-emerald-500"
+                    }`}
+                    style={{ width: `${Math.max(5, aiQuality.overallScore)}%` }}
+                  />
+                  {/* 50% Threshold marker */}
+                  <div
+                    className="absolute top-0 bottom-0 w-0.5 bg-slate-900 z-10"
+                    style={{ left: "50%" }}
+                    title="50 Minimum Threshold"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-[10px] text-slate-500">
+                  <span>0 (Poor)</span>
+                  <span className="font-extrabold text-slate-800">
+                    Threshold: 50 Required to Publish
+                  </span>
+                  <span>100 (Optimal)</span>
+                </div>
+              </div>
+
+              {/* Failed Check Breakdown */}
+              <div className="space-y-2">
+                <div className="font-extrabold text-slate-900 uppercase text-[10px] tracking-wider">
+                  Quality Compliance Audit Results:
+                </div>
+
+                <div className="space-y-1.5">
+                  {/* Profanity */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                    aiQuality.profanity.hasBadWords
+                      ? "bg-rose-50 border-rose-200 text-rose-900 font-bold"
+                      : "bg-emerald-50/60 border-emerald-200 text-emerald-900"
+                  }`}>
+                    <span>Safety &amp; Language Filter</span>
+                    <span className="text-[10px] font-black uppercase">
+                      {aiQuality.profanity.hasBadWords ? "❌ Flagged Words Found" : "✓ Safe & Clean"}
+                    </span>
+                  </div>
+
+                  {/* Description Length */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                    description.trim().split(/\s+/).filter(Boolean).length < 20
+                      ? "bg-rose-50 border-rose-200 text-rose-900 font-bold"
+                      : "bg-emerald-50/60 border-emerald-200 text-emerald-900"
+                  }`}>
+                    <span>Experience Description</span>
+                    <span className="text-[10px] font-black uppercase">
+                      {description.trim().split(/\s+/).filter(Boolean).length < 20
+                        ? "❌ Too Brief (< 20 words)"
+                        : "✓ Sufficient Length"}
+                    </span>
+                  </div>
+
+                  {/* Location & Map Pin */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                    !meetingPoint1.trim()
+                      ? "bg-rose-50 border-rose-200 text-rose-900 font-bold"
+                      : "bg-emerald-50/60 border-emerald-200 text-emerald-900"
+                  }`}>
+                    <span>Google Map Pin &amp; Venue</span>
+                    <span className="text-[10px] font-black uppercase">
+                      {!meetingPoint1.trim() ? "❌ Venue Unpinned" : "✓ Pinned on Map"}
+                    </span>
+                  </div>
+
+                  {/* Highlights */}
+                  <div className={`p-2.5 rounded-xl border flex items-center justify-between ${
+                    highlights.length < 2
+                      ? "bg-amber-50 border-amber-200 text-amber-900 font-bold"
+                      : "bg-emerald-50/60 border-emerald-200 text-emerald-900"
+                  }`}>
+                    <span>Key Highlights &amp; Inclusions</span>
+                    <span className="text-[10px] font-black uppercase">
+                      {highlights.length < 2 ? "⚠️ Add at least 2 highlights" : "✓ Inclusions Added"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Steps */}
+              <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-950 space-y-1">
+                <div className="font-extrabold flex items-center gap-1.5 text-xs text-amber-900">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                  <span>How to reach 50+ score:</span>
+                </div>
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  1. Describe the itinerary and activities in detail (3-4 sentences in Step 1).<br />
+                  2. Verify the Google Map pin at your actual meeting point in Step 2.<br />
+                  3. Add at least two experience highlights.
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  handleSaveDraft();
+                  setShowLowQualityModal(false);
+                }}
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs transition-colors cursor-pointer"
+              >
+                Save as Draft
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLowQualityModal(false);
+                  setStep(1);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="px-5 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white font-extrabold text-xs shadow-md shadow-emerald-700/20 transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <span>Return to Step 1 &amp; Fix</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Aadhaar OCR Verification Modal */}
+      <AadhaarOcrVerificationModal
+        isOpen={showAadhaarModal}
+        onClose={() => setShowAadhaarModal(false)}
+        onVerified={(updated) => {
+          setProviderProfile(updated);
+          setFormError(null);
+        }}
+        requiredForPublish={true}
+      />
     </div>
   );
 }
+

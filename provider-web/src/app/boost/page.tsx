@@ -1369,13 +1369,13 @@ export default function BoostYourListingPage() {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-600 uppercase text-[10px] tracking-wider border-b border-slate-100">
                     <tr>
+                      <th className="py-3 px-4">Provider &amp; Shop</th>
                       <th className="py-3 px-4">Listing</th>
-                      <th className="py-3 px-4">Package</th>
-                      <th className="py-3 px-4">Amount</th>
+                      <th className="py-3 px-4">Package &amp; Amount</th>
                       <th className="py-3 px-4">Payment</th>
                       <th className="py-3 px-4">Status</th>
-                      <th className="py-3 px-4">Start At</th>
-                      <th className="py-3 px-4">End At</th>
+                      <th className="py-3 px-4">Window</th>
+                      <th className="py-3 px-4">Google Map</th>
                       <th className="py-3 px-4">Txn ID</th>
                     </tr>
                   </thead>
@@ -1383,15 +1383,24 @@ export default function BoostYourListingPage() {
                     {providerCampaigns.map((camp) => {
                       const isExpired = new Date(camp.end_at).getTime() < Date.now();
                       const statusDisplay = isExpired ? "expired" : camp.campaign_status;
+                      const lat = camp.experience_details?.latitude || 19.131102;
+                      const lng = camp.experience_details?.longitude || 72.81541;
 
                       return (
                         <tr key={camp.id} className="hover:bg-slate-50/60">
-                          <td className="py-3 px-4 font-bold text-slate-900 truncate max-w-[180px]">
+                          <td className="py-3 px-4 align-top">
+                            <div className="font-extrabold text-slate-900">{camp.owner_name || provider?.name || "Verified Host"}</div>
+                            <div className="text-[10px] text-slate-500 font-medium">{camp.shop_name || provider?.businessName || "Local Kayak Adventures"}</div>
+                            {camp.provider_phone && <div className="text-[10px] text-slate-400">{camp.provider_phone}</div>}
+                          </td>
+                          <td className="py-3 px-4 align-top font-bold text-slate-900 truncate max-w-[170px]">
                             {camp.listing_name}
                           </td>
-                          <td className="py-3 px-4 text-slate-600">{camp.sponsor_package}</td>
-                          <td className="py-3 px-4 font-bold text-slate-900">₹{camp.amount}</td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 align-top">
+                            <div className="font-bold text-slate-800">{camp.sponsor_package}</div>
+                            <div className="text-emerald-600 font-black">₹{camp.amount}</div>
+                          </td>
+                          <td className="py-3 px-4 align-top">
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                                 camp.payment_status === "paid"
@@ -1402,7 +1411,7 @@ export default function BoostYourListingPage() {
                               {camp.payment_status}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="py-3 px-4 align-top">
                             <span
                               className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                                 statusDisplay === "active"
@@ -1417,13 +1426,21 @@ export default function BoostYourListingPage() {
                               {statusDisplay}
                             </span>
                           </td>
-                          <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                            {new Date(camp.start_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                          <td className="py-3 px-4 align-top text-slate-500 text-[11px] whitespace-nowrap">
+                            <div>{new Date(camp.start_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</div>
+                            <div className="text-[10px] text-slate-400">to {new Date(camp.end_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}</div>
                           </td>
-                          <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                            {new Date(camp.end_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                          <td className="py-3 px-4 align-top">
+                            <a
+                              href={`https://www.google.com/maps?q=${lat},${lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-1 rounded hover:bg-emerald-100 border border-emerald-200"
+                            >
+                              <span>Map Pin ↗</span>
+                            </a>
                           </td>
-                          <td className="py-3 px-4 font-mono text-[10px] text-slate-400 truncate max-w-[120px]">
+                          <td className="py-3 px-4 align-top font-mono text-[10px] text-slate-400 truncate max-w-[110px]">
                             {camp.payment_transaction_id || "-"}
                           </td>
                         </tr>
