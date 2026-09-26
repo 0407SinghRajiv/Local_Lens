@@ -134,7 +134,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               child: Align(
                 alignment: Alignment.topCenter,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: 28),
+                  padding: const EdgeInsets.only(top: 24),
                   child: FadeTransition(
                     opacity: _fadeAnim,
                     child: ScaleTransition(
@@ -142,11 +142,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.85),
+                          color: Colors.white.withValues(alpha: 0.92),
                           borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.08),
+                              color: Colors.black.withValues(alpha: 0.1),
                               blurRadius: 20,
                               offset: const Offset(0, 4),
                             ),
@@ -163,37 +163,56 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
               ),
             ),
 
-            // Bottom subtle pulsing loading indicator
+            // Bottom subtle pulsing loading indicator & LocalLens footer
             Positioned(
-              bottom: 36,
+              bottom: 28,
               left: 0,
               right: 0,
               child: SafeArea(
-                child: Center(
-                  child: FadeTransition(
-                    opacity: _fadeAnim,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: List.generate(3, (index) {
-                        return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: index == 1
-                                ? LocalLensColors.accentOrange
-                                : LocalLensColors.primaryTeal,
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.2),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        );
-                      }),
-                    ),
+                child: FadeTransition(
+                  opacity: _fadeAnim,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(3, (index) {
+                          return Container(
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
+                            width: 8,
+                            height: 8,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: index == 1
+                                  ? LocalLensColors.accentOrange
+                                  : LocalLensColors.primaryTeal,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.25),
+                                  blurRadius: 6,
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'LocalLens • Discover Your World',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                          shadows: [
+                            Shadow(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              blurRadius: 6,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
