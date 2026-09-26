@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import {
   Bell,
   Search,
   Globe,
+  Settings,
 } from "lucide-react";
 import {
   getStoredWeatherPause,
@@ -15,10 +16,13 @@ import {
   getStoredExperiences,
   saveStoredExperiences,
 } from "@/services/mockExperiences";
+import { useI18n } from "@/lib/i18n";
+import { LanguageSelector } from "@/components/settings/LanguageSelector";
 
 export const ProviderNavbar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useI18n();
   const [weatherPaused, setWeatherPaused] = useState(false);
 
   useEffect(() => {
@@ -58,36 +62,37 @@ export const ProviderNavbar: React.FC = () => {
               <Compass className="w-6 h-6" />
             </div>
             <div>
-              <span className="font-extrabold text-xl text-slate-900 tracking-tight block leading-tight">
-                LocalLens
+              <span className="font-heading text-2xl text-slate-900 tracking-tight block leading-tight">
+                {t("nav.brand", "Local Lens")}
               </span>
               <span className="text-[11px] font-bold text-[#0e8a5b] tracking-wider uppercase">
-                &mdash; Provider
+                &mdash; {t("nav.provider", "Provider")}
               </span>
             </div>
           </Link>
 
           {/* Center Nav */}
           <nav className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#features" className="hover:text-slate-900 transition-colors">Features</a>
-            <a href="#how-it-works" className="hover:text-slate-900 transition-colors">How it Works</a>
-            <a href="#pricing" className="hover:text-slate-900 transition-colors">Pricing</a>
-            <a href="#faqs" className="hover:text-slate-900 transition-colors">FAQs</a>
+            <a href="#features" className="hover:text-slate-900 transition-colors">{t("nav.features", "Features")}</a>
+            <a href="#how-it-works" className="hover:text-slate-900 transition-colors">{t("nav.howItWorks", "How it Works")}</a>
+            <a href="#pricing" className="hover:text-slate-900 transition-colors">{t("nav.pricing", "Pricing")}</a>
+            <a href="#faqs" className="hover:text-slate-900 transition-colors">{t("nav.faqs", "FAQs")}</a>
           </nav>
 
-          {/* Action CTAs */}
-          <div className="flex items-center gap-4">
+          {/* Action CTAs & Language */}
+          <div className="flex items-center gap-3">
+            <LanguageSelector variant="navbar" />
             <Link
               href="/login"
-              className="text-sm font-bold text-slate-700 hover:text-slate-900 px-4 py-2"
+              className="text-sm font-bold text-slate-700 hover:text-slate-900 px-3 py-2"
             >
-              Login
+              {t("nav.login", "Login")}
             </Link>
             <Link
               href="/dashboard"
               className="px-5 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-sm font-bold shadow-md shadow-emerald-700/20 transition-all flex items-center gap-1.5"
             >
-              <span>Join as Host</span>
+              <span>{t("nav.joinAsHost", "Join as Host")}</span>
               <span>&rarr;</span>
             </Link>
           </div>
@@ -106,11 +111,11 @@ export const ProviderNavbar: React.FC = () => {
             <Compass className="w-5 h-5" />
           </div>
           <div>
-            <span className="font-black text-base text-slate-900 tracking-tight leading-none block">
-              Local Lens
+            <span className="font-heading text-xl text-slate-900 tracking-tight leading-none block">
+              {t("nav.brand", "Local Lens")}
             </span>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Provider
+              {t("nav.provider", "Provider")}
             </span>
           </div>
         </Link>
@@ -120,21 +125,35 @@ export const ProviderNavbar: React.FC = () => {
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="Search bookings, guests..."
+            placeholder={t("nav.searchPlaceholder", "Search bookings, guests, experiences...")}
             className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-100/80 border-none text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0e8a5b]/30"
           />
         </div>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Multilingual Switcher */}
+          <LanguageSelector variant="navbar" />
+
           {/* Notification Bell */}
-          <button className="relative p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors">
+          <button
+            className="relative p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
+            title={t("nav.notifications", "Notifications")}
+          >
             <Bell className="w-5 h-5" />
             <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center">
               3
             </span>
           </button>
 
+          {/* Settings link */}
+          <Link
+            href="/settings"
+            className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors"
+            title={t("nav.settings", "Settings")}
+          >
+            <Settings className="w-5 h-5" />
+          </Link>
           
           {/* Quick link to view public provider website */}
           <Link
@@ -142,17 +161,17 @@ export const ProviderNavbar: React.FC = () => {
             className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 hover:text-[#059669] hover:bg-emerald-50/60 hover:border-emerald-200 transition-colors shadow-sm"
           >
             <Globe className="w-3.5 h-3.5 text-[#059669]" />
-            <span>View Website</span>
+            <span>{t("nav.viewWebsite", "View Website")}</span>
           </Link>
           
           {/* Emergency Pause All Outdoor Switch */}
-          <div className="flex items-center gap-3 p-1.5 px-3 rounded-2xl bg-rose-50/70 border border-rose-100">
+          <div className="hidden lg:flex items-center gap-3 p-1.5 px-3 rounded-2xl bg-rose-50/70 border border-rose-100">
             <div className="flex flex-col text-right">
               <span className="text-[11px] font-bold text-rose-900 leading-tight">
-                Emergency Pause
+                {t("nav.emergencyPause", "Emergency Pause")}
               </span>
               <span className="text-[9px] text-rose-500 font-medium">
-                All Outdoor Listings
+                {t("nav.allOutdoor", "All Outdoor Listings")}
               </span>
             </div>
             <button

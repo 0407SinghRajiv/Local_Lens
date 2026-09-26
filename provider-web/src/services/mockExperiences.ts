@@ -1,4 +1,4 @@
-﻿import { ExperienceListing, BoostPackage } from "@/types/experience";
+import { ExperienceListing, BoostPackage } from "@/types/experience";
 
 export interface BookingRecord {
   booking_id: string;
@@ -291,6 +291,117 @@ export function saveStoredExperiences(experiences: ExperienceListing[]): void {
     localStorage.setItem(STORAGE_KEY_EXPERIENCES, JSON.stringify(experiences));
   } catch (err) {
     console.error("Failed to save experiences", err);
+  }
+}
+
+/**
+ * Returns experiences created specifically by the given provider ID/email.
+ * Ensures strict multi-tenant isolation so providers only see their own listings.
+ */
+export function getStoredExperiencesForProvider(
+  providerId?: string | null,
+  providerEmail?: string | null
+): ExperienceListing[] {
+  if (typeof window === "undefined") return [];
+  const cleanId = (providerId || "").trim().toLowerCase();
+  const cleanEmail = (providerEmail || "").trim().toLowerCase();
+  if (!cleanId && !cleanEmail) return [];
+
+  try {
+    const results: ExperienceListing[] = [];
+    const seen = new Set<string>();
+
+    // 1. Check primary ID key
+    if (cleanId) {
+      const raw = localStorage.getItem(`${STORAGE_KEY_EXPERIENCES}_${cleanId}`);
+      if (raw) {
+        const parsed: ExperienceListing[] = JSON.parse(raw);
+        for (const item of parsed) {
+          const k = item.experience_id || item.experience_name;
+          if (k && !seen.has(k)) {
+            seen.add(k);
+            results.push(item);
+          }
+        }
+      }
+    }
+
+    // 2. Check email key if different
+    if (cleanEmail && cleanEmail !== cleanId) {
+      const rawEmail = localStorage.getItem(`${STORAGE_KEY_EXPERIENCES}_${cleanEmail}`);
+      if (rawEmail) {
+        const parsed: ExperienceListing[] = JSON.parse(rawEmail);
+        for (const item of parsed) {
+          const k = item.experience_id || item.experience_name;
+          if (k && !seen.has(k)) {
+            seen.add(k);
+            results.push(item);
+          }
+        }
+      }
+    }
+
+    // 3. Fallback: scan global store and strictly filter by provider ID or email
+    const globalRaw = localStorage.getItem(STORAGE_KEY_EXPERIENCES);
+    if (globalRaw) {
+      const all: ExperienceListing[] = JSON.parse(globalRaw);
+      for (const exp of all) {
+        const pId = (exp.provider_id || "").toLowerCase();
+        const pEmail = (exp.provider_email || "").toLowerCase();
+        const match =
+          (cleanId && (pId === cleanId || pEmail === cleanId)) ||
+          (cleanEmail && (pId === cleanEmail || pEmail === cleanEmail));
+        if (match) {
+          const k = exp.experience_id || exp.experience_name;
+          if (k && !seen.has(k)) {
+            seen.add(k);
+            results.push(exp);
+          }
+        }
+      }
+    }
+
+    return results;
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Saves experiences exclusively for the given provider ID/email.
+ */
+export function saveStoredExperiencesForProvider(
+  providerId: string | null | undefined,
+  experiences: ExperienceListing[],
+  providerEmail?: string | null
+): void {
+  if (typeof window === "undefined") return;
+  const cleanId = (providerId || "").trim().toLowerCase();
+  const cleanEmail = (providerEmail || "").trim().toLowerCase();
+  if (!cleanId && !cleanEmail) return;
+
+  try {
+    if (cleanId) {
+      localStorage.setItem(`${STORAGE_KEY_EXPERIENCES}_${cleanId}`, JSON.stringify(experiences));
+    }
+    if (cleanEmail) {
+      localStorage.setItem(`${STORAGE_KEY_EXPERIENCES}_${cleanEmail}`, JSON.stringify(experiences));
+    }
+
+    // Also update global store with provider stamps preserved
+    const globalRaw = localStorage.getItem(STORAGE_KEY_EXPERIENCES);
+    const existing: ExperienceListing[] = globalRaw ? JSON.parse(globalRaw) : [];
+    const others = existing.filter((exp: any) => {
+      const pId = (exp.provider_id || "").toLowerCase();
+      const pEmail = (exp.provider_email || "").toLowerCase();
+      const isThisProvider =
+        (cleanId && (pId === cleanId || pEmail === cleanId)) ||
+        (cleanEmail && (pId === cleanEmail || pEmail === cleanEmail));
+      return !isThisProvider;
+    });
+    localStorage.setItem(STORAGE_KEY_EXPERIENCES, JSON.stringify([...experiences, ...others]));
+  } catch (err) {
+    console.error("Failed to save provider experiences", err);
   }
 }
 
