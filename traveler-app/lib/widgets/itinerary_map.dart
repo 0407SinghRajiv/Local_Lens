@@ -32,11 +32,9 @@ class ItineraryMapWidget extends StatefulWidget {
 class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
   GoogleMapController? _mapController;
   final Completer<GoogleMapController> _controllerCompleter = Completer();
-  
+
   Map<MarkerId, Marker> _markers = {};
   Set<Polyline> _polylines = {};
-  bool _isLoadingMap = true;
-  bool _hasError = false;
   MapType _currentMapType = MapType.normal;
   int? _activeSelectedIndex;
 
@@ -44,7 +42,8 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
   void initState() {
     super.initState();
     _activeSelectedIndex = widget.selectedIndex;
-    _buildMapElements();
+    _buildMapElementsSync();
+    _loadCustomMarkersAsync();
   }
 
   @override
@@ -54,19 +53,102 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
         oldWidget.startLocation != widget.startLocation ||
         oldWidget.selectedIndex != widget.selectedIndex) {
       _activeSelectedIndex = widget.selectedIndex;
-      _buildMapElements();
+      _buildMapElementsSync();
+      _loadCustomMarkersAsync();
       if (widget.selectedIndex != null && widget.selectedIndex != oldWidget.selectedIndex) {
         animateToExperienceIndex(widget.selectedIndex!);
       }
     }
   }
 
-  Future<void> _buildMapElements() async {
-    try {
-      final markersMap = <MarkerId, Marker>{};
-      final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
+  /// Synchronous map element construction guarantees markers and polylines are instantly present
+  void _buildMapElementsSync() {
+    final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
+    final markersMap = <MarkerId, Marker>{};
 
-      // 1. Add Start Location Marker
+    // 1. Start Marker
+    if (widget.startLocation != null) {
+      const startMarkerId = MarkerId('marker_start_location');
+      markersMap[startMarkerId] = Marker(
+        markerId: startMarkerId,
+        position: widget.startLocation!,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+        zIndexInt: 2,
+        infoWindow: InfoWindow(
+          title: 'Trip Starting Location',
+          snippet: widget.startAddress.isNotEmpty ? widget.startAddress : 'Origin',
+        ),
+        onTap: () {
+          setState(() {
+            _activeSelectedIndex = null;
+          });
+        },
+      );
+    }
+
+    // 2. Experience Markers
+    for (int i = 0; i < validItems.length; i++) {
+      final item = validItems[i];
+      final isSelected = _activeSelectedIndex == i;
+      final visitOrder = i + 1;
+      final markerId = MarkerId('exp_${item.id}_$visitOrder');
+
+      markersMap[markerId] = Marker(
+        markerId: markerId,
+        position: LatLng(item.latitude!, item.longitude!),
+        icon: BitmapDescriptor.defaultMarkerWithHue(
+          isSelected ? BitmapDescriptor.hueOrange : BitmapDescriptor.hueCyan,
+        ),
+        zIndexInt: isSelected ? 10 : (5 + i),
+        infoWindow: InfoWindow(
+          title: '$visitOrder. ${item.experienceName}',
+          snippet: '${item.startTime} – ${item.endTime} • ${item.category}',
+          onTap: () {
+            widget.onExperienceSelected?.call(i);
+          },
+        ),
+        onTap: () {
+          setState(() {
+            _activeSelectedIndex = i;
+          });
+          widget.onExperienceSelected?.call(i);
+        },
+      );
+    }
+
+    // 3. Route Polyline
+    final routePoints = GoogleMapsService.buildItineraryRoutePoints(
+      startLocation: widget.startLocation,
+      items: widget.items,
+    );
+
+    final polylinesSet = <Polyline>{};
+    if (routePoints.length >= 2) {
+      polylinesSet.add(
+        Polyline(
+          polylineId: const PolylineId('itinerary_main_route'),
+          points: routePoints,
+          color: LocalLensColors.primaryTeal,
+          width: 5,
+          geodesic: true,
+          startCap: Cap.roundCap,
+          endCap: Cap.roundCap,
+          jointType: JointType.round,
+        ),
+      );
+    }
+
+    _markers = markersMap;
+    _polylines = polylinesSet;
+  }
+
+  /// Asynchronously upgrade markers to custom numbered canvas badges
+  Future<void> _loadCustomMarkersAsync() async {
+    try {
+      final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
+      final upgradedMarkers = <MarkerId, Marker>{};
+
+      // Start Marker
       if (widget.startLocation != null) {
         final startIcon = await GoogleMapsService.createCustomNumberedMarker(
           text: 'START',
@@ -77,7 +159,7 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
         );
 
         const startMarkerId = MarkerId('marker_start_location');
-        markersMap[startMarkerId] = Marker(
+        upgradedMarkers[startMarkerId] = Marker(
           markerId: startMarkerId,
           position: widget.startLocation!,
           icon: startIcon,
@@ -94,7 +176,7 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
         );
       }
 
-      // 2. Add Numbered Experience Markers in exact itinerary visit order
+      // Numbered markers
       for (int i = 0; i < validItems.length; i++) {
         final item = validItems[i];
         final isSelected = _activeSelectedIndex == i;
@@ -111,7 +193,7 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
         );
 
         final markerId = MarkerId('exp_${item.id}_$visitOrder');
-        markersMap[markerId] = Marker(
+        upgradedMarkers[markerId] = Marker(
           markerId: markerId,
           position: LatLng(item.latitude!, item.longitude!),
           icon: icon,
@@ -132,44 +214,13 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
         );
       }
 
-      // 3. Build Connected Route Polyline in visit order
-      final routePoints = GoogleMapsService.buildItineraryRoutePoints(
-        startLocation: widget.startLocation,
-        items: widget.items,
-      );
-
-      final polylinesSet = <Polyline>{};
-      if (routePoints.length >= 2) {
-        polylinesSet.add(
-          Polyline(
-            polylineId: const PolylineId('itinerary_main_route'),
-            points: routePoints,
-            color: LocalLensColors.primaryTeal,
-            width: 5,
-            geodesic: true,
-            startCap: Cap.roundCap,
-            endCap: Cap.roundCap,
-            jointType: JointType.round,
-          ),
-        );
-      }
-
-      if (mounted) {
+      if (mounted && upgradedMarkers.isNotEmpty) {
         setState(() {
-          _markers = markersMap;
-          _polylines = polylinesSet;
-          _isLoadingMap = false;
-          _hasError = false;
+          _markers = upgradedMarkers;
         });
       }
     } catch (e) {
-      debugPrint('[ItineraryMapWidget] Error generating map elements: $e');
-      if (mounted) {
-        setState(() {
-          _isLoadingMap = false;
-          _hasError = true;
-        });
-      }
+      debugPrint('[ItineraryMapWidget] Custom marker upgrade error: $e');
     }
   }
 
@@ -203,7 +254,8 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
       setState(() {
         _activeSelectedIndex = index;
       });
-      _buildMapElements();
+      _buildMapElementsSync();
+      _loadCustomMarkersAsync();
     }
   }
 
@@ -214,38 +266,6 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
         (validItems.isNotEmpty
             ? LatLng(validItems.first.latitude!, validItems.first.longitude!)
             : const LatLng(18.9894, 73.1175));
-
-    if (_hasError && _markers.isEmpty) {
-      return Container(
-        height: 120,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: LocalLensColors.surfaceSecondary,
-          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
-          border: Border.all(color: LocalLensColors.border),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.map_outlined, color: LocalLensColors.textMuted, size: 32),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('Map Preview Unavailable', style: LocalLensTypography.titleSmall),
-                  const SizedBox(height: 4),
-                  Text(
-                    'We couldn\'t load the map route right now. Your complete itinerary is still available below.',
-                    style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
 
     return Container(
       height: widget.height,
@@ -278,8 +298,14 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
                 if (!_controllerCompleter.isCompleted) {
                   _controllerCompleter.complete(controller);
                 }
-                _buildMapElements();
-                Future.delayed(const Duration(milliseconds: 400), () {
+                setState(() {
+                  _buildMapElementsSync();
+                });
+                _loadCustomMarkersAsync();
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  if (mounted) fitAllBounds();
+                });
+                Future.delayed(const Duration(milliseconds: 800), () {
                   if (mounted) fitAllBounds();
                 });
               },
@@ -369,34 +395,6 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
                 right: 10,
                 bottom: 10,
                 child: _buildSelectedMarkerPreviewCard(widget.items[_activeSelectedIndex!], _activeSelectedIndex! + 1),
-              ),
-
-            // Loading Overlay if maps preparation in progress
-            if (_isLoadingMap)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  child: const Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            valueColor: AlwaysStoppedAnimation<Color>(LocalLensColors.primaryTeal),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Preparing your route...',
-                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: LocalLensColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
               ),
           ],
         ),

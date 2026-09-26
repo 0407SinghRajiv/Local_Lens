@@ -180,8 +180,13 @@ class ItineraryItem {
       iconType: json['iconType'] as String? ?? 'experience',
       travelToNextMinutes: (json['travel_to_next_minutes'] as num?)?.toInt() ?? 0,
       travelToNextDistanceKm: (json['travel_to_next_distance_km'] as num?)?.toDouble() ?? 0.0,
-      latitude: (json['latitude'] as num?)?.toDouble(),
-      longitude: (json['longitude'] as num?)?.toDouble(),
+      latitude: (json['latitude'] as num?)?.toDouble() ??
+          (json['lat'] as num?)?.toDouble() ??
+          double.tryParse(json['latitude']?.toString() ?? ''),
+      longitude: (json['longitude'] as num?)?.toDouble() ??
+          (json['lon'] as num?)?.toDouble() ??
+          (json['lng'] as num?)?.toDouble() ??
+          double.tryParse(json['longitude']?.toString() ?? ''),
     );
   }
 }
