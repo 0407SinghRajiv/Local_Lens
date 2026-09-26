@@ -521,3 +521,759 @@ class LocalLensNetworkImage extends StatelessWidget {
   }
 }
 
+/// Section Header with Title and optional action button
+class SectionHeader extends StatelessWidget {
+  final String title;
+  final String? actionText;
+  final VoidCallback? onActionTap;
+
+  const SectionHeader({
+    super.key,
+    required this.title,
+    this.actionText,
+    this.onActionTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAlignment.center,
+        children: [
+          Text(
+            title,
+            style: LocalLensTypography.titleLarge,
+          ),
+          if (actionText != null && onActionTap != null)
+            GestureDetector(
+              onTap: onActionTap,
+              child: Text(
+                actionText!,
+                style: LocalLensTypography.titleSmall.copyWith(
+                  color: LocalLensColors.primaryTeal,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rating Badge Pill (e.g., "★ 4.8")
+class RatingBadge extends StatelessWidget {
+  final double rating;
+  final int? reviewCount;
+
+  const RatingBadge({
+    super.key,
+    required this.rating,
+    this.reviewCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(AppRadius.full),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.star_rounded,
+            size: 14,
+            color: LocalLensColors.accentOrange,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            rating.toStringAsFixed(1),
+            style: LocalLensTypography.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: LocalLensColors.textPrimary,
+            ),
+          ),
+          if (reviewCount != null) ...[
+            const SizedBox(width: 2),
+            Text(
+              '($reviewCount)',
+              style: LocalLensTypography.caption.copyWith(
+                fontSize: 10,
+                color: LocalLensColors.textMuted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Hero Destination Card (Airbnb-inspired large photography card)
+class DestinationCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String imageUrl;
+  final String ctaText;
+  final VoidCallback onTap;
+
+  const DestinationCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    this.ctaText = 'Continue trip →',
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        height: 200,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          boxShadow: AppShadows.floating,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: LocalLensNetworkImage(
+                  imageUrl: imageUrl,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.black.withValues(alpha: 0.75),
+                        Colors.black.withValues(alpha: 0.15),
+                        Colors.black.withValues(alpha: 0.65),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.xl),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: LocalLensColors.accentOrange,
+                        borderRadius: BorderRadius.circular(AppRadius.full),
+                      ),
+                      child: Text(
+                        'CURRENT TRIP',
+                        style: LocalLensTypography.badge.copyWith(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: LocalLensTypography.displayMedium.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              subtitle,
+                              style: LocalLensTypography.bodyMedium.copyWith(
+                                color: Colors.white.withValues(alpha: 0.9),
+                              ),
+                            ),
+                            Text(
+                              ctaText,
+                              style: LocalLensTypography.titleSmall.copyWith(
+                                color: LocalLensColors.primaryTealLight,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Experience Card (Airbnb style, vertical/horizontal layout for local experiences)
+class ExperienceCard extends StatelessWidget {
+  final String title;
+  final String imageUrl;
+  final double rating;
+  final String category;
+  final double priceInr;
+  final String location;
+  final double? distanceKm;
+  final double? durationHours;
+  final bool isSaved;
+  final VoidCallback onTap;
+  final VoidCallback? onSaveTap;
+  final double width;
+
+  const ExperienceCard({
+    super.key,
+    required this.title,
+    required this.imageUrl,
+    required this.rating,
+    required this.category,
+    required this.priceInr,
+    required this.location,
+    this.distanceKm,
+    this.durationHours,
+    this.isSaved = false,
+    required this.onTap,
+    this.onSaveTap,
+    this.width = 220,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: width,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          boxShadow: AppShadows.card,
+          border: Border.all(color: LocalLensColors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+                  child: LocalLensNetworkImage(
+                    imageUrl: imageUrl,
+                    height: 130,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: GestureDetector(
+                    onTap: onSaveTap,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.1),
+                            blurRadius: 4,
+                          ),
+                        ],
+                      ),
+                      child: Icon(
+                        isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                        size: 18,
+                        color: isSaved ? LocalLensColors.accentOrange : LocalLensColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 10,
+                  left: 10,
+                  child: RatingBadge(rating: rating),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: LocalLensColors.primaryTealSoft,
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                        ),
+                        child: Text(
+                          category.toUpperCase(),
+                          style: LocalLensTypography.badge.copyWith(
+                            color: LocalLensColors.primaryTeal,
+                            fontSize: 9,
+                          ),
+                        ),
+                      ),
+                      if (distanceKm != null) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '${distanceKm!.toStringAsFixed(1)} km away',
+                          style: LocalLensTypography.caption.copyWith(fontSize: 10),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: LocalLensTypography.titleMedium.copyWith(fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 13, color: LocalLensColors.textMuted),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          location,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: LocalLensTypography.caption,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '₹${priceInr.toInt()}',
+                        style: LocalLensTypography.titleSmall.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: LocalLensColors.primaryTeal,
+                        ),
+                      ),
+                      if (durationHours != null)
+                        Text(
+                          '${durationHours!.toStringAsFixed(1)}h',
+                          style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.w600),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Wanderlog-inspired Trip Header Card
+class TripHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final int placesCount;
+  final String totalDuration;
+  final double estimatedCost;
+  final bool isMapView;
+  final ValueChanged<bool> onToggleView;
+
+  const TripHeader({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.placesCount,
+    required this.totalDuration,
+    required this.estimatedCost,
+    required this.isMapView,
+    required this.onToggleView,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        boxShadow: AppShadows.card,
+        border: Border.all(color: LocalLensColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: LocalLensTypography.titleLarge,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: LocalLensTypography.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+              // Map / List Toggle Pills
+              Container(
+                decoration: BoxDecoration(
+                  color: LocalLensColors.surfaceSecondary,
+                  borderRadius: BorderRadius.circular(AppRadius.full),
+                ),
+                padding: const EdgeInsets.all(3),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => onToggleView(false),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: !isMapView ? LocalLensColors.primaryTeal : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppRadius.full),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.format_list_bulleted_rounded,
+                              size: 15,
+                              color: !isMapView ? Colors.white : LocalLensColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'List',
+                              style: LocalLensTypography.caption.copyWith(
+                                color: !isMapView ? Colors.white : LocalLensColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => onToggleView(true),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isMapView ? LocalLensColors.primaryTeal : Colors.transparent,
+                          borderRadius: BorderRadius.circular(AppRadius.full),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.map_rounded,
+                              size: 15,
+                              color: isMapView ? Colors.white : LocalLensColors.textSecondary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Map',
+                              style: LocalLensTypography.caption.copyWith(
+                                color: isMapView ? Colors.white : LocalLensColors.textSecondary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _buildStatChip(Icons.place_rounded, '$placesCount places'),
+              const SizedBox(width: 10),
+              _buildStatChip(Icons.schedule_rounded, totalDuration),
+              const SizedBox(width: 10),
+              _buildStatChip(Icons.payments_rounded, '₹${estimatedCost.toInt()} est.'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatChip(IconData icon, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: LocalLensColors.primaryTealSoft,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: LocalLensColors.primaryTeal),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: LocalLensTypography.caption.copyWith(
+              color: LocalLensColors.primaryTealDark,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Wanderlog-inspired Itinerary Card Component
+class ItineraryCardWidget extends StatelessWidget {
+  final String time;
+  final String title;
+  final double rating;
+  final String category;
+  final String durationText;
+  final String? travelTimeFromPrevious;
+  final VoidCallback? onTap;
+  final VoidCallback? onDelete;
+  final VoidCallback? onReorder;
+
+  const ItineraryCardWidget({
+    super.key,
+    required this.time,
+    required this.title,
+    required this.rating,
+    required this.category,
+    required this.durationText,
+    this.travelTimeFromPrevious,
+    this.onTap,
+    this.onDelete,
+    this.onReorder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        if (travelTimeFromPrevious != null) ...[
+          Padding(
+            padding: const EdgeInsets.only(left: 36, top: 4, bottom: 8),
+            child: Row(
+              children: [
+                const Icon(Icons.directions_car_rounded, size: 14, color: LocalLensColors.accentOrange),
+                const SizedBox(width: 6),
+                Text(
+                  travelTimeFromPrevious!,
+                  style: LocalLensTypography.caption.copyWith(
+                    color: LocalLensColors.accentOrange,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        GestureDetector(
+          onTap: onTap,
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: LocalLensColors.border),
+              boxShadow: AppShadows.card,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Drag Handle Icon
+                Icon(
+                  Icons.drag_indicator_rounded,
+                  color: LocalLensColors.textMuted,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                // Time pill
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: LocalLensColors.primaryTealSoft,
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: Text(
+                    time,
+                    style: LocalLensTypography.caption.copyWith(
+                      color: LocalLensColors.primaryTealDark,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: LocalLensTypography.titleSmall,
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          RatingBadge(rating: rating),
+                          const SizedBox(width: 8),
+                          Text('•', style: LocalLensTypography.caption),
+                          const SizedBox(width: 8),
+                          Text(
+                            durationText,
+                            style: LocalLensTypography.caption,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                if (onDelete != null)
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 18, color: LocalLensColors.textMuted),
+                    onPressed: onDelete,
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Shimmer Skeleton Loading Card
+class LoadingCard extends StatelessWidget {
+  final double height;
+  final double? width;
+  final double borderRadius;
+
+  const LoadingCard({
+    super.key,
+    this.height = 140,
+    this.width,
+    this.borderRadius = AppRadius.md,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width ?? double.infinity,
+      height: height,
+      decoration: BoxDecoration(
+        color: LocalLensColors.surfaceSecondary,
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+    );
+  }
+}
+
+/// Friendly Empty State Widget per design.md Section 25
+class EmptyStateWidget extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? buttonText;
+  final VoidCallback? onButtonTap;
+
+  const EmptyStateWidget({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.buttonText,
+    this.onButtonTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xxl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: LocalLensColors.primaryTealSoft,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon,
+              size: 36,
+              color: LocalLensColors.primaryTeal,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          Text(
+            title,
+            style: LocalLensTypography.titleLarge,
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            message,
+            style: LocalLensTypography.bodyMedium,
+            textAlign: TextAlign.center,
+          ),
+          if (buttonText != null && onButtonTap != null) ...[
+            const SizedBox(height: AppSpacing.xl),
+            LocalLensPrimaryButton(
+              text: buttonText!,
+              onPressed: onButtonTap,
+              width: 200,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+

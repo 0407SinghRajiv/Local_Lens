@@ -258,6 +258,66 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ),
               ),
 
+              const SizedBox(height: 14),
+
+              // Swipe to Discover Banner (design.md Section 11 & 12)
+              GestureDetector(
+                onTap: () {
+                  context.push(AppRoutes.recommendationSwipe);
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    border: Border.all(color: LocalLensColors.border),
+                    boxShadow: AppShadows.card,
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: LocalLensColors.accentOrangeSoft,
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                        child: const Icon(
+                          Icons.swipe_rounded,
+                          color: LocalLensColors.accentOrange,
+                          size: 24,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Discover your way',
+                              style: LocalLensTypography.titleSmall.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Swipe right to save, up to add to trip',
+                              style: LocalLensTypography.caption,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 14,
+                        color: LocalLensColors.textMuted,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
               const SizedBox(height: 24),
 
               // ==============================================================
@@ -377,89 +437,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               const SizedBox(height: 12),
 
               SizedBox(
-                height: 230,
+                height: 250,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: LocalLensMockData.featuredExperiences.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
                     final exp = LocalLensMockData.featuredExperiences[index];
-                    return GestureDetector(
-                      onTap: () {
-                        context.push(AppRoutes.experienceDetails);
-                      },
-                      child: Container(
-                        width: 170,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                          boxShadow: LocalLensDimensions.softCardShadow,
-                          border: Border.all(color: LocalLensColors.border),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            ClipRRect(
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(LocalLensDimensions.radiusMedium)),
-                              child: Image.asset(
-                                exp.imageUrl,
-                                height: 110,
-                                width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Container(
-                                  height: 110,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(Icons.image, color: Colors.grey),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    exp.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: LocalLensTypography.titleMedium.copyWith(fontSize: 13),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.star_rounded, size: 14, color: LocalLensColors.accentOrange),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        exp.rating.toString(),
-                                        style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.w700),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text('•', style: LocalLensTypography.caption),
-                                      const SizedBox(width: 4),
-                                      Expanded(
-                                        child: Text(
-                                          exp.location,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: LocalLensTypography.caption,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '₹${exp.priceInr.toInt()}',
-                                    style: LocalLensTypography.caption.copyWith(
-                                      fontWeight: FontWeight.w800,
-                                      color: LocalLensColors.primaryTeal,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    return ExperienceCard(
+                      title: exp.title,
+                      imageUrl: exp.imageUrl,
+                      rating: exp.rating,
+                      category: exp.category,
+                      priceInr: exp.priceInr,
+                      location: exp.location,
+                      distanceKm: exp.distanceKm,
+                      durationHours: exp.durationHours,
+                      onTap: () => context.push(AppRoutes.experienceDetails),
+                      width: 200,
                     );
                   },
                 ),

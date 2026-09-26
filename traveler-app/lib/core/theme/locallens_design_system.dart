@@ -169,3 +169,45 @@ class LocalLensDimensions {
     ),
   ];
 }
+
+/// Token aliases per design.md specification
+class AppSpacing {
+  AppSpacing._();
+  static const double xs = 4.0;
+  static const double sm = 8.0;
+  static const double md = 12.0;
+  static const double lg = 16.0;
+  static const double xl = 20.0;
+  static const double xxl = 24.0;
+  static const double xxxl = 32.0;
+}
+
+class AppRadius {
+  AppRadius._();
+  static const double sm = 8.0;
+  static const double md = 16.0;
+  static const double lg = 20.0;
+  static const double xl = 24.0;
+  static const double sheet = 28.0;
+  static const double full = 999.0;
+}
+
+class AppShadows {
+  AppShadows._();
+  static const List<BoxShadow> card = [
+    BoxShadow(
+      color: Color(0x0C0B2545),
+      blurRadius: 16,
+      offset: Offset(0, 4),
+    ),
+  ];
+  static const List<BoxShadow> floating = [
+    BoxShadow(
+      color: Color(0x1A0B2545),
+      blurRadius: 24,
+      offset: Offset(0, 8),
+      spreadRadius: 1,
+    ),
+  ];
+}
+
