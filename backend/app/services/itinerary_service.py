@@ -4,6 +4,7 @@ Synthesizes time-ordered, budget-aware itineraries from traveler-selected experi
 Faithfully reproduces notebook greedy optimization and geographical ordering.
 """
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 import re
@@ -20,6 +21,7 @@ try:
     )
     from backend.app.services.recommendation_service import RecommendationService
     from backend.app.services.routing_service import RoutingService
+    from backend.app.services.place_image_resolver import PlaceImageResolver
 except ImportError:
     from app.schemas.itinerary_schemas import (
         ItineraryGenerateRequest,
@@ -29,6 +31,7 @@ except ImportError:
     )
     from app.services.recommendation_service import RecommendationService
     from app.services.routing_service import RoutingService
+    from app.services.place_image_resolver import PlaceImageResolver
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +107,8 @@ class ItineraryService:
             )
 
         if matched_df.empty:
-            matched_df = experiences_df.head(min(max(len(selected_ids), 2), 4)).copy()
+            req_count = len(selected_ids) if selected_ids else int(getattr(request, "desired_experience_count", 0) or getattr(request, "places_to_visit", 0) or 4)
+            matched_df = experiences_df.head(max(req_count, 1)).copy()
 
         # Parse user's start time and duration limit
         start_dt = cls._parse_start_time(request.trip_date, request.start_time)
@@ -206,10 +210,16 @@ class ItineraryService:
             if exp.get("district") and str(exp.get("district")) != "nan" and str(exp.get("district")) != "None":
                 loc_str = f"{exp.get('district')}, {loc_str}"
 
-            # Real Supabase Image URL
+            # Authentic CSV Image Resolution via PlaceImageResolver
             image_url = exp.get("image_url")
-            if not image_url or not str(image_url).startswith("http"):
-                image_url = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80"
+            if not image_url or not str(image_url).startswith("http") or "unsplash.com" in str(image_url).lower():
+                resolved_img = PlaceImageResolver.get_instance().resolve_image(
+                    place_id=exp_id,
+                    name=exp_name,
+                    location=loc_str,
+                    category=cat,
+                )
+                image_url = resolved_img or image_url
 
             stop_item = ScheduledExperience(
                 sequence=len(scheduled) + 1,
@@ -365,3 +375,126 @@ class ItineraryService:
                 pass
 
         return datetime(2026, 9, 26, 10, 30, 0)
+        
+    _saved_db_file = Path(__file__).resolve().parent.parent / "data" / "saved_itineraries.json"
+
+    @classmethod
+    def _ensure_data_dir(cls):
+        cls._saved_db_file.parent.mkdir(parents=True, exist_ok=True)
+        if not cls._saved_db_file.exists():
+            import json
+            with open(cls._saved_db_file, "w", encoding="utf-8") as f:
+                json.dump([], f)
+
+    @classmethod
+    def save_itinerary(cls, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Persists an itinerary record to the database/storage.
+        """
+        import json
+        import uuid
+        cls._ensure_data_dir()
+
+        itin_id = str(data.get("itinerary_id") or f"ITIN-{uuid.uuid4().hex[:8].upper()}")
+        saved_at = datetime.now().isoformat()
+        
+        stops = data.get("scheduled_experiences") or data.get("items") or []
+
+        record = {
+            "itinerary_id": itin_id,
+            "destination": data.get("destination", "Local Tour"),
+            "trip_date": data.get("trip_date", "2026-09-26"),
+            "start_time": data.get("start_time", "10:30 AM"),
+            "end_time": data.get("end_time", "05:00 PM"),
+            "start_lat": data.get("start_lat"),
+            "start_lon": data.get("start_lon"),
+            "start_location": data.get("start_location"),
+            "total_duration_minutes": data.get("total_duration_minutes", 360),
+            "total_cost": data.get("total_cost", 0.0),
+            "total_experience_cost": data.get("total_experience_cost", 0.0),
+            "estimated_transport_cost": data.get("estimated_transport_cost", 0.0),
+            "traveler_count": data.get("traveler_count", 1),
+            "group_type": data.get("group_type", "Solo"),
+            "scheduled_experiences": stops,
+            "total_stops": len(stops),
+            "saved_at": saved_at,
+            "notes": data.get("notes", ""),
+        }
+
+        try:
+            with open(cls._saved_db_file, "r", encoding="utf-8") as f:
+                saved_list = json.load(f)
+        except Exception:
+            saved_list = []
+
+        # Replace existing or append
+        existing_idx = next((i for i, r in enumerate(saved_list) if r.get("itinerary_id") == itin_id), -1)
+        if existing_idx != -1:
+            saved_list[existing_idx] = record
+        else:
+            saved_list.insert(0, record)
+
+        with open(cls._saved_db_file, "w", encoding="utf-8") as f:
+            json.dump(saved_list, f, indent=2)
+
+        logger.info(f"Saved itinerary {itin_id} for destination {record['destination']} with {len(stops)} stops into database.")
+        return {
+            "success": True,
+            "itinerary_id": itin_id,
+            "message": "Itinerary saved successfully into database",
+            "saved_at": saved_at,
+            "destination": record["destination"],
+            "total_stops": len(stops),
+            "total_cost": float(record["total_cost"]),
+            "itinerary": record,
+        }
+
+    @classmethod
+    def get_saved_itineraries(cls) -> List[Dict[str, Any]]:
+        """
+        Retrieves all saved itineraries from the database.
+        """
+        import json
+        cls._ensure_data_dir()
+        try:
+            with open(cls._saved_db_file, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception as e:
+            logger.error(f"Error loading saved itineraries: {e}")
+            return []
+
+    @classmethod
+    def get_saved_itinerary(cls, itinerary_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a single saved itinerary by ID.
+        """
+        all_itins = cls.get_saved_itineraries()
+        for itin in all_itins:
+            if itin.get("itinerary_id") == itinerary_id:
+                return itin
+        return None
+
+    @classmethod
+    def optimize_itinerary(cls, request: Any) -> ItineraryGenerateResponse:
+        """
+        Re-orders and optimizes an itinerary to minimize travel distance/time (TSP/greedy spatial routing),
+        recalculating chronological windows and arrival times.
+        """
+        # If experience IDs are provided, re-generate through standard spatial TSP generator
+        exp_ids = request.selected_experience_ids
+        if not exp_ids and request.scheduled_experiences:
+            exp_ids = [str(s.get("experience_id", s.get("id", ""))) for s in request.scheduled_experiences if s.get("experience_id") or s.get("id")]
+
+        gen_req = ItineraryGenerateRequest(
+            destination=request.destination or "",
+            trip_date=request.trip_date or "2026-09-26",
+            start_time=request.start_time or "10:30 AM",
+            start_lat=request.start_lat,
+            start_lon=request.start_lon,
+            user_lat=request.start_lat,
+            user_lon=request.start_lon,
+            budget_inr=request.budget_inr or 5000.0,
+            available_time_hours=request.available_time_hours or 6.0,
+            selected_experience_ids=exp_ids,
+        )
+        return cls.generate_itinerary(gen_req)

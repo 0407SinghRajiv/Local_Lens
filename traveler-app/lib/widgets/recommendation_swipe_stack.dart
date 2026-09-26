@@ -65,6 +65,17 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(RecommendationSwipeStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.candidates != oldWidget.candidates && !_isAnimating && !_isDragging) {
+      _dragOffset = Offset.zero;
+      _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+      _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+      _animationController.reset();
+    }
+  }
+
   /// Trigger programmed swipe right (Select) via button or keyboard
   void swipeRight() {
     if (_isAnimating || widget.candidates.isEmpty) return;
@@ -100,6 +111,8 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
       if (widget.candidates.isNotEmpty) {
         final swipedCard = widget.candidates.first;
         _dragOffset = Offset.zero;
+        _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+        _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
         _animationController.reset();
         _isDragging = false;
         _isAnimating = false;
@@ -110,6 +123,10 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
           widget.onSwipeLeft(swipedCard);
         }
       } else {
+        _dragOffset = Offset.zero;
+        _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+        _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+        _animationController.reset();
         _isAnimating = false;
         _isDragging = false;
       }
@@ -134,13 +151,13 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     _isDragging = false;
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final threshold = screenWidth * 0.26;
+    final threshold = min(screenWidth > 0 ? screenWidth * 0.24 : 90.0, 100.0);
 
     // Check velocity and offset for intuitive swipe
     final velocityX = details.velocity.pixelsPerSecond.dx;
-    if (_dragOffset.dx > threshold || velocityX > 700) {
+    if (_dragOffset.dx > threshold || velocityX > 350) {
       _executeSwipe(SwipeDirection.right);
-    } else if (_dragOffset.dx < -threshold || velocityX < -700) {
+    } else if (_dragOffset.dx < -threshold || velocityX < -350) {
       _executeSwipe(SwipeDirection.left);
     } else {
       // Smoothly spring back to center
@@ -159,6 +176,8 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
         if (mounted) {
           setState(() {
             _dragOffset = Offset.zero;
+            _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+            _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
             _animationController.reset();
             _isAnimating = false;
           });
@@ -173,6 +192,9 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
       setState(() {
         _isDragging = false;
         _dragOffset = Offset.zero;
+        _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+        _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+        _animationController.reset();
       });
     }
   }
@@ -195,7 +217,7 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final threshold = screenWidth * 0.28;
+    final threshold = min(screenWidth > 0 ? screenWidth * 0.24 : 90.0, 100.0);
     final dragDx = _isDragging ? _dragOffset.dx : _slideAnimation.value.dx;
     final rightSelectOpacity = (dragDx / threshold).clamp(0.0, 1.0);
     final leftSkipOpacity = (-dragDx / threshold).clamp(0.0, 1.0);
@@ -233,14 +255,18 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                     if (reverseIndex == 0) {
                       // TOP ACTIVE CARD WITH GESTURE & TRANSFORMS
                       return AnimatedBuilder(
+                        key: ValueKey('active_card_${candidate.experienceId}'),
                         animation: _animationController,
                         builder: (context, child) {
                           final currentOffset = _isDragging ? _dragOffset : _slideAnimation.value;
                           final currentRotation = _isDragging
-                              ? (_dragOffset.dx / screenWidth) * 0.35
+                              ? (_dragOffset.dx / (screenWidth > 0 ? screenWidth : 360.0)) * 0.35
                               : _rotationAnimation.value;
+                          final currentDragDx = _isDragging ? _dragOffset.dx : _slideAnimation.value.dx;
+                          final dynamicRightSelectOpacity = (currentDragDx / threshold).clamp(0.0, 1.0);
+                          final dynamicLeftSkipOpacity = (-currentDragDx / threshold).clamp(0.0, 1.0);
 
-                              return Transform.translate(
+                          return Transform.translate(
                             offset: currentOffset,
                             child: Transform.rotate(
                               angle: currentRotation,
@@ -260,7 +286,7 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                                         isTopCard: true,
                                       ),
                                     // SELECT BADGE OVERLAY
-                                    if (rightSelectOpacity > 0.05)
+                                    if (dynamicRightSelectOpacity > 0.05)
                                       Positioned(
                                         top: 24,
                                         left: 24,
@@ -297,12 +323,12 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                                         ),
                                       ),
                                     // SKIP BADGE OVERLAY
-                                    if (leftSkipOpacity > 0.05)
+                                    if (dynamicLeftSkipOpacity > 0.05)
                                       Positioned(
                                         top: 24,
                                         right: 24,
                                         child: Opacity(
-                                          opacity: leftSkipOpacity,
+                                          opacity: dynamicLeftSkipOpacity,
                                           child: Transform.rotate(
                                             angle: 0.2,
                                             child: Container(

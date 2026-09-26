@@ -369,7 +369,6 @@ class RecommendationEngine:
         if apply_hard_filters:
             scored_df = scored_df[(scored_df["affordable"] == 1) & (scored_df["fits_time"] == 1)].copy()
 
-
         # Sort strictly descending by recommendation_score
         sorted_df = scored_df.sort_values("recommendation_score", ascending=False)
         top_df = sorted_df.head(top_n)
