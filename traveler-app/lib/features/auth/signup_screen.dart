@@ -50,12 +50,8 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     setState(() => _isLoading = false);
 
     if (success) {
-      final user = ref.read(authControllerProvider).value;
-      if (user != null) {
-        context.go(AppRoutes.home);
-      } else {
-        _showConfirmationDialog();
-      }
+      // Redirect directly to the home screen upon new account creation
+      context.go(AppRoutes.home);
     } else {
       _showErrorSnackBar();
     }
@@ -98,49 +94,6 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
         backgroundColor: AppColors.error,
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
-  }
-
-  void _showConfirmationDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        icon: const Icon(
-          Icons.mark_email_read_rounded,
-          color: AppColors.primaryBlue,
-          size: 48,
-        ),
-        title: const Text(
-          'Verify Your Email',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        content: Text(
-          'We have sent a verification link to ${_emailController.text.trim()}. Please verify your email, then sign in.',
-          textAlign: TextAlign.center,
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                context.go(AppRoutes.login);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Go to Sign In'),
-            ),
-          ),
-        ],
       ),
     );
   }

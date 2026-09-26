@@ -74,6 +74,21 @@ class AuthController extends StateNotifier<AsyncValue<User?>> {
         password: password,
         fullName: fullName,
       );
+
+      // If Supabase created user but session is null, attempt immediate sign-in
+      if (response.session == null) {
+        try {
+          final loginResponse = await authService.signInWithEmail(
+            email: email,
+            password: password,
+          );
+          state = AsyncValue.data(loginResponse.user);
+          return true;
+        } catch (_) {
+          // Fallback to registered user instance
+        }
+      }
+
       state = AsyncValue.data(response.user);
       return true;
     } catch (e, st) {
