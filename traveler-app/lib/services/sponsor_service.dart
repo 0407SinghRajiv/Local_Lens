@@ -48,13 +48,11 @@ class SponsorService {
                   .eq('experience_id', map['listing_id'])
                   .maybeSingle();
 
-              if (expData == null) {
-                expData = await client
-                    .from('experience')
-                    .select()
-                    .eq('id', map['listing_id'])
-                    .maybeSingle();
-              }
+              expData ??= await client
+                  .from('experience')
+                  .select()
+                  .eq('id', map['listing_id'])
+                  .maybeSingle();
 
               if (expData != null) {
                 map['experience_details'] = {

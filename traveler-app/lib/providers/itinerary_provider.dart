@@ -210,6 +210,10 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     state = state.copyWith(interests: updated);
   }
 
+  void setInterests(List<String> interests) {
+    state = state.copyWith(interests: interests);
+  }
+
   void setPreferences(String preferences) {
     state = state.copyWith(preferences: preferences);
   }
