@@ -36,19 +36,30 @@ class SponsorService {
             // Query related experience if listing_id exists
             if (map['listing_id'] != null) {
               try {
-                final expData = await client
+                var expData = await client
                     .from('experience')
                     .select()
                     .eq('experience_id', map['listing_id'])
                     .maybeSingle();
 
+                if (expData == null) {
+                  expData = await client
+                      .from('experience')
+                      .select()
+                      .eq('id', map['listing_id'])
+                      .maybeSingle();
+                }
+
                 if (expData != null) {
                   map['experience_details'] = {
-                    'image_url': expData['image_url'],
-                    'rating': expData['rating'],
-                    'review_count': expData['review_count'],
-                    'location': expData['city'] ?? 'Mumbai',
-                    'original_price': expData['price_inr_clean'] ?? 1200,
+                    'image_url': expData['image_url'] ??
+                        (expData['images'] is List && (expData['images'] as List).isNotEmpty
+                            ? (expData['images'] as List)[0]
+                            : null),
+                    'rating': expData['rating'] ?? 4.8,
+                    'review_count': expData['review_count'] ?? 120,
+                    'location': expData['city'] ?? expData['meeting_point'] ?? 'Mumbai',
+                    'original_price': expData['price_inr_clean'] ?? expData['price_inr'] ?? 1200,
                   };
                 }
               } catch (_) {}

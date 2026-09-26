@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { serverCampaignsRegistry } from "@/app/api/sponsors/route";
+import { serverCampaignsRegistry } from "@/lib/sponsorRegistry";
 import { SponsorCampaign } from "@/types/sponsor";
 
 export async function POST(request: Request) {
@@ -79,9 +79,9 @@ export async function POST(request: Request) {
     const now = new Date();
     const startAtDate = new Date(matchedCampaign.start_at);
 
-    // If start_at is now (or in the past): campaign_status = 'active'
-    // If start_at is in the future: campaign_status = 'scheduled'
-    const isFuture = startAtDate.getTime() > now.getTime() + 60000; // 1 min buffer
+    // If start_at <= current time: campaign_status = 'active'
+    // If start_at > current time: campaign_status = 'scheduled'
+    const isFuture = startAtDate.getTime() > now.getTime();
     const newCampaignStatus = isFuture ? "scheduled" : "active";
 
     matchedCampaign.payment_status = "paid";
@@ -94,12 +94,23 @@ export async function POST(request: Request) {
       matchedCampaign.experience_details = body.experience_details;
     }
 
-    // Update server registry partition
-    const key = partitionKey || matchedCampaign.user_id.toLowerCase();
-    const existing = serverCampaignsRegistry.get(key) || [];
+    // Update server registry across all relevant partitions
+    const userKey = matchedCampaign.user_id.toLowerCase();
+    let updatedAny = false;
+    for (const [k, list] of serverCampaignsRegistry.entries()) {
+      if (list.some((c) => c.id === matchedCampaign!.id)) {
+        serverCampaignsRegistry.set(
+          k,
+          [matchedCampaign, ...list.filter((c) => c.id !== matchedCampaign!.id)]
+        );
+        updatedAny = true;
+      }
+    }
+    // Guarantee userKey partition has the updated campaign
+    const existingForUser = serverCampaignsRegistry.get(userKey) || [];
     serverCampaignsRegistry.set(
-      key,
-      [matchedCampaign, ...existing.filter((c) => c.id !== matchedCampaign!.id)]
+      userKey,
+      [matchedCampaign, ...existingForUser.filter((c) => c.id !== matchedCampaign!.id)]
     );
 
     // Also update Supabase database record
@@ -116,7 +127,37 @@ export async function POST(request: Request) {
         .eq("id", campaignId)
         .select();
 
-      if (!error) dbUpdated = true;
+      if (!error && data && data.length > 0) {
+        dbUpdated = true;
+      } else {
+        // If row wasn't present to update, upsert complete 22-column record
+        await supabase.from("sponsor_campaigns").upsert({
+          id: matchedCampaign.id,
+          user_id: matchedCampaign.user_id,
+          business_id: matchedCampaign.business_id,
+          listing_id: matchedCampaign.listing_id,
+          owner_name: matchedCampaign.owner_name,
+          shop_name: matchedCampaign.shop_name,
+          listing_name: matchedCampaign.listing_name,
+          sponsor_type: matchedCampaign.sponsor_type,
+          sponsor_package: matchedCampaign.sponsor_package,
+          amount: matchedCampaign.amount,
+          offer_type: matchedCampaign.offer_type,
+          offer_value: matchedCampaign.offer_value,
+          offer_price: matchedCampaign.offer_price,
+          offer_description: matchedCampaign.offer_description,
+          start_at: matchedCampaign.start_at,
+          end_at: matchedCampaign.end_at,
+          timezone: matchedCampaign.timezone,
+          payment_method: matchedCampaign.payment_method,
+          payment_status: "paid",
+          payment_transaction_id: transactionId,
+          campaign_status: newCampaignStatus,
+          created_at: matchedCampaign.created_at,
+          updated_at: now.toISOString(),
+        });
+        dbUpdated = true;
+      }
     } catch (err) {
       console.warn("Supabase payment update notice:", err);
     }
