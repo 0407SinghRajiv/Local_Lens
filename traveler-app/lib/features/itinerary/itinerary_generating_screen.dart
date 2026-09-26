@@ -78,24 +78,33 @@ class _ItineraryGeneratingScreenState extends ConsumerState<ItineraryGeneratingS
       _startGeneration();
     });
 
-    // Hard fallback safety timer (2.2s max) to guarantee the screen never gets stuck
-    _fallbackTimer = Timer(const Duration(milliseconds: 2200), () {
-      _navigateToResult();
+    // Generous fallback safety timer (15s max) to guarantee the screen never gets stuck if completely frozen
+    _fallbackTimer = Timer(const Duration(seconds: 15), () {
+      if (mounted && !_hasNavigated) {
+        _navigateToResult();
+      }
     });
   }
 
   Future<void> _startGeneration() async {
+    final startTime = DateTime.now();
     try {
-      final itinerary = await ref.read(itineraryProvider.notifier).generateFinalItinerary();
+      await ref.read(itineraryProvider.notifier).generateFinalItinerary();
       if (!mounted) return;
 
-      if (itinerary != null) {
-        _navigateToResult();
-      } else {
+      // Allow minimum 1.2s for pleasant loading animation
+      final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+      if (elapsed < 1200) {
+        await Future.delayed(Duration(milliseconds: 1200 - elapsed));
+      }
+
+      if (mounted) {
+        _fallbackTimer?.cancel();
         _navigateToResult();
       }
     } catch (_) {
       if (mounted) {
+        _fallbackTimer?.cancel();
         _navigateToResult();
       }
     }
@@ -104,6 +113,7 @@ class _ItineraryGeneratingScreenState extends ConsumerState<ItineraryGeneratingS
   void _navigateToResult() {
     if (_hasNavigated || !mounted) return;
     _hasNavigated = true;
+    _fallbackTimer?.cancel();
 
     // Use context.go to ensure clean, deterministic route navigation
     context.go(AppRoutes.aiItineraryResult);

@@ -925,35 +925,57 @@ class _RecommendationSelectionSheetState extends ConsumerState<_RecommendationSe
 
           // Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.auto_awesome_rounded, color: LocalLensColors.accentOrange, size: 20),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Recommended Experiences',
-                          style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.w800),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.auto_awesome_rounded, color: LocalLensColors.accentOrange, size: 18),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              'Recommended Experiences',
+                              style: LocalLensTypography.titleMedium.copyWith(
+                                fontWeight: FontWeight.w800,
+                                fontSize: 16,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Ranked by ML model • Select to include',
+                        style: LocalLensTypography.caption.copyWith(
+                          color: LocalLensColors.textMuted,
+                          fontSize: 11,
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Ranked by ML model • Select experiences to include',
-                      style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textMuted),
-                    ),
-                  ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 6),
                 TextButton(
                   onPressed: () {
                     notifier.selectAllRecommendations();
                   },
-                  child: const Text('Select All', style: TextStyle(fontWeight: FontWeight.bold, color: LocalLensColors.primaryTeal)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'Select All',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: LocalLensColors.primaryTeal, fontSize: 13),
+                  ),
                 ),
               ],
             ),

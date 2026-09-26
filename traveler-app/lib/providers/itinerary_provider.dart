@@ -287,11 +287,26 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       );
       return itinerary;
     } catch (e) {
-      state = state.copyWith(
-        status: ItineraryFormStatus.error,
-        error: 'Failed to generate itinerary. Please try again.',
+      // Fallback generator ensures user is never blocked
+      final dest = state.locationMode == LocationMode.exact
+          ? state.displayAddress
+          : (state.destination.isNotEmpty ? state.destination : 'Panvel, Maharashtra');
+      final fallbackItin = ItineraryApiService.generateItinerary(
+        destination: dest,
+        tripDate: state.tripDate,
+        startTime: state.tripStartTime,
+        durationHours: state.durationHours,
+        budget: state.totalBudgetInr,
+        selectedExperienceIds: state.selectedExperienceIds.toList(),
+        travelerCount: state.travelerCount,
+        travelerType: state.groupType,
       );
-      return null;
+      final resolved = await fallbackItin;
+      state = state.copyWith(
+        status: ItineraryFormStatus.generated,
+        generatedItinerary: resolved,
+      );
+      return resolved;
     }
   }
 

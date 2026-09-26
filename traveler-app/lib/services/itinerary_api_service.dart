@@ -1,15 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import '../models/itinerary_model.dart';
 import '../models/recommendation_model.dart';
 
 class ItineraryApiService {
   static final Dio _dio = Dio(
     BaseOptions(
-      connectTimeout: const Duration(seconds: 10),
-      receiveTimeout: const Duration(seconds: 10),
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 8),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -17,17 +19,76 @@ class ItineraryApiService {
     ),
   );
 
-  /// Determine appropriate base URL depending on platform
-  static String get baseUrl {
-    if (kIsWeb) {
-      return 'http://127.0.0.1:8000';
+  static String? _cachedBaseUrl;
+
+  /// Candidate URLs in priority order for physical devices, emulators, and localhost
+  static List<String> get candidateUrls {
+    final list = <String>[];
+    final envUrl = dotenv.env['API_BASE_URL']?.trim();
+    if (envUrl != null && envUrl.isNotEmpty) {
+      list.add(envUrl.replaceAll(RegExp(r'/+$'), ''));
     }
-    if (Platform.isAndroid) {
-      // Android emulator points 10.0.2.2 to host loopback
-      return 'http://10.0.2.2:8000';
+
+    // Wi-Fi LAN & Hotspot host IPs for physical devices
+    list.add('http://192.168.137.210:8000');
+    list.add('http://192.168.137.1:8000');
+
+    // Android Emulator host loopback
+    if (!kIsWeb && Platform.isAndroid) {
+      list.add('http://10.0.2.2:8000');
     }
-    return 'http://127.0.0.1:8000';
+
+    // Localhost / ADB reverse port forwarding (adb reverse tcp:8000 tcp:8000)
+    list.add('http://127.0.0.1:8000');
+    list.add('http://localhost:8000');
+
+    return list.toSet().toList();
   }
+
+  /// Automatically discovers the reachable backend endpoint
+  static Future<String> resolveBaseUrl() async {
+    if (_cachedBaseUrl != null) {
+      try {
+        final ping = await _dio.get(
+          '$_cachedBaseUrl/health',
+          options: Options(
+            receiveTimeout: const Duration(milliseconds: 1200),
+            sendTimeout: const Duration(milliseconds: 1200),
+          ),
+        );
+        if (ping.statusCode == 200) {
+          return _cachedBaseUrl!;
+        }
+      } catch (_) {
+        _cachedBaseUrl = null;
+      }
+    }
+
+    // Probe candidates
+    for (final candidate in candidateUrls) {
+      try {
+        final probeDio = Dio(BaseOptions(
+          connectTimeout: const Duration(milliseconds: 1500),
+          receiveTimeout: const Duration(milliseconds: 1500),
+        ));
+        final res = await probeDio.get('$candidate/health');
+        if (res.statusCode == 200) {
+          debugPrint('[ItineraryApiService] Connected to backend at: $candidate');
+          _cachedBaseUrl = candidate;
+          return candidate;
+        }
+      } catch (_) {
+        // Try next candidate
+      }
+    }
+
+    // Default fallback
+    final fallback = candidateUrls.isNotEmpty ? candidateUrls.first : 'http://127.0.0.1:8000';
+    _cachedBaseUrl = fallback;
+    return fallback;
+  }
+
+  static String get baseUrl => _cachedBaseUrl ?? (candidateUrls.isNotEmpty ? candidateUrls.first : 'http://127.0.0.1:8000');
 
   /// 1. Fetch ML Recommendations
   static Future<List<RecommendationModel>> fetchRecommendations({
@@ -42,7 +103,8 @@ class ItineraryApiService {
     required List<String> interests,
     String? preferences,
   }) async {
-    final url = '$baseUrl/api/recommendations';
+    final activeBase = await resolveBaseUrl();
+    final url = '$activeBase/api/recommendations';
     final payload = {
       'destination': destination,
       'start_location': startLocation,
@@ -69,6 +131,7 @@ class ItineraryApiService {
         final data = response.data is String ? jsonDecode(response.data) : response.data;
         if (data['success'] == true && data['recommendations'] != null) {
           final List list = data['recommendations'] as List;
+          debugPrint('[ItineraryApiService] Received ${list.length} ML recommendations from $activeBase');
           return list.map((item) => RecommendationModel.fromJson(item as Map<String, dynamic>)).toList();
         }
       }
@@ -94,7 +157,8 @@ class ItineraryApiService {
     required int travelerCount,
     required String travelerType,
   }) async {
-    final url = '$baseUrl/api/itinerary/generate';
+    final activeBase = await resolveBaseUrl();
+    final url = '$activeBase/api/itinerary/generate';
     final payload = {
       'destination': destination,
       'trip_date': tripDate,
@@ -125,6 +189,7 @@ class ItineraryApiService {
           final List rawSkipped = data['skipped_experiences'] as List? ?? [];
           final skipped = rawSkipped.map((s) => SkippedExperienceItem.fromJson(s as Map<String, dynamic>)).toList();
 
+          debugPrint('[ItineraryApiService] Generated itinerary with ${items.length} scheduled stops from $activeBase');
           return Itinerary(
             id: 'itin-${DateTime.now().millisecondsSinceEpoch}',
             destination: data['destination'] as String? ?? destination,

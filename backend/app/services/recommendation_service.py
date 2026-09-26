@@ -113,7 +113,7 @@ class RecommendationService:
                 apply_hard_filters=False,
             )
 
-        # Fallback if no nearby results within radius_km: expand radius to 50km
+        # Fallback if no nearby results within radius_km: expand radius to 100km
         if not results and user_lat is not None and user_lon is not None:
             results = engine.recommend(
                 budget_inr=budget_inr,
@@ -123,8 +123,25 @@ class RecommendationService:
                 interests=interests,
                 user_lat=user_lat,
                 user_lon=user_lon,
-                radius_km=50.0,
+                radius_km=100.0,
                 city=None,
+                category=request.category,
+                top_n=request.top_n,
+                apply_hard_filters=False,
+            )
+
+        # Fallback to catalog-wide recommendation if still no results
+        if not results:
+            results = engine.recommend(
+                budget_inr=budget_inr,
+                available_time_hours=available_time_hours,
+                traveler_count=traveler_count,
+                group_type=group_type,
+                interests=interests,
+                user_lat=None,
+                user_lon=None,
+                radius_km=25.0,
+                city=city_filter,
                 category=request.category,
                 top_n=request.top_n,
                 apply_hard_filters=False,
