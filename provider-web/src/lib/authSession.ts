@@ -15,108 +15,160 @@ export interface ProviderProfile {
   totalExperiences?: number;
   totalGuests?: number;
   joinedDate?: string;
+  businessName?: string;
+  bio?: string;
+  language?: "en" | "hi" | "mr" | "bn";
 }
 
 const DEFAULT_PROFILE: ProviderProfile = {
-  id: "host_default_ramesh",
-  name: "Ramesh Tours",
-  fullName: "Ramesh Sharma",
-  email: "ramesh@mumbaiculturals.com",
+  id: "host_default_guest",
+  name: "Local Provider",
+  fullName: "Local Provider",
+  email: "provider@locallens.in",
   phone: "+91 98201 55432",
   role: "Tour Guide / Storyteller",
   providerCategory: "Tour Guide / Storyteller",
-  avatar: "/dashboard/ramesh.jpg",
-  authProvider: "demo",
+  avatar: "",
+  authProvider: "google",
   verified: true,
   rating: 4.9,
   totalExperiences: 4,
   totalGuests: 328,
-  joinedDate: "January 2024",
+  joinedDate: "Recent Member",
 };
 
 /**
- * Loads current provider profile from Supabase session or localStorage fallback
+ * Builds profile synchronously from Supabase auth user metadata (0ms execution)
  */
-export async function getProviderProfile(): Promise<ProviderProfile> {
+export function buildProfileFromAuthUser(user: any): ProviderProfile {
+  if (!user) return DEFAULT_PROFILE;
+
+  const meta = user.user_metadata || {};
+  const isGoogle = meta.iss?.includes("google") || user.app_metadata?.provider === "google";
+
+  const displayName =
+    meta.full_name ||
+    meta.name ||
+    user.email?.split("@")[0] ||
+    "Local Provider";
+
+  const avatarUrl =
+    meta.avatar_url ||
+    meta.picture ||
+    "";
+
+  const userEmail = user.email || meta.email || "provider@locallens.in";
+
+  return {
+    id: user.id,
+    name: displayName,
+    fullName: displayName,
+    email: userEmail,
+    phone: meta.phone || "+91 98201 55432",
+    role: meta.provider_category || meta.role || "Tour Guide / Storyteller",
+    providerCategory: meta.provider_category || meta.role || "Tour Guide / Storyteller",
+    avatar: avatarUrl,
+    authProvider: isGoogle ? "google" : "email",
+    verified: true,
+    rating: 4.9,
+    totalExperiences: 4,
+    totalGuests: 328,
+    joinedDate: "Recent Member",
+  };
+}
+
+/**
+ * Gets or creates provider profile with non-blocking DB sync for instant response
+ */
+export async function getOrCreateProviderProfile(user: any): Promise<ProviderProfile> {
+  const profile = buildProfileFromAuthUser(user);
+
+  // 1. Immediately persist to localStorage for 0ms retrieval
+  if (typeof window !== "undefined") {
+    localStorage.setItem("locallens_provider_session", JSON.stringify(profile));
+  }
+
+  // 2. Non-blocking background sync with Supabase profiles table (fire and forget)
+  try {
+    const syncDb = async () => {
+      const { data: dbProfile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (dbProfile) {
+        profile.fullName = dbProfile.full_name || profile.fullName;
+        profile.name = dbProfile.full_name || profile.name;
+        profile.avatar = dbProfile.avatar_url || profile.avatar;
+        if (dbProfile.language) {
+          profile.language = dbProfile.language;
+          if (typeof window !== "undefined") {
+            localStorage.setItem("locallens_preferred_language", dbProfile.language);
+          }
+        }
+        if (typeof window !== "undefined") {
+          localStorage.setItem("locallens_provider_session", JSON.stringify(profile));
+        }
+      } else {
+        await supabase.from("profiles").upsert({
+          id: user.id,
+          full_name: profile.fullName,
+          avatar_url: profile.avatar,
+          language: profile.language || "en",
+          updated_at: new Date().toISOString(),
+        });
+      }
+    };
+
+    // Use a fast 800ms race so UI is never blocked by database latency
+    await Promise.race([
+      syncDb(),
+      new Promise((res) => setTimeout(res, 800)),
+    ]);
+  } catch (err) {
+    // Non-fatal, profile is already safely cached in session
+  }
+
+  return profile;
+}
+
+/**
+ * Loads current provider profile with instant synchronous localStorage check first
+ */
+export async function getProviderProfile(): Promise<ProviderProfile | null> {
   if (typeof window === "undefined") {
     return DEFAULT_PROFILE;
   }
 
-  // Check URL parameters for direct profile sync
-  try {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("name") || params.get("email")) {
-      const paramProfile: ProviderProfile = {
-        ...DEFAULT_PROFILE,
-        name: params.get("name") || DEFAULT_PROFILE.name,
-        fullName: params.get("fullName") || params.get("name") || DEFAULT_PROFILE.fullName,
-        email: params.get("email") || DEFAULT_PROFILE.email,
-        phone: params.get("phone") || DEFAULT_PROFILE.phone,
-        role: params.get("role") || DEFAULT_PROFILE.role,
-        providerCategory: params.get("role") || DEFAULT_PROFILE.role,
-        authProvider: (params.get("provider") as any) || "google",
-        verified: true,
-      };
-      localStorage.setItem("locallens_provider_session", JSON.stringify(paramProfile));
-      return paramProfile;
-    }
-  } catch (e) {}
-
-  // 1. Try Supabase active session
-  try {
-    const { data } = await supabase.auth.getSession();
-    if (data?.session?.user) {
-      const user = data.session.user;
-      const meta = user.user_metadata || {};
-      const provider = user.app_metadata?.provider || "email";
-
-      const name =
-        meta.full_name ||
-        meta.name ||
-        user.email?.split("@")[0] ||
-        "Verified Provider";
-
-      const profile: ProviderProfile = {
-        id: user.id,
-        name: name,
-        fullName: name,
-        email: user.email || "provider@locallens.in",
-        phone: meta.phone || "+91 98201 55432",
-        role: meta.provider_category || meta.role || "Tour Guide / Storyteller",
-        providerCategory: meta.provider_category || meta.role || "Tour Guide / Storyteller",
-        avatar: meta.avatar_url || meta.picture || DEFAULT_PROFILE.avatar,
-        authProvider: (provider as any) || "google",
-        verified: true,
-        rating: 4.9,
-        totalExperiences: 4,
-        totalGuests: 328,
-        joinedDate: "Recent Member",
-      };
-
-      // Also persist to localStorage for offline / fast sync
-      localStorage.setItem("locallens_provider_session", JSON.stringify(profile));
-      return profile;
-    }
-  } catch (err) {
-    console.error("Error reading Supabase session:", err);
-  }
-
-  // 2. Try localStorage session
+  // Fast path: localStorage
   try {
     const saved = localStorage.getItem("locallens_provider_session");
     if (saved) {
       const parsed = JSON.parse(saved);
-      return {
-        ...DEFAULT_PROFILE,
-        ...parsed,
-        name: parsed.fullName || parsed.providerName || parsed.name || parsed.email?.split("@")[0] || DEFAULT_PROFILE.name,
-      };
+      // Validate session in background
+      supabase.auth.getSession().then(({ data }) => {
+        if (data?.session?.user) {
+          getOrCreateProviderProfile(data.session.user);
+        }
+      }).catch(() => {});
+      return parsed;
     }
   } catch (err) {
     console.error("Error reading localStorage profile:", err);
   }
 
-  return DEFAULT_PROFILE;
+  // Supabase active session check
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.user) {
+      return await getOrCreateProviderProfile(data.session.user);
+    }
+  } catch (err) {
+    console.error("Error reading Supabase session:", err);
+  }
+
+  return null;
 }
 
 /**

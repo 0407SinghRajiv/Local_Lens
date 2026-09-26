@@ -5,23 +5,32 @@
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
+  --font-heading: 'Anton', 'Noto Sans Devanagari', 'Noto Sans Bengali', 'Inter', sans-serif;
+  --font-body: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Bengali', system-ui, -apple-system, sans-serif;
 }
 
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
 }
 
-.font-script {
-  font-family: 'Caveat', cursive, -apple-system, sans-serif;
+/* Headings, Hero titles, Big Numbers, Section titles use Anton with script fallbacks */
+h1, h2, h3, .font-heading, .font-display, .font-anton {
+  font-family: var(--font-heading);
+  letter-spacing: 0.02em;
 }
 
-.font-display {
-  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+/* Controls, buttons, body content, labels use Inter */
+button, input, select, textarea, nav, .font-sans, .font-body {
+  font-family: var(--font-body);
+}
+
+.font-script {
+  font-family: 'Caveat', cursive, -apple-system, sans-serif;
 }
 
 @keyframes bounceGentle {

@@ -1,4 +1,4 @@
-﻿export type ExperienceCategory =
+export type ExperienceCategory =
   | 'Heritage'
   | 'Culture & Arts'
   | 'Culinary & Food'
@@ -59,6 +59,9 @@ export interface ExperienceListing {
   bookings_count?: number;
   rating?: number;
   review_count?: number;
+  // Provider Ownership & Identity
+  provider_id?: string;
+  provider_email?: string;
 }
 
 export interface BoostPackage {
