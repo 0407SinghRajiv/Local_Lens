@@ -215,6 +215,8 @@ class Itinerary {
   final String tripDate;
   final String startTime;
   final String endTime;
+  final double? startLat;
+  final double? startLon;
   final int totalDurationMinutes;
   final double totalEstimatedCost;
   final double estimatedTransportCost;
@@ -233,6 +235,8 @@ class Itinerary {
     this.tripDate = '2026-09-26',
     required this.startTime,
     required this.endTime,
+    this.startLat,
+    this.startLon,
     required this.totalDurationMinutes,
     required this.totalEstimatedCost,
     this.estimatedTransportCost = 0.0,
@@ -278,6 +282,8 @@ class Itinerary {
     String? tripDate,
     String? startTime,
     String? endTime,
+    double? startLat,
+    double? startLon,
     int? totalDurationMinutes,
     double? totalEstimatedCost,
     double? estimatedTransportCost,
@@ -296,6 +302,8 @@ class Itinerary {
       tripDate: tripDate ?? this.tripDate,
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
+      startLat: startLat ?? this.startLat,
+      startLon: startLon ?? this.startLon,
       totalDurationMinutes: totalDurationMinutes ?? this.totalDurationMinutes,
       totalEstimatedCost: totalEstimatedCost ?? this.totalEstimatedCost,
       estimatedTransportCost: estimatedTransportCost ?? this.estimatedTransportCost,

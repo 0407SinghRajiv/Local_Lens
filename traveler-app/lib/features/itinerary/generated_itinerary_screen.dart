@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../models/itinerary_model.dart';
@@ -8,6 +9,7 @@ import '../../models/ride_model.dart';
 import '../../providers/itinerary_provider.dart';
 import '../../providers/ride_provider.dart';
 import '../../widgets/common/locallens_components.dart';
+import '../../widgets/itinerary_map.dart';
 
 /// Screen 2 — Generated Itinerary & Lens Ride Integration
 class GeneratedItineraryScreen extends ConsumerStatefulWidget {
@@ -20,6 +22,8 @@ class GeneratedItineraryScreen extends ConsumerStatefulWidget {
 class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScreen> {
   bool _isRideSectionEnabled = false;
   int _selectedVehicleIndex = 0;
+  int? _selectedExperienceIndex;
+  final GlobalKey<ItineraryMapWidgetState> _mapKey = GlobalKey<ItineraryMapWidgetState>();
 
   final List<VehicleOption> _vehicles = VehicleOption.defaultOptions;
 
@@ -256,6 +260,24 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
 
               const SizedBox(height: 18),
 
+              // INTERACTIVE GOOGLE MAP ITINERARY VISUALIZATION
+              ItineraryMapWidget(
+                key: _mapKey,
+                items: itinerary.items,
+                startLocation: (itinerary.startLat != null && itinerary.startLon != null)
+                    ? LatLng(itinerary.startLat!, itinerary.startLon!)
+                    : null,
+                startAddress: itinerary.displayAddress,
+                height: 290,
+                onExperienceSelected: (index) {
+                  setState(() {
+                    _selectedExperienceIndex = index;
+                  });
+                },
+              ),
+
+              const SizedBox(height: 20),
+
               // TIMELINE HEADER
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -427,6 +449,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
       itemBuilder: (context, index) {
         final item = itinerary.items[index];
         final isLast = index == itinerary.items.length - 1;
+        final isHighlighted = _selectedExperienceIndex == index;
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,12 +462,12 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                   height: 34,
                   decoration: BoxDecoration(
                     color: item.isSelected
-                        ? (item.isCompleted ? LocalLensColors.successGreen : LocalLensColors.primaryTeal)
+                        ? (item.isCompleted ? LocalLensColors.successGreen : (isHighlighted ? LocalLensColors.accentOrange : LocalLensColors.primaryTeal))
                         : LocalLensColors.surfaceSecondary,
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: item.isSelected ? Colors.white : LocalLensColors.border,
-                      width: 2,
+                      color: isHighlighted ? LocalLensColors.accentOrange : (item.isSelected ? Colors.white : LocalLensColors.border),
+                      width: isHighlighted ? 3 : 2,
                     ),
                     boxShadow: item.isSelected ? LocalLensDimensions.softCardShadow : [],
                   ),
@@ -459,11 +482,11 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                     ),
                   ),
                 ),
-                if (!isLast)
+                if (!isLast) ...[
                   Container(
                     width: 2.5,
-                    height: 125,
-                    margin: const EdgeInsets.symmetric(vertical: 4),
+                    height: item.travelToNextMinutes > 0 ? 30 : 125,
+                    margin: const EdgeInsets.symmetric(vertical: 2),
                     decoration: BoxDecoration(
                       color: item.isSelected
                           ? LocalLensColors.primaryTeal.withValues(alpha: 0.35)
@@ -471,6 +494,38 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
+                  if (item.travelToNextMinutes > 0) ...[
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: LocalLensColors.surfaceSecondary,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: LocalLensColors.borderLight),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.directions_car_rounded, size: 12, color: LocalLensColors.textSecondary),
+                          Text(
+                            '${item.travelToNextMinutes}m',
+                            style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: LocalLensColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 2.5,
+                      height: 30,
+                      margin: const EdgeInsets.symmetric(vertical: 2),
+                      decoration: BoxDecoration(
+                        color: item.isSelected
+                            ? LocalLensColors.primaryTeal.withValues(alpha: 0.35)
+                            : LocalLensColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ],
+                ],
               ],
             ),
             const SizedBox(width: 12),
@@ -480,164 +535,188 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
                 opacity: item.isSelected ? 1.0 : 0.45,
-                child: Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                    border: Border.all(
-                      color: item.isSelected ? LocalLensColors.border : LocalLensColors.borderLight,
-                      width: 1.0,
-                    ),
-                    boxShadow: item.isSelected ? LocalLensDimensions.softCardShadow : [],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Card Top Header: Time + Checkbox
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: item.isSelected ? LocalLensColors.surfaceSecondary : Colors.grey.shade100,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(LocalLensDimensions.radiusMedium),
-                          ),
+                    onTap: () {
+                      setState(() {
+                        _selectedExperienceIndex = index;
+                      });
+                      _mapKey.currentState?.animateToExperienceIndex(index);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+                        border: Border.all(
+                          color: isHighlighted
+                              ? LocalLensColors.primaryTeal
+                              : (item.isSelected ? LocalLensColors.border : LocalLensColors.borderLight),
+                          width: isHighlighted ? 2.0 : 1.0,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
+                        boxShadow: isHighlighted
+                            ? [
+                                BoxShadow(
+                                  color: LocalLensColors.primaryTeal.withValues(alpha: 0.2),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 3),
+                                )
+                              ]
+                            : (item.isSelected ? LocalLensDimensions.softCardShadow : []),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Card Top Header: Time + Checkbox
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: isHighlighted
+                                  ? LocalLensColors.primaryTealSoft.withValues(alpha: 0.3)
+                                  : (item.isSelected ? LocalLensColors.surfaceSecondary : Colors.grey.shade100),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(LocalLensDimensions.radiusMedium),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Icon(Icons.schedule_rounded, size: 14, color: LocalLensColors.primaryTeal),
-                                const SizedBox(width: 4),
-                                Text(
-                                  '${item.startTime} - ${item.endTime}',
-                                  style: LocalLensTypography.caption.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: LocalLensColors.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: LocalLensColors.primaryTealSoft,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '${item.durationMinutes} min',
-                                    style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: LocalLensColors.primaryTealDark,
+                                Row(
+                                  children: [
+                                    const Icon(Icons.schedule_rounded, size: 14, color: LocalLensColors.primaryTeal),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${item.startTime} - ${item.endTime}',
+                                      style: LocalLensTypography.caption.copyWith(
+                                        fontWeight: FontWeight.bold,
+                                        color: LocalLensColors.textPrimary,
+                                      ),
                                     ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: LocalLensColors.primaryTealSoft,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        '${item.durationMinutes} min',
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: LocalLensColors.primaryTealDark,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // Selection Checkbox
+                                Transform.scale(
+                                  scale: 0.9,
+                                  child: Checkbox(
+                                    value: item.isSelected,
+                                    activeColor: LocalLensColors.primaryTeal,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                                    onChanged: (val) {
+                                      notifier.toggleItemSelection(item.id);
+                                    },
                                   ),
                                 ),
                               ],
                             ),
-                            // Selection Checkbox
-                            Transform.scale(
-                              scale: 0.9,
-                              child: Checkbox(
-                                value: item.isSelected,
-                                activeColor: LocalLensColors.primaryTeal,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                                onChanged: (val) {
-                                  notifier.toggleItemSelection(item.id);
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                          ),
 
-                      // Card Content Body
-                      Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Thumbnail Image (Remote Supabase URL with fallback)
-                            LocalLensNetworkImage(
-                              imageUrl: item.image,
-                              width: 72,
-                              height: 72,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            const SizedBox(width: 12),
+                          // Card Content Body
+                          Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Thumbnail Image (Remote Supabase URL with fallback)
+                                LocalLensNetworkImage(
+                                  imageUrl: item.image,
+                                  width: 72,
+                                  height: 72,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                const SizedBox(width: 12),
 
-                            // Details
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                // Details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: LocalLensColors.accentOrangeSoft,
-                                          borderRadius: BorderRadius.circular(4),
-                                        ),
-                                        child: Text(
-                                          item.category.toUpperCase(),
-                                          style: const TextStyle(
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w800,
-                                            color: LocalLensColors.accentOrange,
-                                          ),
-                                        ),
-                                      ),
                                       Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                         children: [
-                                          const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
-                                          const SizedBox(width: 2),
-                                          Text(
-                                            '${item.rating}',
-                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: LocalLensColors.accentOrangeSoft,
+                                              borderRadius: BorderRadius.circular(4),
+                                            ),
+                                            child: Text(
+                                              item.category.toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 9,
+                                                fontWeight: FontWeight.w800,
+                                                color: LocalLensColors.accentOrange,
+                                              ),
+                                            ),
+                                          ),
+                                          Row(
+                                            children: [
+                                              const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
+                                              const SizedBox(width: 2),
+                                              Text(
+                                                '${item.rating}',
+                                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    item.experienceName,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.place_outlined, size: 12, color: LocalLensColors.textMuted),
-                                      const SizedBox(width: 2),
-                                      Expanded(
-                                        child: Text(
-                                          '${item.location} • ${item.distanceKm} km',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: LocalLensTypography.caption.copyWith(fontSize: 11),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        item.experienceName,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Row(
+                                        children: [
+                                          const Icon(Icons.place_outlined, size: 12, color: LocalLensColors.textMuted),
+                                          const SizedBox(width: 2),
+                                          Expanded(
+                                            child: Text(
+                                              '${item.location} • ${item.distanceKm} km',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: LocalLensTypography.caption.copyWith(fontSize: 11),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '₹${item.price.toInt()}',
+                                        style: LocalLensTypography.titleSmall.copyWith(
+                                          color: LocalLensColors.primaryTeal,
+                                          fontWeight: FontWeight.w800,
                                         ),
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '₹${item.price.toInt()}',
-                                    style: LocalLensTypography.titleSmall.copyWith(
-                                      color: LocalLensColors.primaryTeal,
-                                      fontWeight: FontWeight.w800,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

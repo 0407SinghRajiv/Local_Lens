@@ -198,6 +198,8 @@ class ItineraryApiService {
             tripDate: data['trip_date'] as String? ?? tripDate,
             startTime: data['start_time'] as String? ?? startTime,
             endTime: data['end_time'] as String? ?? '05:00 PM',
+            startLat: (data['start_lat'] as num?)?.toDouble() ?? startLat,
+            startLon: (data['start_lon'] as num?)?.toDouble() ?? startLon,
             totalDurationMinutes: (data['total_duration_minutes'] as num?)?.toInt() ?? 360,
             totalEstimatedCost: (data['total_experience_cost'] as num?)?.toDouble() ?? budget,
             estimatedTransportCost: (data['estimated_transport_cost'] as num?)?.toDouble() ?? 0.0,
@@ -220,6 +222,8 @@ class ItineraryApiService {
       startTime: startTime,
       durationHours: durationHours,
       budget: budget,
+      startLat: startLat,
+      startLon: startLon,
       selectedIds: selectedExperienceIds,
     );
   }
@@ -316,6 +320,8 @@ class ItineraryApiService {
     required String startTime,
     required double durationHours,
     required double budget,
+    double? startLat,
+    double? startLon,
     required List<String> selectedIds,
   }) {
     final recs = _buildFallbackRecommendations(destination, [], budget);
@@ -365,6 +371,8 @@ class ItineraryApiService {
         distanceKm: 2.5,
         image: r.image,
         rating: r.rating ?? 4.8,
+        latitude: r.latitude,
+        longitude: r.longitude,
         travelToNextMinutes: i < itemsToUse.length - 1 ? 15 : 0,
         travelToNextDistanceKm: i < itemsToUse.length - 1 ? 2.5 : 0.0,
       ));
@@ -379,6 +387,8 @@ class ItineraryApiService {
       tripDate: tripDate,
       startTime: startTime,
       endTime: items.isNotEmpty ? items.last.endTime : '05:00 PM',
+      startLat: startLat ?? 18.9894,
+      startLon: startLon ?? 73.1175,
       totalDurationMinutes: totalMins,
       totalEstimatedCost: totalCost,
       estimatedTransportCost: 120.0,

@@ -116,6 +116,9 @@ class ItineraryGenerateResponse(BaseModel):
     trip_date: str
     start_time: str
     end_time: str
+    start_lat: Optional[float] = None
+    start_lon: Optional[float] = None
+    start_location: Optional[str] = None
     total_duration_minutes: int
     total_duration_formatted: str
     total_experience_cost: float
