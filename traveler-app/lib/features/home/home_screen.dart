@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../explore/explore_screen.dart';
 import '../itinerary/my_itinerary_screen.dart';
@@ -77,22 +78,43 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        const Icon(
-                          Icons.location_on_rounded,
-                          size: 14,
-                          color: LocalLensColors.primaryTeal,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Panvel, Maharashtra',
-                          style: LocalLensTypography.caption.copyWith(
-                            color: LocalLensColors.textSecondary,
-                            fontWeight: FontWeight.w600,
+                    GestureDetector(
+                      onTap: () async {
+                        final granted = await LocationService.requestLocationPermission(context);
+                        if (context.mounted && granted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('Location synced: Panvel, Maharashtra'),
+                              backgroundColor: LocalLensColors.primaryTeal,
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                          );
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_rounded,
+                            size: 14,
+                            color: LocalLensColors.primaryTeal,
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Text(
+                            'Panvel, Maharashtra',
+                            style: LocalLensTypography.caption.copyWith(
+                              color: LocalLensColors.primaryTeal,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 14,
+                            color: LocalLensColors.primaryTeal,
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -134,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             const SizedBox(height: 18),
 
-            // Hero Discovery Banner
+            // Hero Discovery & Custom Itinerary Banner
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -166,9 +188,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         const SizedBox(height: 12),
                         GestureDetector(
                           onTap: () {
-                            setState(() {
-                              _currentTabIndex = 1; // Go to Explore
-                            });
+                            // Launch complete custom Itinerary flow (Destination, Time, Group, Interests, Budget)
+                            context.push(AppRoutes.tripSetup);
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -180,7 +201,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Text(
-                                  'Explore Now',
+                                  'Create Itinerary',
                                   style: LocalLensTypography.badge.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,

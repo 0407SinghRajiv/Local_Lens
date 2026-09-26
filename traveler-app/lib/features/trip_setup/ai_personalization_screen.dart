@@ -130,10 +130,11 @@ class _AIPersonalizationScreenState extends State<AIPersonalizationScreen> {
 
               // Explore Now CTA
               LocalLensPrimaryButton(
-                text: 'Explore Your Trip',
+                text: 'View Your Itinerary',
                 isOrange: true,
+                icon: Icons.auto_awesome_rounded,
                 onPressed: () {
-                  context.go(AppRoutes.home);
+                  context.push(AppRoutes.aiItinerary);
                 },
               ),
               const SizedBox(height: 16),
