@@ -386,7 +386,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     final exp = LocalLensMockData.featuredExperiences[index];
                     return GestureDetector(
                       onTap: () {
-                        context.push(AppRoutes.experienceDetails);
+                        context.push(
+                          AppRoutes.experienceDetails,
+                          extra: exp,
+                        );
                       },
                       child: Container(
                         width: 170,
@@ -401,16 +404,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           children: [
                             ClipRRect(
                               borderRadius: const BorderRadius.vertical(top: Radius.circular(LocalLensDimensions.radiusMedium)),
-                              child: Image.asset(
-                                exp.imageUrl,
+                              child: LocalLensNetworkImage(
+                                imageUrl: exp.imageUrl,
                                 height: 110,
                                 width: double.infinity,
-                                fit: BoxFit.cover,
-                                errorBuilder: (ctx, err, stack) => Container(
-                                  height: 110,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(Icons.image, color: Colors.grey),
-                                ),
                               ),
                             ),
                             Padding(

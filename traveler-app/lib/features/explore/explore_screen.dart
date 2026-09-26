@@ -213,16 +213,14 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                 // Image with Category & Rating Badges + Favorite Button
                                 Stack(
                                   children: [
-                                    Container(
-                                      height: 160,
-                                      decoration: BoxDecoration(
-                                        borderRadius: const BorderRadius.vertical(
-                                          top: Radius.circular(LocalLensDimensions.radiusMedium),
-                                        ),
-                                        image: DecorationImage(
-                                          image: AssetImage(exp.imageUrl),
-                                          fit: BoxFit.cover,
-                                        ),
+                                    ClipRRect(
+                                      borderRadius: const BorderRadius.vertical(
+                                        top: Radius.circular(LocalLensDimensions.radiusMedium),
+                                      ),
+                                      child: SizedBox(
+                                        height: 160,
+                                        width: double.infinity,
+                                        child: _buildExpImage(exp.imageUrl),
                                       ),
                                     ),
                                     Positioned(
@@ -406,6 +404,27 @@ class _ExploreScreenState extends State<ExploreScreen> {
             const SizedBox(height: 20),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildExpImage(String imageUrl) {
+    if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => Image.asset(
+          'assets/images/destinations/sunset_coast.png',
+          fit: BoxFit.cover,
+        ),
+      );
+    }
+    return Image.asset(
+      imageUrl,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => Image.asset(
+        'assets/images/destinations/sunset_coast.png',
+        fit: BoxFit.cover,
       ),
     );
   }

@@ -1,11 +1,17 @@
-import 'dart:convert';
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import '../config/supabase_config.dart';
 import '../models/sponsored_experience.dart';
 
 class SponsorService {
   SponsorService._();
+
+  static final Dio _dio = Dio(
+    BaseOptions(
+      connectTimeout: const Duration(seconds: 4),
+      receiveTimeout: const Duration(seconds: 4),
+    ),
+  );
 
   /// Fetches ONLY active, paid, and currently valid sponsored campaigns for travelers.
   /// 
@@ -31,42 +37,42 @@ class SponsorService {
             .gt('end_at', nowIso);
 
         for (final row in data) {
-            final map = Map<String, dynamic>.from(row as Map);
-            
-            // Query related experience if listing_id exists
-            if (map['listing_id'] != null) {
-              try {
-                var expData = await client
+          final map = Map<String, dynamic>.from(row as Map);
+          
+          // Query related experience if listing_id exists
+          if (map['listing_id'] != null) {
+            try {
+              var expData = await client
+                  .from('experience')
+                  .select()
+                  .eq('experience_id', map['listing_id'])
+                  .maybeSingle();
+
+              if (expData == null) {
+                expData = await client
                     .from('experience')
                     .select()
-                    .eq('experience_id', map['listing_id'])
+                    .eq('id', map['listing_id'])
                     .maybeSingle();
+              }
 
-                if (expData == null) {
-                  expData = await client
-                      .from('experience')
-                      .select()
-                      .eq('id', map['listing_id'])
-                      .maybeSingle();
-                }
-
-                if (expData != null) {
-                  map['experience_details'] = {
-                    'image_url': expData['image_url'] ??
-                        (expData['images'] is List && (expData['images'] as List).isNotEmpty
-                            ? (expData['images'] as List)[0]
-                            : null),
-                    'rating': expData['rating'] ?? 4.8,
-                    'review_count': expData['review_count'] ?? 120,
-                    'location': expData['city'] ?? expData['meeting_point'] ?? 'Mumbai',
-                    'original_price': expData['price_inr_clean'] ?? expData['price_inr'] ?? 1200,
-                  };
-                }
-              } catch (_) {}
-            }
-
-            results.add(SponsoredExperience.fromJson(map));
+              if (expData != null) {
+                map['experience_details'] = {
+                  'image_url': expData['image_url'] ??
+                      (expData['images'] is List && (expData['images'] as List).isNotEmpty
+                          ? (expData['images'] as List)[0]
+                          : null),
+                  'rating': expData['rating'] ?? 4.8,
+                  'review_count': expData['review_count'] ?? 120,
+                  'location': expData['city'] ?? expData['meeting_point'] ?? 'Mumbai',
+                  'original_price': expData['price_inr_clean'] ?? expData['price_inr'] ?? 1200,
+                };
+              }
+            } catch (_) {}
           }
+
+          results.add(SponsoredExperience.fromJson(map));
+        }
         if (results.isNotEmpty) {
           return results;
         }
@@ -78,15 +84,13 @@ class SponsorService {
     // 2. LocalLens Active Sponsors API Fallback
     try {
       final host = kIsWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
-      final response = await http
-          .get(Uri.parse('$host/api/sponsors/active'))
-          .timeout(const Duration(seconds: 4));
+      final response = await _dio.get('$host/api/sponsors/active');
 
-      if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
-        if (decoded['success'] == true && decoded['data'] is List) {
-          final list = (decoded['data'] as List)
-              .map((item) => SponsoredExperience.fromJson(Map<String, dynamic>.from(item)))
+      if (response.statusCode == 200 && response.data != null) {
+        final dynamic data = response.data;
+        if (data is Map && data['success'] == true && data['data'] is List) {
+          final list = (data['data'] as List)
+              .map((item) => SponsoredExperience.fromJson(Map<String, dynamic>.from(item as Map)))
               .toList();
           return list;
         }
@@ -98,3 +102,4 @@ class SponsorService {
     return results;
   }
 }
+
