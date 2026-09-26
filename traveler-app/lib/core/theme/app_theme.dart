@@ -19,7 +19,7 @@ class AppTheme {
       ),
       scaffoldBackgroundColor: AppColors.backgroundLight,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.backgroundLight,
+        backgroundColor: AppColors.topBar,
         elevation: 0,
         centerTitle: false,
         iconTheme: IconThemeData(color: AppColors.textPrimaryLight),

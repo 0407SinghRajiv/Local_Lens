@@ -348,20 +348,25 @@ class MatchBadge extends StatelessWidget {
 class LocalLensBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final bool isStormy;
 
   const LocalLensBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
+    this.isStormy = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isStormy ? const Color(0xFF1E293B) : Colors.white,
         border: Border(
-          top: BorderSide(color: LocalLensColors.border.withValues(alpha: 0.7)),
+          top: BorderSide(
+            color: isStormy ? const Color(0xFF334155) : LocalLensColors.border.withValues(alpha: 0.7),
+          ),
         ),
         boxShadow: const [
           BoxShadow(
@@ -391,6 +396,9 @@ class LocalLensBottomNav extends StatelessWidget {
 
   Widget _buildNavItem(int index, IconData icon, String label) {
     final isSelected = currentIndex == index;
+    final activeColor = isStormy ? const Color(0xFF38BDF8) : LocalLensColors.primaryTeal;
+    final inactiveColor = isStormy ? const Color(0xFF64748B) : LocalLensColors.textMuted;
+
     return GestureDetector(
       onTap: () => onTap(index),
       behavior: HitTestBehavior.opaque,
@@ -402,9 +410,7 @@ class LocalLensBottomNav extends StatelessWidget {
             Icon(
               icon,
               size: 24,
-              color: isSelected
-                  ? LocalLensColors.primaryTeal
-                  : LocalLensColors.textMuted,
+              color: isSelected ? activeColor : inactiveColor,
             ),
             const SizedBox(height: 3),
             Text(
@@ -412,9 +418,7 @@ class LocalLensBottomNav extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                color: isSelected
-                    ? LocalLensColors.primaryTeal
-                    : LocalLensColors.textMuted,
+                color: isSelected ? activeColor : inactiveColor,
               ),
             ),
           ],
@@ -748,6 +752,7 @@ class ExperienceCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onSaveTap;
   final double width;
+  final bool isStormy;
 
   const ExperienceCard({
     super.key,
@@ -763,19 +768,23 @@ class ExperienceCard extends StatelessWidget {
     required this.onTap,
     this.onSaveTap,
     this.width = 220,
+    this.isStormy = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
         width: width,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isStormy ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(AppRadius.lg),
           boxShadow: AppShadows.card,
-          border: Border.all(color: LocalLensColors.border),
+          border: Border.all(
+            color: isStormy ? const Color(0xFF334155) : LocalLensColors.border,
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -784,11 +793,16 @@ class ExperienceCard extends StatelessWidget {
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
-                  child: LocalLensNetworkImage(
-                    imageUrl: imageUrl,
-                    height: 130,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
+                  child: ColorFiltered(
+                    colorFilter: isStormy
+                        ? ColorFilter.mode(const Color(0xFF0F172A).withValues(alpha: 0.18), BlendMode.darken)
+                        : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                    child: LocalLensNetworkImage(
+                      imageUrl: imageUrl,
+                      height: 130,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
                 Positioned(
@@ -796,14 +810,17 @@ class ExperienceCard extends StatelessWidget {
                   right: 10,
                   child: GestureDetector(
                     onTap: onSaveTap,
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 350),
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.9),
+                        color: isStormy
+                            ? const Color(0xFF0F172A).withValues(alpha: 0.85)
+                            : Colors.white.withValues(alpha: 0.9),
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
+                            color: Colors.black.withValues(alpha: 0.15),
                             blurRadius: 4,
                           ),
                         ],
@@ -811,7 +828,9 @@ class ExperienceCard extends StatelessWidget {
                       child: Icon(
                         isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                         size: 18,
-                        color: isSaved ? LocalLensColors.accentOrange : LocalLensColors.textMuted,
+                        color: isSaved
+                            ? (isStormy ? const Color(0xFF38BDF8) : LocalLensColors.accentOrange)
+                            : (isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textMuted),
                       ),
                     ),
                   ),
@@ -830,17 +849,21 @@ class ExperienceCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 350),
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: LocalLensColors.primaryTealSoft,
+                          color: isStormy
+                              ? const Color(0xFF0288D1).withValues(alpha: 0.25)
+                              : LocalLensColors.primaryTealSoft,
                           borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Text(
                           category.toUpperCase(),
                           style: LocalLensTypography.badge.copyWith(
-                            color: LocalLensColors.primaryTeal,
+                            color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.primaryTeal,
                             fontSize: 9,
+                            fontWeight: FontWeight.w900,
                           ),
                         ),
                       ),
@@ -848,7 +871,10 @@ class ExperienceCard extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           '${distanceKm!.toStringAsFixed(1)} km away',
-                          style: LocalLensTypography.caption.copyWith(fontSize: 10),
+                          style: LocalLensTypography.caption.copyWith(
+                            fontSize: 10,
+                            color: isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                          ),
                         ),
                       ],
                     ],
@@ -858,19 +884,28 @@ class ExperienceCard extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: LocalLensTypography.titleMedium.copyWith(fontSize: 14),
+                    style: LocalLensTypography.titleMedium.copyWith(
+                      fontSize: 14,
+                      color: isStormy ? Colors.white : LocalLensColors.textPrimary,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(Icons.location_on_outlined, size: 13, color: LocalLensColors.textMuted),
+                      Icon(
+                        Icons.location_on_outlined,
+                        size: 13,
+                        color: isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textMuted,
+                      ),
                       const SizedBox(width: 2),
                       Expanded(
                         child: Text(
                           location,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: LocalLensTypography.caption,
+                          style: LocalLensTypography.caption.copyWith(
+                            color: isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                          ),
                         ),
                       ),
                     ],
@@ -883,13 +918,16 @@ class ExperienceCard extends StatelessWidget {
                         '₹${priceInr.toInt()}',
                         style: LocalLensTypography.titleSmall.copyWith(
                           fontWeight: FontWeight.w800,
-                          color: LocalLensColors.primaryTeal,
+                          color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.primaryTeal,
                         ),
                       ),
                       if (durationHours != null)
                         Text(
                           '${durationHours!.toStringAsFixed(1)}h',
-                          style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.w600),
+                          style: LocalLensTypography.caption.copyWith(
+                            fontWeight: FontWeight.w600,
+                            color: isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                          ),
                         ),
                     ],
                   ),

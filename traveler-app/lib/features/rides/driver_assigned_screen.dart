@@ -25,7 +25,7 @@ class DriverAssignedScreen extends StatelessWidget {
               ),
             ),
             child: Container(
-              color: Colors.black.withOpacity(0.12),
+              color: Colors.black.withValues(alpha: 0.12),
             ),
           ),
 
@@ -230,7 +230,7 @@ class DriverAssignedScreen extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: LocalLensColors.coastalSage.withOpacity(0.12),
+                          color: LocalLensColors.coastalSage.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
@@ -253,9 +253,9 @@ class DriverAssignedScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                     decoration: BoxDecoration(
-                      color: LocalLensColors.terracottaPrimary.withOpacity(0.08),
+                      color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: LocalLensColors.terracottaPrimary.withOpacity(0.2)),
+                      border: Border.all(color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.2)),
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -324,7 +324,7 @@ class DriverAssignedScreen extends StatelessWidget {
                           ),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 10),
-                            side: BorderSide(color: LocalLensColors.terracottaPrimary.withOpacity(0.4)),
+                            side: BorderSide(color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.4)),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                         ),

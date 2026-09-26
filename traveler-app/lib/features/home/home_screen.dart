@@ -1,10 +1,17 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math' as math;
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
 import '../../models/sponsored_experience.dart';
+import '../../models/user_profile.dart';
+import '../../providers/auth_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/sponsor_service.dart';
 import '../../widgets/common/locallens_components.dart';
@@ -21,18 +28,155 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends ConsumerState<HomeScreen> {
+class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStateMixin {
   int _currentTabIndex = 0;
-  String _selectedCategory = 'Food';
+  String _selectedCategory = 'All';
+  int _currentPage = 1;
+  static const int _itemsPerPage = 3;
   late Future<List<SponsoredExperience>> _sponsoredFuture;
+  late final ScrollController _scrollController;
+  bool _isTopBarCollapsed = false;
+
+  late final AnimationController _borderPulseController;
+  late final Animation<double> _borderPulseAnimation;
+  late final AnimationController _sunMoonRayController;
+  late final AnimationController _stormController;
+
+  bool _isStormyDemo = false;
+
+  Timer? _clockTimer;
+  String _tempCelsius = '27°C';
+  String _weatherDesc = 'Clear Sky';
+  IconData _weatherIcon = Icons.wb_sunny_rounded;
 
   @override
   void initState() {
     super.initState();
+    _scrollController = ScrollController();
+    _scrollController.addListener(_onScroll);
     _refreshSponsored();
+
+    _borderPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+
+    _borderPulseAnimation = CurvedAnimation(
+      parent: _borderPulseController,
+      curve: Curves.linear,
+    );
+
+    _sunMoonRayController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    )..repeat(reverse: true);
+
+    _stormController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    );
+
+    _fetchWeather();
+
+    _clockTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _promptLocationOnAppOpen();
     });
+  }
+
+  void _onScroll() {
+    final offset = _scrollController.offset;
+    if (offset > 30 && !_isTopBarCollapsed) {
+      setState(() {
+        _isTopBarCollapsed = true;
+      });
+    } else if (offset <= 30 && _isTopBarCollapsed) {
+      setState(() {
+        _isTopBarCollapsed = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _clockTimer?.cancel();
+    _sunMoonRayController.dispose();
+    _stormController.dispose();
+    _borderPulseController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchWeather() async {
+    try {
+      final response = await http.get(Uri.parse(
+        'https://api.open-meteo.com/v1/forecast?latitude=18.9894&longitude=73.1175&current_weather=true',
+      )).timeout(const Duration(seconds: 5));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final cw = data['current_weather'];
+        if (cw != null) {
+          final temp = (cw['temperature'] as num).round();
+          final code = (cw['weathercode'] as num).toInt();
+          final isDay = (cw['is_day'] as num?) == 1;
+          if (mounted) {
+            setState(() {
+              _tempCelsius = '$temp°C';
+              _weatherDesc = _getWeatherDescription(code, isDay);
+              _weatherIcon = _getWeatherIcon(code, isDay);
+            });
+          }
+          return;
+        }
+      }
+    } catch (_) {}
+
+    // Fallback to time-based smart estimation if offline/timeout
+    final hour = DateTime.now().hour;
+    if (mounted) {
+      setState(() {
+        if (hour >= 5 && hour < 8) {
+          _tempCelsius = '24°C';
+          _weatherDesc = 'Sunrise / Cool';
+          _weatherIcon = Icons.wb_twilight_rounded;
+        } else if (hour >= 8 && hour < 17) {
+          _tempCelsius = '29°C';
+          _weatherDesc = 'Clear & Sunny';
+          _weatherIcon = Icons.wb_sunny_rounded;
+        } else if (hour >= 17 && hour < 20) {
+          _tempCelsius = '26°C';
+          _weatherDesc = 'Golden Sunset';
+          _weatherIcon = Icons.wb_sunny_outlined;
+        } else {
+          _tempCelsius = '22°C';
+          _weatherDesc = 'Clear Night';
+          _weatherIcon = Icons.nights_stay_rounded;
+        }
+      });
+    }
+  }
+
+  String _getWeatherDescription(int code, bool isDay) {
+    if (code == 0) return isDay ? 'Clear & Sunny' : 'Clear Night';
+    if (code >= 1 && code <= 3) return 'Partly Cloudy';
+    if (code == 45 || code == 48) return 'Hazy / Foggy';
+    if (code >= 51 && code <= 67) return 'Light Rain';
+    if (code >= 80 && code <= 82) return 'Rain Showers';
+    if (code >= 95) return 'Thunderstorm';
+    return isDay ? 'Sunny' : 'Clear';
+  }
+
+  IconData _getWeatherIcon(int code, bool isDay) {
+    if (code == 0) return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
+    if (code >= 1 && code <= 3) return isDay ? Icons.wb_cloudy_rounded : Icons.cloud_queue_rounded;
+    if (code >= 51 && code <= 82) return Icons.grain_rounded;
+    if (code >= 95) return Icons.thunderstorm_rounded;
+    return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
   }
 
   void _refreshSponsored() {
@@ -48,479 +192,1177 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: LocalLensColors.background,
-      body: IndexedStack(
-        index: _currentTabIndex,
-        children: [
-          _buildHomeTab(context),
-          const ExploreScreen(),
-          const MyItineraryScreen(),
-          const SavedScreen(),
-          const ProfileScreen(),
-        ],
-      ),
-      bottomNavigationBar: LocalLensBottomNav(
-        currentIndex: _currentTabIndex,
-        onTap: (index) {
-          setState(() {
-            _currentTabIndex = index;
-          });
-        },
-      ),
-    );
-  }
+  Widget _buildUserAvatar(UserProfile? userProfile) {
+    final photoUrl = userProfile?.photoUrl;
+    final hasRealPhoto = photoUrl != null && photoUrl.trim().isNotEmpty && photoUrl.startsWith('http');
+    // Real Gmail / Google User Profile Image format
+    const googleGmailFallbackUrl = 'https://lh3.googleusercontent.com/a/ACg8ocIq8x4d16wV9P-b2Wk?s=96-c';
+    final avatarUrl = hasRealPhoto ? photoUrl : googleGmailFallbackUrl;
 
-  Widget _buildHomeTab(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () async => _refreshSponsored(),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-            horizontal: LocalLensDimensions.paddingScreen,
-            vertical: 12,
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isStormyDemo = !_isStormyDemo;
+          if (_isStormyDemo) {
+            _tempCelsius = '17°C';
+            _weatherDesc = 'Heavy Rain & Thunderstorm';
+            _weatherIcon = Icons.thunderstorm_rounded;
+            _stormController.repeat();
+          } else {
+            _fetchWeather();
+            _stormController.stop();
+          }
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        width: 44,
+        height: 44,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _isStormyDemo ? const Color(0xFF00E5FF) : const Color(0xFF111827).withValues(alpha: 0.25),
+            width: _isStormyDemo ? 2.8 : 2.2,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top Header: Greeting + Location + Notification & Avatar
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Good morning, Traveler',
-                            style: LocalLensTypography.titleLarge.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Text('✨', style: TextStyle(fontSize: 18)),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-                      GestureDetector(
-                        onTap: () async {
-                          final granted = await LocationService.requestLocationPermission(context);
-                          if (context.mounted && granted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Location synced: Panvel, Maharashtra'),
-                                backgroundColor: LocalLensColors.primaryTeal,
-                                behavior: SnackBarBehavior.floating,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            );
-                          }
-                        },
-                        child: Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_rounded,
-                              size: 14,
-                              color: LocalLensColors.primaryTeal,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Panvel, Maharashtra',
-                              style: LocalLensTypography.caption.copyWith(
-                                color: LocalLensColors.primaryTeal,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              size: 14,
-                              color: LocalLensColors.primaryTeal,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: LocalLensColors.textPrimary,
-                          size: 26,
-                        ),
-                        onPressed: () {
-                          context.push(AppRoutes.notifications);
-                        },
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _currentTabIndex = 4; // Go to Profile tab
-                          });
-                        },
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: LocalLensColors.primaryTeal, width: 1.5),
-                            image: const DecorationImage(
-                              image: AssetImage('assets/images/characters/solo.png'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 18),
-
-              // Hero Discovery & Custom Itinerary Banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LocalLensColors.heroCardGradient,
-                  borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
-                  boxShadow: [
-                    BoxShadow(
-                      color: LocalLensColors.primaryTealDark.withValues(alpha: 0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Your next local\nadventure is waiting',
-                            style: LocalLensTypography.titleLarge.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: () {
-                              context.push(AppRoutes.travelerCreateItinerary);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: LocalLensColors.accentOrange,
-                                borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Plan with Local AI',
-                                    style: LocalLensTypography.caption.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Image.asset(
-                      'assets/images/characters/brand_characters.png',
-                      width: 90,
-                      height: 90,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.explore, color: Colors.white, size: 64),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Swipe to Discover Banner (design.md Section 11 & 12)
-              GestureDetector(
-                onTap: () {
-                  context.push(AppRoutes.recommendationSwipe);
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: LocalLensColors.border),
-                    boxShadow: AppShadows.card,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: LocalLensColors.accentOrangeSoft,
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                        child: const Icon(
-                          Icons.swipe_rounded,
-                          color: LocalLensColors.accentOrange,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Discover your way',
-                              style: LocalLensTypography.titleSmall.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Swipe right to save, up to add to trip',
-                              style: LocalLensTypography.caption,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: LocalLensColors.textMuted,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ==============================================================
-              // REAL DATABASE-DRIVEN SPONSORED EXPERIENCES SECTION
-              // Supabase query: campaign_status = 'active' AND payment_status = 'paid'
-              // AND start_at <= NOW() AND end_at > NOW()
-              // ==============================================================
-              FutureBuilder<List<SponsoredExperience>>(
-                future: _sponsoredFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                        border: Border.all(color: LocalLensColors.border),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: LocalLensColors.primaryTeal),
-                          ),
-                          SizedBox(width: 10),
-                          Text('Checking for active sponsored experiences...', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final campaigns = snapshot.data ?? [];
-                  if (campaigns.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFFDE68A)),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.star_rounded, size: 13, color: Color(0xFFD97706)),
-                                SizedBox(width: 4),
-                                Text(
-                                  'FEATURED SPOTLIGHT',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF92400E),
-                                    letterSpacing: 0.5,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      ...campaigns.map((camp) => _buildSponsoredCard(context, camp, isDark)),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                },
-              ),
-
-              // Categories Chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildCategoryChip('Food', '🍱'),
-                    _buildCategoryChip('Heritage', '🏛️'),
-                    _buildCategoryChip('Culture', '🎭'),
-                    _buildCategoryChip('Nature', '🌿'),
-                    _buildCategoryChip('Crafts', '🏺'),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section: Top Experiences
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Trending near you', style: LocalLensTypography.titleLarge),
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _currentTabIndex = 1; // Go to Explore
-                      });
-                    },
-                    child: Text(
-                      'See all',
-                      style: LocalLensTypography.caption.copyWith(
-                        color: LocalLensColors.primaryTeal,
-                        fontWeight: FontWeight.w700,
-                      ),
+          boxShadow: [
+            BoxShadow(
+              color: _isStormyDemo
+                  ? const Color(0xFF00E5FF).withValues(alpha: 0.65)
+                  : Colors.black.withValues(alpha: 0.25),
+              blurRadius: _isStormyDemo ? 12 : 6,
+              spreadRadius: _isStormyDemo ? 1.5 : 0,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: ClipOval(
+          child: Image.network(
+            avatarUrl,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(
+                color: Colors.white,
+                child: Center(
+                  child: Text(
+                    (userProfile?.displayName.isNotEmpty == true)
+                        ? userProfile!.displayName[0].toUpperCase()
+                        : 'G',
+                    style: const TextStyle(
+                      color: Color(0xFFFF1744),
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              SizedBox(
-                height: 250,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: LocalLensMockData.featuredExperiences.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    final exp = LocalLensMockData.featuredExperiences[index];
-                    return ExperienceCard(
-                      title: exp.title,
-                      imageUrl: exp.imageUrl,
-                      rating: exp.rating,
-                      category: exp.category,
-                      priceInr: exp.priceInr,
-                      location: exp.location,
-                      distanceKm: exp.distanceKm,
-                      durationHours: exp.durationHours,
-                      onTap: () => context.push(AppRoutes.experienceDetails),
-                      width: 200,
-                    );
-                  },
                 ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section: Your Trip
-              Text('Your trip', style: LocalLensTypography.titleLarge),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _currentTabIndex = 2; // Go to Trips
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                    boxShadow: LocalLensDimensions.softCardShadow,
-                    border: Border.all(color: LocalLensColors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: LocalLensColors.primaryTealSoft,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.route_rounded, color: LocalLensColors.primaryTeal, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Panvel Local Discovery',
-                              style: LocalLensTypography.titleMedium,
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '4 experiences • 6h 30m • ₹1,450',
-                              style: LocalLensTypography.caption,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: LocalLensColors.textMuted),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCategoryChip(String label, String emoji) {
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      color: _isStormyDemo ? const Color(0xFF0F172A) : const Color(0xFFFFFAF7),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            // 🌸 Inverted Atithi Devo Bhava Logo Watermark Background in Dark/Stormy Mode
+            Positioned(
+              right: -35,
+              top: 120,
+              width: 440,
+              height: 440,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 350),
+                  opacity: _isStormyDemo ? 0.22 : 0.26,
+                  child: ColorFiltered(
+                    colorFilter: _isStormyDemo
+                        ? const ColorFilter.matrix(<double>[
+                            -1, 0, 0, 0, 255,
+                             0,-1, 0, 0, 255,
+                             0, 0,-1, 0, 255,
+                             0, 0, 0, 1,   0,
+                          ])
+                        : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                    child: Image.asset(
+                      'assets/images/atithi_devo_bhava_logo.png',
+                      fit: BoxFit.contain,
+                      alignment: Alignment.centerRight,
+                      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              right: -55,
+              bottom: 80,
+              width: 380,
+              height: 380,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 350),
+                  opacity: _isStormyDemo ? 0.16 : 0.20,
+                  child: ColorFiltered(
+                    colorFilter: _isStormyDemo
+                        ? const ColorFilter.matrix(<double>[
+                            -1, 0, 0, 0, 255,
+                             0,-1, 0, 0, 255,
+                             0, 0,-1, 0, 255,
+                             0, 0, 0, 1,   0,
+                          ])
+                        : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                    child: Image.asset(
+                      'assets/images/atithi_devo_bhava_logo.png',
+                      fit: BoxFit.contain,
+                      alignment: Alignment.centerRight,
+                      errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // 🌧️ Zomato-Style Realistic Raindrops Stream (BACKGROUND LAYER ONLY - BEHIND ALL CARDS & CONTENT)
+            if (_isStormyDemo)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _stormController,
+                    builder: (context, child) {
+                      return CustomPaint(
+                        painter: ZomatoScreenWideRainAndLightningPainter(
+                          stormProgress: _stormController.value,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+
+            // Main App Content Tabs
+            IndexedStack(
+              index: _currentTabIndex,
+              children: [
+                _buildHomeTab(context),
+                ExploreScreen(isStormy: _isStormyDemo),
+                MyItineraryScreen(isStormy: _isStormyDemo),
+                SavedScreen(isStormy: _isStormyDemo),
+                ProfileScreen(isStormy: _isStormyDemo),
+              ],
+            ),
+          ],
+        ),
+        bottomNavigationBar: LocalLensBottomNav(
+          currentIndex: _currentTabIndex,
+          isStormy: _isStormyDemo,
+          onTap: (index) {
+            setState(() {
+              _currentTabIndex = index;
+            });
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHomeTab(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final userProfile = ref.watch(currentUserProfileProvider);
+
+    // Filter Experiences based on Selected Category Chip
+    final filteredExperiences = _selectedCategory == 'All'
+        ? LocalLensMockData.featuredExperiences
+        : LocalLensMockData.featuredExperiences.where((exp) {
+            final catLower = _selectedCategory.toLowerCase();
+            return exp.category.toLowerCase() == catLower ||
+                exp.subCategory.toLowerCase().contains(catLower);
+          }).toList();
+
+    // Calculate Pagination
+    final totalPages = (filteredExperiences.isEmpty)
+        ? 1
+        : (filteredExperiences.length / _itemsPerPage).ceil();
+
+    final safeCurrentPage = _currentPage.clamp(1, totalPages);
+    final startIndex = (safeCurrentPage - 1) * _itemsPerPage;
+    final endIndex = (startIndex + _itemsPerPage < filteredExperiences.length)
+        ? startIndex + _itemsPerPage
+        : filteredExperiences.length;
+
+    final pagedExperiences = (filteredExperiences.isNotEmpty && startIndex < filteredExperiences.length)
+        ? filteredExperiences.sublist(startIndex, endIndex)
+        : <ExperienceItem>[];
+
+    return SafeArea(
+      bottom: false,
+      child: Column(
+        children: [
+          // 🍑 1. SOFT PEACH TOP BAR (#F7E2D5) OR DARK STORMY BAR (#1E293B) WITH REALTIME WEATHER & ANIMATION
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 350),
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: _isStormyDemo ? const Color(0xFF1E293B) : const Color(0xFFF7E2D5),
+              borderRadius: BorderRadius.only(
+                bottomLeft: Radius.circular(_isTopBarCollapsed ? 24 : 44),
+                bottomRight: Radius.circular(_isTopBarCollapsed ? 24 : 44),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: _isStormyDemo ? 0.35 : 0.09),
+                  blurRadius: _isTopBarCollapsed ? 12 : 24,
+                  offset: Offset(0, _isTopBarCollapsed ? 4 : 10),
+                ),
+              ],
+            ),
+            child: AnimatedBuilder(
+              animation: Listenable.merge([_sunMoonRayController, _stormController]),
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: SunriseSunsetArcPainter(
+                    animationProgress: _sunMoonRayController.value,
+                    isStormy: _isStormyDemo,
+                    stormProgress: _stormController.value,
+                  ),
+                  child: child,
+                );
+              },
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(
+                  22,
+                  _isTopBarCollapsed ? 14 : 32,
+                  22,
+                  _isTopBarCollapsed ? 16 : 42,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // User Greeting & Smart Weather/Time Row (Where To Next Removed)
+                    AnimatedCrossFade(
+                      firstChild: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // App Brand Header (LocalLens)
+                                    Text(
+                                      'LocalLens',
+                                      style: TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w900,
+                                        color: _isStormyDemo ? const Color(0xFFF8FAFC) : const Color(0xFF111827),
+                                        letterSpacing: -0.8,
+                                        height: 1.1,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: _isStormyDemo
+                                          ? Colors.white.withValues(alpha: 0.15)
+                                          : const Color(0xFF111827).withValues(alpha: 0.08),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      icon: Icon(
+                                        Icons.notifications_none_rounded,
+                                        color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
+                                        size: 24,
+                                      ),
+                                      onPressed: () {
+                                        context.push(AppRoutes.notifications);
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  // REAL GMAIL AVATAR IMAGE
+                                  _buildUserAvatar(userProfile),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 58),
+                        ],
+                      ),
+                      secondChild: const SizedBox.shrink(),
+                      crossFadeState: _isTopBarCollapsed ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+                      duration: const Duration(milliseconds: 200),
+                    ),
+
+                    // ONLY INPUT FIELD REMAINS VISIBLE ON TOP BAR WHEN USER SCROLLS DOWN
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 350),
+                      decoration: BoxDecoration(
+                        color: _isStormyDemo ? const Color(0xFF334155) : Colors.white,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(18),
+                          topRight: const Radius.circular(18),
+                          bottomLeft: Radius.circular(_isTopBarCollapsed ? 18 : 28),
+                          bottomRight: Radius.circular(_isTopBarCollapsed ? 18 : 28),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: _isStormyDemo ? 0.3 : 0.1),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                      ),
+                      child: TextField(
+                        onSubmitted: (query) {
+                          if (query.trim().isNotEmpty) {
+                            setState(() {
+                              _currentTabIndex = 1; // Switch to Explore tab
+                            });
+                          }
+                        },
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
+                          fontWeight: FontWeight.w700,
+                        ),
+                        decoration: InputDecoration(
+                          hintText: 'Search destinations, local eats & spots...',
+                          hintStyle: TextStyle(
+                            fontSize: 14,
+                            color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
+                            size: 24,
+                          ),
+                          suffixIcon: Container(
+                            margin: const EdgeInsets.all(6),
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: _isStormyDemo
+                                  ? const Color(0xFF0F172A)
+                                  : const Color(0xFF111827).withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Icon(
+                              Icons.tune_rounded,
+                              color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
+                              size: 18,
+                            ),
+                          ),
+                          border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+          // 📜 2. SCROLLABLE BODY CONTENT (STICKY TOPBAR COLLAPSES TO SHOW ONLY SEARCH BAR)
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => _refreshSponsored(),
+              child: SingleChildScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LocalLensDimensions.paddingScreen,
+                    vertical: 16,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 🔮 FAMOUS LOCATION BACKGROUND "PLAN WITH LOCAL AI" HERO BANNER
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 350),
+                        width: double.infinity,
+                        height: 295,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(24),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _isStormyDemo
+                                  ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                                  : const Color(0xFFFF1744).withValues(alpha: 0.35),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(24),
+                          child: Stack(
+                            children: [
+                              // 1. Background Famous Place Image with Atmospheric Blending
+                              Positioned.fill(
+                                child: ColorFiltered(
+                                  colorFilter: _isStormyDemo
+                                      ? ColorFilter.mode(const Color(0xFF0F172A).withValues(alpha: 0.18), BlendMode.darken)
+                                      : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                                  child: Image.network(
+                                    'https://images.unsplash.com/photo-1570168007204-dfb528c6958f?q=80&w=1200&auto=format&fit=crop',
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      color: const Color(0xFFC62828),
+                                      child: const Center(
+                                        child: Icon(Icons.landscape_rounded, color: Colors.white54, size: 60),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // 2. Dark Gradient Overlay Transition
+                              Positioned.fill(
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 350),
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: _isStormyDemo
+                                          ? [
+                                              Colors.black.withValues(alpha: 0.4),
+                                              const Color(0xFF0F172A).withValues(alpha: 0.75),
+                                              const Color(0xFF1E293B).withValues(alpha: 0.95),
+                                            ]
+                                          : [
+                                              Colors.black.withValues(alpha: 0.3),
+                                              const Color(0xFFB71C1C).withValues(alpha: 0.55),
+                                              Colors.black.withValues(alpha: 0.88),
+                                            ],
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // 3. Top Badges: User Location, Realtime Weather & AI Spotlight Badge
+                              Positioned(
+                                top: 16,
+                                left: 16,
+                                right: 16,
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: SingleChildScrollView(
+                                        scrollDirection: Axis.horizontal,
+                                        child: Row(
+                                          children: [
+                                            // Location Badge
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.55),
+                                                borderRadius: BorderRadius.circular(20),
+                                                border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+                                              ),
+                                              child: const Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.location_on_rounded, color: Color(0xFFFF5252), size: 14),
+                                                  SizedBox(width: 4),
+                                                  Text(
+                                                    'Panvel, Maharashtra',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+
+                                            // ☀️ REALTIME TEMPERATURE & WEATHER BADGE
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                              decoration: BoxDecoration(
+                                                color: Colors.black.withValues(alpha: 0.55),
+                                                borderRadius: BorderRadius.circular(20),
+                                                border: Border.all(
+                                                  color: _isStormyDemo
+                                                      ? const Color(0xFF38BDF8).withValues(alpha: 0.8)
+                                                      : const Color(0xFFFFD54F).withValues(alpha: 0.6),
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    _weatherIcon,
+                                                    color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFFD54F),
+                                                    size: 11,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    '$_tempCelsius • $_weatherDesc',
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w800,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: _isStormyDemo
+                                            ? const Color(0xFF0288D1).withValues(alpha: 0.9)
+                                            : const Color(0xFFFF1744).withValues(alpha: 0.9),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(Icons.auto_awesome, color: Colors.white, size: 12),
+                                          SizedBox(width: 4),
+                                          Text(
+                                            'AI SPOTLIGHT',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+
+                              // 4. Header Text and Button Positioned at Bottom
+                              Positioned(
+                                bottom: 16,
+                                left: 16,
+                                right: 16,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Text(
+                                      'Explore Panvel & Nearby Hidden Gems',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 19,
+                                        fontWeight: FontWeight.w900,
+                                        height: 1.2,
+                                        letterSpacing: -0.4,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Tailored local itinerary crafted specifically for your area',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    GestureDetector(
+                                      onTap: () {
+                                        context.push(AppRoutes.travelerCreateItinerary);
+                                      },
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(30),
+                                        child: BackdropFilter(
+                                          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                          child: AnimatedContainer(
+                                            duration: const Duration(milliseconds: 350),
+                                            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: _isStormyDemo
+                                                    ? [const Color(0xFF0288D1), const Color(0xFF01579B)]
+                                                    : [const Color(0xFFFF1744), const Color(0xFFD50000)],
+                                              ),
+                                              borderRadius: BorderRadius.circular(30),
+                                              border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.2),
+                                            ),
+                                            child: const Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Text(
+                                                  'Plan with Local AI',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                ),
+                                                SizedBox(width: 6),
+                                                Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // DISCOVER SECTION HEADER TITLED "EXPLORE"
+                      Text(
+                        'Explore',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.6,
+                          color: _isStormyDemo ? const Color(0xFFF8FAFC) : const Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Swipe to Discover Banner (with Animated Red Sweep Left-to-Right + Water Droplets Splash on Right Edge)
+                      GestureDetector(
+                        onTap: () {
+                          context.push(AppRoutes.recommendationSwipe);
+                        },
+                        child: AnimatedBuilder(
+                          animation: _borderPulseAnimation,
+                          builder: (context, child) {
+                            return CustomPaint(
+                              foregroundPainter: RedSweepWaterSplashPainter(
+                                progress: _borderPulseAnimation.value,
+                                borderRadius: AppRadius.lg,
+                                isStormy: _isStormyDemo,
+                              ),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 350),
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.white,
+                                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                                  boxShadow: AppShadows.card,
+                                  border: Border.all(
+                                    color: _isStormyDemo ? const Color(0xFF334155) : LocalLensColors.border,
+                                  ),
+                                ),
+                                child: child,
+                              ),
+                            );
+                          },
+                          child: Row(
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 350),
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: _isStormyDemo
+                                      ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                                      : const Color(0xFFFF1744).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
+                                ),
+                                child: Icon(
+                                  Icons.swipe_rounded,
+                                  color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Discover your way',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: -0.3,
+                                        color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Swipe right to save, up to add to trip',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 14,
+                                color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // SPONSORED EXPERIENCES SECTION
+                      FutureBuilder<List<SponsoredExperience>>(
+                        future: _sponsoredFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return Container(
+                              padding: const EdgeInsets.all(16),
+                              margin: const EdgeInsets.only(bottom: 20),
+                              decoration: BoxDecoration(
+                                color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.white,
+                                borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+                                border: Border.all(color: _isStormyDemo ? const Color(0xFF334155) : LocalLensColors.border),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Text(
+                                    'Checking for active sponsored experiences...',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          final campaigns = snapshot.data ?? [];
+                          if (campaigns.isEmpty) {
+                            return const SizedBox.shrink();
+                          }
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                    decoration: BoxDecoration(
+                                      color: _isStormyDemo ? const Color(0xFF1E3A8A) : const Color(0xFFFEF3C7),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: _isStormyDemo ? const Color(0xFF3B82F6) : const Color(0xFFFDE68A),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          Icons.star_rounded,
+                                          size: 13,
+                                          color: _isStormyDemo ? const Color(0xFF60A5FA) : const Color(0xFFD97706),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'FEATURED SPOTLIGHT',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w900,
+                                            color: _isStormyDemo ? const Color(0xFF93C5FD) : const Color(0xFF92400E),
+                                            letterSpacing: 0.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+
+                              ...campaigns.map((camp) => _buildSponsoredCard(context, camp, isDark)),
+                              const SizedBox(height: 16),
+                            ],
+                          );
+                        },
+                      ),
+
+                      // Category Chips (Interactive Category Filtering)
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildCategoryChip('All'),
+                            _buildCategoryChip('Food'),
+                            _buildCategoryChip('Heritage'),
+                            _buildCategoryChip('Culture'),
+                            _buildCategoryChip('Nature'),
+                            _buildCategoryChip('Crafts'),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // 3. EXPLORE NEARBY GEMS (FILTERED & PAGINATED)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedCategory == 'All'
+                                    ? 'Explore Nearby Gems'
+                                    : 'Explore $_selectedCategory Gems',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.6,
+                                  color: _isStormyDemo ? const Color(0xFFF8FAFC) : const Color(0xFF111827),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Showing ${pagedExperiences.length} of ${filteredExperiences.length} authentic local spots',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
+                                ),
+                              ),
+                            ],
+                          ),
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _currentTabIndex = 1; // Go to Explore Tab
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 350),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: _isStormyDemo
+                                    ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                                    : const Color(0xFFFF1744).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: _isStormyDemo
+                                      ? const Color(0xFF38BDF8).withValues(alpha: 0.4)
+                                      : const Color(0xFFFF1744).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'See all',
+                                    style: TextStyle(
+                                      color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w900,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 13,
+                                    color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // EMPTY STATE IF NO EXPERIENCES FOR CATEGORY
+                      if (pagedExperiences.isEmpty) ...[
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 350),
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: _isStormyDemo ? const Color(0xFF334155) : Colors.grey.shade200,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.search_off_rounded,
+                                size: 40,
+                                color: _isStormyDemo ? const Color(0xFF64748B) : Colors.grey,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'No $_selectedCategory gems found nearby.',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Try selecting another category chip above.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: _isStormyDemo ? const Color(0xFF94A3B8) : Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        // VERTICAL LIST OF FILTERED & PAGINATED NEARBY GEMS
+                        ListView.separated(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          itemCount: pagedExperiences.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 16),
+                          itemBuilder: (context, index) {
+                            final exp = pagedExperiences[index];
+                            return ExperienceCard(
+                              title: exp.title,
+                              imageUrl: exp.imageUrl,
+                              rating: exp.rating,
+                              category: exp.category,
+                              priceInr: exp.priceInr,
+                              location: exp.location,
+                              distanceKm: exp.distanceKm,
+                              durationHours: exp.durationHours,
+                              onTap: () => context.push(AppRoutes.experienceDetails),
+                              width: double.infinity,
+                              isStormy: _isStormyDemo,
+                            );
+                          },
+                        ),
+                      ],
+
+                      // 🔢 PAGINATION CONTROLS BAR
+                      if (totalPages > 1) ...[
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Previous Page Button
+                            IconButton(
+                              onPressed: safeCurrentPage > 1
+                                  ? () {
+                                      setState(() {
+                                        _currentPage = safeCurrentPage - 1;
+                                      });
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.chevron_left_rounded),
+                              color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                              disabledColor: _isStormyDemo ? const Color(0xFF334155) : Colors.grey.shade300,
+                            ),
+                            const SizedBox(width: 8),
+
+                            // Page Number Buttons
+                            ...List.generate(totalPages, (index) {
+                              final pageNum = index + 1;
+                              final isSelected = pageNum == safeCurrentPage;
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _currentPage = pageNum;
+                                  });
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 250),
+                                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: _isStormyDemo
+                                        ? (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF1E293B))
+                                        : (isSelected ? const Color(0xFFFF1744) : Colors.grey.shade100),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _isStormyDemo
+                                          ? (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF334155))
+                                          : (isSelected ? const Color(0xFFFF1744) : Colors.grey.shade300),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    '$pageNum',
+                                    style: TextStyle(
+                                      color: _isStormyDemo
+                                          ? (isSelected ? const Color(0xFF0F172A) : Colors.white)
+                                          : (isSelected ? Colors.white : const Color(0xFF111827)),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+
+                            const SizedBox(width: 8),
+
+                            // Next Page Button
+                            IconButton(
+                              onPressed: safeCurrentPage < totalPages
+                                  ? () {
+                                      setState(() {
+                                        _currentPage = safeCurrentPage + 1;
+                                      });
+                                    }
+                                  : null,
+                              icon: const Icon(Icons.chevron_right_rounded),
+                              color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                              disabledColor: _isStormyDemo ? const Color(0xFF334155) : Colors.grey.shade300,
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 24),
+
+                      // Section: Your Trip (DIV HEADER WITH BOLD WEIGHTED BLACK FONTS)
+                      Text(
+                        'Your trip',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                          color: _isStormyDemo ? const Color(0xFFF8FAFC) : const Color(0xFF111827),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _currentTabIndex = 2; // Go to Trips
+                          });
+                        },
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 350),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.white,
+                            borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+                            boxShadow: LocalLensDimensions.softCardShadow,
+                            border: Border.all(
+                              color: _isStormyDemo ? const Color(0xFF334155) : LocalLensColors.border,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 350),
+                                width: 48,
+                                height: 48,
+                                decoration: BoxDecoration(
+                                  color: _isStormyDemo
+                                      ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                                      : const Color(0xFFFF1744).withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.route_rounded,
+                                  color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Panvel Local Discovery',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w900,
+                                        color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '4 experiences • 6h 30m • ₹1,450',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.arrow_forward_ios_rounded,
+                                size: 16,
+                                color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String label) {
     final isSelected = _selectedCategory == label;
     return GestureDetector(
       onTap: () {
@@ -528,55 +1370,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           _selectedCategory = label;
         });
       },
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 250),
         margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? LocalLensColors.primaryTeal : Colors.white,
+          color: _isStormyDemo
+              ? (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF1E293B))
+              : (isSelected ? const Color(0xFFE53935) : Colors.white),
           borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
           border: Border.all(
-            color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.border,
+            color: _isStormyDemo
+                ? (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF334155))
+                : (isSelected ? const Color(0xFFE53935) : LocalLensColors.border),
           ),
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: LocalLensColors.primaryTeal.withValues(alpha: 0.3),
+                    color: _isStormyDemo
+                        ? const Color(0xFF38BDF8).withValues(alpha: 0.35)
+                        : const Color(0xFFE53935).withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ]
               : null,
         ),
-        child: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: LocalLensTypography.caption.copyWith(
-                color: isSelected ? Colors.white : LocalLensColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ],
+        child: Text(
+          label,
+          style: TextStyle(
+            color: _isStormyDemo
+                ? (isSelected ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1))
+                : (isSelected ? Colors.white : LocalLensColors.textPrimary),
+            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+            fontSize: 13,
+          ),
         ),
       ),
     );
   }
 
   Widget _buildSponsoredCard(BuildContext context, SponsoredExperience camp, bool isDark) {
-    return Container(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0xFFFBBF24).withValues(alpha: 0.5),
+          color: _isStormyDemo
+              ? const Color(0xFF38BDF8).withValues(alpha: 0.5)
+              : const Color(0xFFFBBF24).withValues(alpha: 0.5),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
+            color: _isStormyDemo
+                ? const Color(0xFF38BDF8).withValues(alpha: 0.12)
+                : const Color(0xFFF59E0B).withValues(alpha: 0.08),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -589,16 +1440,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             children: [
               ClipRRect(
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-                child: Image.network(
-                  camp.imageUrl,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
+                child: ColorFiltered(
+                  colorFilter: _isStormyDemo
+                      ? ColorFilter.mode(const Color(0xFF0F172A).withValues(alpha: 0.18), BlendMode.darken)
+                      : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                  child: Image.network(
+                    camp.imageUrl,
                     height: 180,
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported_rounded, size: 40, color: Colors.grey),
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      height: 180,
+                      color: Colors.grey.shade300,
+                      child: const Center(
+                        child: Icon(Icons.image_not_supported_rounded, size: 40, color: Colors.grey),
+                      ),
                     ),
                   ),
                 ),
@@ -665,25 +1521,28 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: [
                 Text(
                   camp.listingName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w900,
-                    color: Colors.black87,
+                    color: _isStormyDemo ? Colors.white : Colors.black87,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Row(
                   children: [
-                    const Text(
+                    Text(
                       'Sponsored by: ',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _isStormyDemo ? const Color(0xFF94A3B8) : Colors.black54,
+                      ),
                     ),
                     Text(
                       camp.shopName,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF00875A),
+                        color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF00875A),
                       ),
                     ),
                   ],
@@ -695,7 +1554,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     const SizedBox(width: 4),
                     Text(
                       '${camp.rating} (${camp.reviewsCount})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: _isStormyDemo ? Colors.white : Colors.black87,
+                      ),
                     ),
                     const SizedBox(width: 14),
                     const Icon(Icons.location_on_rounded, size: 15, color: Color(0xFFEF4444)),
@@ -705,7 +1568,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         camp.location,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isStormyDemo ? const Color(0xFF94A3B8) : Colors.black54,
+                        ),
                       ),
                     ),
                   ],
@@ -717,23 +1583,27 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   children: [
                     Text(
                       '₹${camp.offerPrice.toInt()}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF00875A),
+                        color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF00875A),
                       ),
                     ),
-                    const Text(
+                    Text(
                       '/person',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _isStormyDemo ? const Color(0xFF64748B) : Colors.grey,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Text(
                       '₹${camp.originalPrice.toInt()}/person',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         decoration: TextDecoration.lineThrough,
-                        color: Colors.grey,
+                        color: _isStormyDemo ? const Color(0xFF64748B) : Colors.grey,
                       ),
                     ),
                   ],
@@ -751,9 +1621,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          side: BorderSide(color: Colors.grey.shade300),
+                          side: BorderSide(
+                            color: _isStormyDemo ? const Color(0xFF334155) : Colors.grey.shade300,
+                          ),
                         ),
-                        child: const Text('View Experience', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
+                        child: Text(
+                          'View Experience',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: _isStormyDemo ? Colors.white : Colors.black87,
+                          ),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -769,7 +1648,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           );
                         },
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00875A),
+                          backgroundColor: _isStormyDemo ? const Color(0xFF0288D1) : const Color(0xFF00875A),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 10),
                           elevation: 0,
@@ -786,5 +1665,451 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
     );
+  }
+}
+
+/// 🎨 Custom Painter for Red/Cyan Beam Sweep + Water Droplet Splash on Right Edge
+class RedSweepWaterSplashPainter extends CustomPainter {
+  final double progress;
+  final double borderRadius;
+  final bool isStormy;
+
+  RedSweepWaterSplashPainter({
+    required this.progress,
+    this.borderRadius = 16.0,
+    this.isStormy = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rrect = RRect.fromRectAndRadius(rect, Radius.circular(borderRadius));
+
+    // 1. Base subtle card border stroke
+    final baseBorderPaint = Paint()
+      ..color = isStormy ? const Color(0xFF334155) : const Color(0xFFE5E7EB)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2;
+    canvas.drawRRect(rrect, baseBorderPaint);
+
+    // 2. Beam Flow sweeping from Left to Right (0.0 -> 1.0)
+    final sweepProgress = progress; // 0.0 to 1.0
+    final startX = -size.width + (sweepProgress * size.width * 2.4);
+    final endX = startX + size.width * 0.7;
+
+    final sweepPaint = Paint()
+      ..shader = LinearGradient(
+        colors: isStormy
+            ? [
+                const Color(0x0000E5FF),
+                const Color(0xFF00E5FF),
+                const Color(0xFF38BDF8),
+                const Color(0x0000E5FF),
+              ]
+            : [
+                const Color(0x00FF1744),
+                const Color(0xFFFF1744),
+                const Color(0xFFFF5252),
+                const Color(0x00FF1744),
+              ],
+        stops: const [0.0, 0.35, 0.7, 1.0],
+      ).createShader(Rect.fromLTRB(startX, 0, endX, size.height))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5;
+
+    canvas.drawRRect(rrect, sweepPaint);
+
+    // 3. Water Droplets Splash at the end (Right Edge)
+    if (progress > 0.55) {
+      final splashT = ((progress - 0.55) / 0.45).clamp(0.0, 1.0);
+      final rightX = size.width - 2;
+      final centerY = size.height / 2;
+
+      // Expanding Water Ripple Ring 1 on Right Edge
+      final ringRadius = 5.0 + (splashT * 26.0);
+      final ringAlpha = (1.0 - splashT) * 0.8;
+      final ringPaint = Paint()
+        ..color = (isStormy ? const Color(0xFF38BDF8) : const Color(0xFF00E5FF)).withValues(alpha: ringAlpha)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawCircle(Offset(rightX, centerY), ringRadius, ringPaint);
+
+      // Expanding Water Ripple Ring 2 (Outer Ocean Wave)
+      final outerRingPaint = Paint()
+        ..color = (isStormy ? const Color(0xFF0288D1) : const Color(0xFF00B0FF)).withValues(alpha: ringAlpha * 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5;
+      canvas.drawCircle(Offset(rightX, centerY), ringRadius * 1.4, outerRingPaint);
+
+      // Animated Water Droplet Particles bursting outwards on the Right Edge
+      final droplets = [
+        {'dx': 20.0, 'dy': -22.0, 'r': 4.5, 'color': const Color(0xFF00E5FF)},
+        {'dx': 28.0, 'dy': -8.0,  'r': 5.5, 'color': const Color(0xFF00B0FF)},
+        {'dx': 24.0, 'dy': 12.0,  'r': 4.0, 'color': isStormy ? const Color(0xFF38BDF8) : const Color(0xFFFF1744)},
+        {'dx': 14.0, 'dy': 24.0,  'r': 5.0, 'color': const Color(0xFF00E5FF)},
+        {'dx': 32.0, 'dy': 4.0,   'r': 3.5, 'color': const Color(0xFF0288D1)},
+      ];
+
+      for (final d in droplets) {
+        final dx = d['dx'] as double;
+        final dy = d['dy'] as double;
+        final baseR = d['r'] as double;
+        final color = d['color'] as Color;
+
+        final px = rightX + (dx * splashT);
+        final py = centerY + (dy * splashT);
+        final radius = baseR * (1.0 - (splashT * 0.5));
+        final alpha = (1.0 - splashT).clamp(0.0, 1.0);
+
+        final dropPaint = Paint()
+          ..color = color.withValues(alpha: alpha)
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(Offset(px, py), radius, dropPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant RedSweepWaterSplashPainter oldDelegate) {
+    return oldDelegate.progress != progress || oldDelegate.isStormy != isStormy;
+  }
+}
+
+/// Custom Painter for Realtime Sunrise-to-Sunset Arc & Stormy Thunderstrike Mode
+class SunriseSunsetArcPainter extends CustomPainter {
+  final double animationProgress; // 0.0 to 1.0 ray pulse animation
+  final bool isStormy;
+  final double stormProgress; // 0.0 to 1.0 storm animation controller
+
+  SunriseSunsetArcPainter({
+    required this.animationProgress,
+    this.isStormy = false,
+    this.stormProgress = 0.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (isStormy) {
+      _paintStormyMode(canvas, size);
+      return;
+    }
+
+    final now = DateTime.now();
+    final hour = now.hour;
+    final minute = now.minute;
+    final currentMinute = hour * 60 + minute;
+
+    // Define celestial arc path across top bar (Balanced Arc Trajectory)
+    final startPoint = Offset(6, size.height * 0.90);
+    final endPoint = Offset(size.width - 6, size.height * 0.90);
+    final controlPoint = Offset(size.width / 2, size.height * -0.10);
+
+    final arcPath = Path()
+      ..moveTo(startPoint.dx, startPoint.dy)
+      ..quadraticBezierTo(controlPoint.dx, controlPoint.dy, endPoint.dx, endPoint.dy);
+
+    // 1. Draw subtle dashed arc line
+    final arcPaint = Paint()
+      ..color = const Color(0xFF111827).withValues(alpha: 0.18)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4;
+
+    final pMetrics = arcPath.computeMetrics();
+    for (final metric in pMetrics) {
+      double distance = 0.0;
+      const dashWidth = 7.0;
+      const dashSpace = 5.0;
+      while (distance < metric.length) {
+        final extractPath = metric.extractPath(distance, distance + dashWidth);
+        canvas.drawPath(extractPath, arcPaint);
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    // Daytime: 6:00 AM (360 mins) to 6:30 PM (1110 mins)
+    final bool isDaytime = currentMinute >= 360 && currentMinute < 1110;
+
+    double progress;
+    if (isDaytime) {
+      progress = (currentMinute - 360) / 750.0;
+    } else {
+      final nightMins = currentMinute >= 1110 ? currentMinute - 1110 : currentMinute + 330;
+      progress = nightMins / 690.0;
+    }
+    progress = progress.clamp(0.0, 1.0);
+
+    final t = progress;
+    final bx = (1 - t) * (1 - t) * startPoint.dx + 2 * (1 - t) * t * controlPoint.dx + t * t * endPoint.dx;
+    final by = (1 - t) * (1 - t) * startPoint.dy + 2 * (1 - t) * t * controlPoint.dy + t * t * endPoint.dy;
+    final orbCenter = Offset(bx, by);
+
+    if (isDaytime) {
+      // ☀️ SUN ANIMATION (BALANCED ELEGANT SUN ORB & RAYS)
+      final isSunriseOrSunset = hour >= 17 || hour <= 7;
+      final sunColor = isSunriseOrSunset ? const Color(0xFFFF6D00) : const Color(0xFFFFAB00);
+
+      // Sun Outer Glow
+      final glowPaint = Paint()
+        ..color = sunColor.withValues(alpha: 0.40)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+      canvas.drawCircle(orbCenter, 24.0 + (animationProgress * 6.0), glowPaint);
+
+      // Sun Body (Slightly Smaller & Balanced)
+      final sunPaint = Paint()..color = sunColor;
+      canvas.drawCircle(orbCenter, 16.0, sunPaint);
+
+      // Pulsing Sun Rays
+      final rayPaint = Paint()
+        ..color = sunColor.withValues(alpha: 0.90)
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round;
+
+      const numRays = 10;
+      final rayLength = 10.0 + (animationProgress * 4.0);
+      const baseRayDist = 19.5;
+
+      for (int i = 0; i < numRays; i++) {
+        final angle = (i * (2 * math.pi / numRays)) + (animationProgress * math.pi * 0.25);
+        final startX = orbCenter.dx + math.cos(angle) * baseRayDist;
+        final startY = orbCenter.dy + math.sin(angle) * baseRayDist;
+        final endX = orbCenter.dx + math.cos(angle) * (baseRayDist + rayLength);
+        final endY = orbCenter.dy + math.sin(angle) * (baseRayDist + rayLength);
+        canvas.drawLine(Offset(startX, startY), Offset(endX, endY), rayPaint);
+      }
+    } else {
+      // 🌙 MOON & TWINKLING STARS ANIMATION (BALANCED MOON ORB)
+      final moonGlowPaint = Paint()
+        ..color = const Color(0xFF5C6BC0).withValues(alpha: 0.40)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 15);
+      canvas.drawCircle(orbCenter, 22.0, moonGlowPaint);
+
+      final moonPaint = Paint()..color = const Color(0xFF5C6BC0);
+      canvas.drawCircle(orbCenter, 14.5, moonPaint);
+
+      // Crescent Shadow cutout
+      final shadowPaint = Paint()..color = const Color(0xFFF7E2D5);
+      canvas.drawCircle(Offset(orbCenter.dx + 5.5, orbCenter.dy - 4.0), 12.0, shadowPaint);
+
+      // Twinkling background stars
+      final starPaint = Paint()..color = const Color(0xFF5C6BC0).withValues(alpha: 0.65 + (animationProgress * 0.35));
+      final stars = [
+        Offset(orbCenter.dx - 32, orbCenter.dy - 12),
+        Offset(orbCenter.dx + 36, orbCenter.dy + 10),
+        Offset(orbCenter.dx - 16, orbCenter.dy + 22),
+      ];
+      for (final star in stars) {
+        canvas.drawCircle(star, 2.5 + (animationProgress * 1.0), starPaint);
+      }
+    }
+  }
+
+  void _paintStormyMode(Canvas canvas, Size size) {
+    // 1. Dark Storm Arc Trajectory
+    final startPoint = Offset(6, size.height * 0.90);
+    final endPoint = Offset(size.width - 6, size.height * 0.90);
+    final controlPoint = Offset(size.width / 2, size.height * -0.10);
+
+    final arcPath = Path()
+      ..moveTo(startPoint.dx, startPoint.dy)
+      ..quadraticBezierTo(controlPoint.dx, controlPoint.dy, endPoint.dx, endPoint.dy);
+
+    final stormArcPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.28)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.2;
+
+    final pMetrics = arcPath.computeMetrics();
+    for (final metric in pMetrics) {
+      double distance = 0.0;
+      const dashWidth = 7.0;
+      const dashSpace = 5.0;
+      while (distance < metric.length) {
+        final extractPath = metric.extractPath(distance, distance + dashWidth);
+        canvas.drawPath(extractPath, stormArcPaint);
+        distance += dashWidth + dashSpace;
+      }
+    }
+
+    // 2. Rolling Dark Storm Clouds (Atmospheric Smooth Gradient Layer)
+    final cloudPath1 = Path()
+      ..moveTo(0, 0)
+      ..lineTo(0, 32)
+      ..quadraticBezierTo(size.width * 0.2, 50, size.width * 0.45, 26)
+      ..quadraticBezierTo(size.width * 0.75, 5, size.width, 36)
+      ..lineTo(size.width, 0)
+      ..close();
+
+    final cloudPath2 = Path()
+      ..moveTo(0, 0)
+      ..lineTo(0, 20)
+      ..quadraticBezierTo(size.width * 0.35, 42, size.width * 0.65, 18)
+      ..quadraticBezierTo(size.width * 0.85, 48, size.width, 24)
+      ..lineTo(size.width, 0)
+      ..close();
+
+    final cloudPaint1 = Paint()
+      ..color = const Color(0xFF1E293B).withValues(alpha: 0.60)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 16);
+
+    final cloudPaint2 = Paint()
+      ..color = const Color(0xFF334155).withValues(alpha: 0.45)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 12);
+
+    canvas.drawPath(cloudPath1, cloudPaint1);
+    canvas.drawPath(cloudPath2, cloudPaint2);
+
+    // 3. Falling Raindrops Animation (Continuous 60 FPS Smooth Flow)
+    final rainPaint = Paint()
+      ..color = const Color(0xFF38BDF8).withValues(alpha: 0.65)
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+
+    const numDrops = 35;
+    for (int i = 0; i < numDrops; i++) {
+      final startX = (i * 23.0 + (i % 5) * 11.0) % size.width;
+      final speedFactor = 1.0 + ((i % 3) * 0.35);
+      final rawY = ((i * 19.0) + (stormProgress * size.height * 1.5 * speedFactor)) % (size.height + 40);
+      final y = rawY - 20;
+
+      canvas.drawLine(
+        Offset(startX, y),
+        Offset(startX - 5.0, y + 15.0),
+        rainPaint,
+      );
+    }
+
+    // 4. Compact Short-Height Thunderstrike & Lightning Flash (INSIDE TOP BAR ONLY)
+    final isLightningStrike = (stormProgress >= 0.14 && stormProgress <= 0.30) ||
+        (stormProgress >= 0.62 && stormProgress <= 0.78);
+
+    if (isLightningStrike) {
+      double strikeT;
+      if (stormProgress <= 0.30) {
+        strikeT = (stormProgress - 0.14) / 0.16;
+      } else {
+        strikeT = (stormProgress - 0.62) / 0.16;
+      }
+
+      // Short twin-pulse sky flash inside top bar only
+      final double doubleFlashT = (math.sin(strikeT * math.pi * 2).abs()).clamp(0.0, 1.0);
+      final flashOpacity = (doubleFlashT * 0.28).clamp(0.0, 0.28);
+      final flashPaint = Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: flashOpacity);
+      canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), flashPaint);
+
+      // Compact Short-Height Lightning Bolt Path (y = 4 -> y = 62 max inside top bar)
+      final originX = size.width * (stormProgress <= 0.30 ? 0.65 : 0.32);
+      final boltPath = Path()
+        ..moveTo(originX, 4)
+        ..lineTo(originX - 10, 20)
+        ..lineTo(originX + 12, 34)
+        ..lineTo(originX - 6,  48)
+        ..lineTo(originX + 14, 62);
+
+      final branchPath = Path()
+        ..moveTo(originX + 12, 34)
+        ..lineTo(originX + 28, 44)
+        ..lineTo(originX + 22, 54);
+
+      // High-Voltage Cyan Neon Glow
+      final glowPaint = Paint()
+        ..color = const Color(0xFF00E5FF).withValues(alpha: (0.95 * doubleFlashT).clamp(0.0, 1.0))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+
+      canvas.drawPath(boltPath, glowPaint);
+      canvas.drawPath(branchPath, glowPaint);
+
+      // Core White Lightning Strike Bolt
+      final corePaint = Paint()
+        ..color = Colors.white.withValues(alpha: doubleFlashT.clamp(0.0, 1.0))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round;
+
+      canvas.drawPath(boltPath, corePaint);
+      canvas.drawPath(branchPath, corePaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant SunriseSunsetArcPainter oldDelegate) {
+    return oldDelegate.animationProgress != animationProgress ||
+        oldDelegate.isStormy != isStormy ||
+        oldDelegate.stormProgress != stormProgress;
+  }
+}
+
+/// 🌧️ Zomato-Style Realistic Screen-Wide Rain Custom Painter
+class ZomatoScreenWideRainAndLightningPainter extends CustomPainter {
+  final double stormProgress;
+
+  ZomatoScreenWideRainAndLightningPainter({required this.stormProgress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Multi-Layer Screen-Wide Raindrops Stream
+    const numDrops = 65;
+    const dxSlant = -6.0;
+
+    for (int i = 0; i < numDrops; i++) {
+      final seedX = (i * 37.0 + (i % 7) * 53.0) % size.width;
+      final speedMult = 0.8 + ((i % 5) * 0.28);
+      final rawY = ((i * 31.0) + (stormProgress * size.height * 1.8 * speedMult)) % (size.height + 60);
+      final y = rawY - 30;
+      final x = seedX + ((y / size.height) * dxSlant);
+
+      final layer = i % 3;
+      double dropLength;
+      double strokeWidth;
+      Color dropColor;
+
+      if (layer == 0) {
+        dropLength = 28.0;
+        strokeWidth = 1.8;
+        dropColor = const Color(0xFF00E5FF).withValues(alpha: 0.65);
+      } else if (layer == 1) {
+        dropLength = 20.0;
+        strokeWidth = 1.4;
+        dropColor = const Color(0xFF38BDF8).withValues(alpha: 0.42);
+      } else {
+        dropLength = 14.0;
+        strokeWidth = 1.0;
+        dropColor = const Color(0xFF0288D1).withValues(alpha: 0.28);
+      }
+
+      final dropPaint = Paint()
+        ..color = dropColor
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round;
+
+      canvas.drawLine(
+        Offset(x, y),
+        Offset(x + dxSlant, y + dropLength),
+        dropPaint,
+      );
+
+      // Micro splash ring ripples on lower screen
+      if (layer == 0 && (i % 4 == 0) && y > size.height * 0.45) {
+        final splashAlpha = ((y - size.height * 0.45) / (size.height * 0.55)).clamp(0.0, 0.4);
+        final splashPaint = Paint()
+          ..color = const Color(0xFF00E5FF).withValues(alpha: (0.4 - splashAlpha).clamp(0.0, 0.4))
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0;
+        canvas.drawOval(
+          Rect.fromCenter(center: Offset(x, y + dropLength), width: 8.0, height: 3.0),
+          splashPaint,
+        );
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant ZomatoScreenWideRainAndLightningPainter oldDelegate) {
+    return oldDelegate.stormProgress != stormProgress;
   }
 }
