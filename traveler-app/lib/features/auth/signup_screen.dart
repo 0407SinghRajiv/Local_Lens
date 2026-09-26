@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../providers/auth_provider.dart';
@@ -40,7 +39,7 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(authControllerProvider.notifier).signUp(
+    final success = await ref.read(authNotifierProvider).signUp(
           email: _emailController.text,
           password: _passwordController.text,
           fullName: _nameController.text,
@@ -49,38 +48,33 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (success) {
-      // Redirect directly to home screen
-      context.go(AppRoutes.home);
-    } else {
+    if (!success) {
       _showErrorSnackBar();
     }
+    // Router automatically redirects upon auth state change to /traveler/home
   }
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
 
-    final success = await ref.read(authControllerProvider.notifier).signInWithGoogle();
+    final success = await ref.read(authNotifierProvider).signInWithGoogle();
 
     if (!mounted) return;
     setState(() => _isGoogleLoading = false);
 
-    if (success) {
-      context.go(AppRoutes.home);
-    } else {
-      final authState = ref.read(authControllerProvider);
+    if (!success) {
+      final authState = ref.read(authStateProvider);
       if (authState.hasError) {
-        _showErrorSnackBar();
+        _showErrorSnackBar(authState.errorMessage);
       }
     }
   }
 
-  void _showErrorSnackBar() {
-    final authState = ref.read(authControllerProvider);
-    final error = authState.error;
-    final message = error is AuthException
-        ? error.message
-        : (error?.toString() ?? 'Registration failed. Please try again.');
+  void _showErrorSnackBar([String? customMessage]) {
+    final authState = ref.read(authStateProvider);
+    final message = customMessage ??
+        authState.errorMessage ??
+        'Registration failed. Please try again.';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

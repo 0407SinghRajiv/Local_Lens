@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../providers/auth_provider.dart';
@@ -37,7 +36,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     setState(() => _isLoading = true);
 
-    final success = await ref.read(authControllerProvider.notifier).signIn(
+    final success = await ref.read(authNotifierProvider).signIn(
           email: _emailController.text,
           password: _passwordController.text,
         );
@@ -45,11 +44,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (success) {
-      context.go(AppRoutes.home);
-    } else {
+    if (!success) {
       _showErrorSnackBar();
     }
+    // Router automatically redirects upon auth state change to /traveler/home
   }
 
   Future<void> _handleDemoLogin() async {
@@ -57,60 +55,49 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Auto-fill demo credentials
     _emailController.text = 'traveler@locallens.app';
     _passwordController.text = 'locallens123';
-    
-    // Attempt sign-in, if user does not exist, auto-create or navigate
-    final success = await ref.read(authControllerProvider.notifier).signIn(
+
+    // Attempt sign-in; if user does not exist, auto-create
+    final success = await ref.read(authNotifierProvider).signIn(
           email: _emailController.text,
           password: _passwordController.text,
         );
 
     if (!mounted) return;
-    setState(() => _isLoading = false);
 
-    if (success) {
-      context.go(AppRoutes.home);
-    } else {
-      // If demo account not registered yet in supabase, register it
-      final signupSuccess = await ref.read(authControllerProvider.notifier).signUp(
+    if (!success) {
+      await ref.read(authNotifierProvider).signUp(
             email: _emailController.text,
             password: _passwordController.text,
             fullName: 'Local Traveler',
           );
-      if (mounted) {
-        if (signupSuccess) {
-          context.go(AppRoutes.home);
-        } else {
-          // Fallback directly to home for seamless demo testing
-          context.go(AppRoutes.home);
-        }
-      }
+    }
+
+    if (mounted) {
+      setState(() => _isLoading = false);
     }
   }
 
   Future<void> _handleGoogleSignIn() async {
     setState(() => _isGoogleLoading = true);
 
-    final success = await ref.read(authControllerProvider.notifier).signInWithGoogle();
+    final success = await ref.read(authNotifierProvider).signInWithGoogle();
 
     if (!mounted) return;
     setState(() => _isGoogleLoading = false);
 
-    if (success) {
-      context.go(AppRoutes.home);
-    } else {
-      final authState = ref.read(authControllerProvider);
+    if (!success) {
+      final authState = ref.read(authStateProvider);
       if (authState.hasError) {
-        _showErrorSnackBar();
+        _showErrorSnackBar(authState.errorMessage);
       }
     }
   }
 
-  void _showErrorSnackBar() {
-    final authState = ref.read(authControllerProvider);
-    final error = authState.error;
-    final message = error is AuthException
-        ? error.message
-        : (error?.toString() ?? 'Failed to authenticate. Please check your credentials.');
+  void _showErrorSnackBar([String? customMessage]) {
+    final authState = ref.read(authStateProvider);
+    final message = customMessage ??
+        authState.errorMessage ??
+        'Failed to authenticate. Please check your credentials.';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -203,7 +190,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     }
                     Navigator.pop(ctx);
                     final sent = await ref
-                        .read(authControllerProvider.notifier)
+                        .read(authNotifierProvider)
                         .resetPassword(email);
 
                     if (mounted) {

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../providers/auth_provider.dart';
@@ -22,33 +21,31 @@ class _GoogleLoginScreenState extends ConsumerState<GoogleLoginScreen> {
     setState(() => _isGoogleLoading = true);
 
     try {
-      final success = await ref.read(authControllerProvider.notifier).signInWithGoogle();
+      final success = await ref.read(authNotifierProvider).signInWithGoogle();
 
       if (!mounted) return;
       setState(() => _isGoogleLoading = false);
 
-      if (success) {
-        context.go(AppRoutes.home);
-      } else {
-        final authState = ref.read(authControllerProvider);
+      if (!success) {
+        final authState = ref.read(authStateProvider);
         if (authState.hasError) {
-          _showErrorSnackBar();
+          _showErrorSnackBar(authState.errorMessage);
         }
       }
-    } catch (_) {
+      // Note: Router reacts automatically to auth state change and redirects to /traveler/home
+    } catch (e) {
       if (mounted) {
         setState(() => _isGoogleLoading = false);
-        _showErrorSnackBar();
+        _showErrorSnackBar(e.toString());
       }
     }
   }
 
-  void _showErrorSnackBar() {
-    final authState = ref.read(authControllerProvider);
-    final error = authState.error;
-    final message = error is AuthException
-        ? error.message
-        : (error?.toString() ?? 'Failed to authenticate with Google. Please try again.');
+  void _showErrorSnackBar([String? customMessage]) {
+    final authState = ref.read(authStateProvider);
+    final message = customMessage ??
+        authState.errorMessage ??
+        'Failed to authenticate with Google. Please try again.';
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

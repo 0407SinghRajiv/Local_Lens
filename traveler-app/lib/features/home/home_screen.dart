@@ -205,7 +205,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         GestureDetector(
                           onTap: () {
                             // Launch complete custom Itinerary flow (Destination, Time, Group, Interests, Budget)
-                            context.push(AppRoutes.tripSetup);
+                            context.push(AppRoutes.travelerCreateItinerary);
                           },
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

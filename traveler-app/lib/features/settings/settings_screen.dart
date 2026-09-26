@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../providers/auth_provider.dart';
 
 /// Screen 30: Settings Screen
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userProfile = ref.watch(currentUserProfileProvider);
+    final emailDisplay = userProfile?.email.isNotEmpty == true
+        ? userProfile!.email
+        : 'rajiv@example.com';
+
     return Scaffold(
       backgroundColor: LocalLensColors.background,
       appBar: AppBar(
@@ -28,7 +35,7 @@ class SettingsScreen extends StatelessWidget {
           ),
           children: [
             _buildSectionHeader('Preferences'),
-            _buildSettingTile(Icons.person_outline_rounded, 'Account Profile', 'rajiv@example.com'),
+            _buildSettingTile(Icons.person_outline_rounded, 'Account Profile', emailDisplay),
             _buildSettingTile(Icons.notifications_none_rounded, 'Push Notifications', 'Enabled'),
             _buildSettingTile(Icons.location_on_outlined, 'Location Services', 'Always On'),
             _buildSettingTile(Icons.history_rounded, 'Travel History', 'Syncing active'),
@@ -58,8 +65,9 @@ class SettingsScreen extends StatelessWidget {
                   'Log Out',
                   style: TextStyle(color: LocalLensColors.errorRed, fontWeight: FontWeight.bold),
                 ),
-                onTap: () {
-                  context.go(AppRoutes.welcome);
+                onTap: () async {
+                  await ref.read(authNotifierProvider).signOut();
+                  // Router automatically reacts to AuthStatus.unauthenticated and redirects to /login / /welcome
                 },
               ),
             ),

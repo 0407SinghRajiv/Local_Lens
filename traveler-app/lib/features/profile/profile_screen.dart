@@ -1,14 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../providers/auth_provider.dart';
 
 /// Screen 28: Profile Screen
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final userProfile = ref.watch(currentUserProfileProvider);
+    final displayName = userProfile?.displayName.isNotEmpty == true
+        ? userProfile!.displayName
+        : 'Rajiv Singh';
+
     return Scaffold(
       backgroundColor: LocalLensColors.background,
       body: SafeArea(
@@ -27,15 +34,17 @@ class ProfileScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: LocalLensColors.primaryTeal, width: 2),
-                  image: const DecorationImage(
-                    image: AssetImage('assets/images/characters/solo.png'),
+                  image: DecorationImage(
+                    image: userProfile?.photoUrl != null && userProfile!.photoUrl!.startsWith('http')
+                        ? NetworkImage(userProfile.photoUrl!) as ImageProvider
+                        : const AssetImage('assets/images/characters/solo.png'),
                     fit: BoxFit.cover,
                   ),
                 ),
               ),
               const SizedBox(height: 12),
               Text(
-                'Rajiv Singh',
+                displayName,
                 style: LocalLensTypography.titleLarge.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 2),
@@ -120,6 +129,17 @@ class ProfileScreen extends StatelessWidget {
                     _buildMenuItem(Icons.settings_outlined, 'Settings', () {
                       context.push(AppRoutes.settings);
                     }),
+                    _buildDivider(),
+                    ListTile(
+                      leading: const Icon(Icons.logout_rounded, color: LocalLensColors.errorRed),
+                      title: const Text(
+                        'Log Out',
+                        style: TextStyle(color: LocalLensColors.errorRed, fontWeight: FontWeight.bold),
+                      ),
+                      onTap: () async {
+                        await ref.read(authNotifierProvider).signOut();
+                      },
+                    ),
                   ],
                 ),
               ),

@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
-import '../../providers/initialization_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 1: Splash Screen matching exact reference design
@@ -20,15 +18,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   late final AnimationController _animController;
   late final Animation<double> _fadeAnim;
   late final Animation<double> _scaleAnim;
-  bool _hasNavigated = false;
-  Timer? _fallbackTimer;
 
   @override
   void initState() {
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 1200),
     )..forward();
 
     _fadeAnim = CurvedAnimation(
@@ -42,61 +38,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
       ),
     );
-
-    // Fallback timer in case provider takes slightly longer (1.8s)
-    _fallbackTimer = Timer(const Duration(milliseconds: 1800), () {
-      if (mounted && !_hasNavigated) {
-        _navigateToRoute(AppRoutes.welcome);
-      }
-    });
   }
 
   @override
   void dispose() {
     _animController.dispose();
-    _fallbackTimer?.cancel();
     super.dispose();
-  }
-
-  void _navigateToRoute(String targetRoute) {
-    if (_hasNavigated || !mounted) return;
-    _hasNavigated = true;
-    _fallbackTimer?.cancel();
-    context.go(targetRoute);
   }
 
   @override
   Widget build(BuildContext context) {
-    final initStateAsync = ref.watch(initializationProvider);
-
-    // If state is already initialized, navigate
-    initStateAsync.whenData((state) {
-      if (state.isInitialized && !_hasNavigated) {
-        Timer(const Duration(milliseconds: 1400), () {
-          if (mounted && !_hasNavigated) {
-            _navigateToRoute(state.targetRoute == AppRoutes.onboarding ? AppRoutes.welcome : state.targetRoute);
-          }
-        });
-      }
-    });
-
-    ref.listen<AsyncValue<AppInitState>>(initializationProvider, (previous, next) {
-      next.whenData((state) {
-        if (state.isInitialized && !_hasNavigated) {
-          Timer(const Duration(milliseconds: 1400), () {
-            if (mounted && !_hasNavigated) {
-              _navigateToRoute(state.targetRoute == AppRoutes.onboarding ? AppRoutes.welcome : state.targetRoute);
-            }
-          });
-        }
-      });
-    });
-
     return Scaffold(
       body: GestureDetector(
         onTap: () {
-          // Allow instant skip on tap
-          _navigateToRoute(AppRoutes.welcome);
+          // Instant skip on tap
+          context.go(AppRoutes.welcome);
         },
         child: Stack(
           fit: StackFit.expand,
