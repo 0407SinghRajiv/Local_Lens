@@ -22,7 +22,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1000),
     );
     _fadeIn = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
@@ -40,10 +40,10 @@ class _SplashScreenState extends State<SplashScreen>
     final appState = context.read<AppState>();
     final isLoggedIn = await appState.initAuth();
 
-    // Ensure splash displays for at least 2 seconds for visual smoothness
+    // Ensure splash displays for at least 1.5-2 seconds for visual smoothness
     final elapsed = DateTime.now().difference(startTime).inMilliseconds;
-    if (elapsed < 2000) {
-      await Future.delayed(Duration(milliseconds: 2000 - elapsed));
+    if (elapsed < 1500) {
+      await Future.delayed(Duration(milliseconds: 1500 - elapsed));
     }
 
     if (mounted) {

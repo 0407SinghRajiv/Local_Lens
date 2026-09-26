@@ -1,1 +1,5 @@
-﻿// Placeholder for API and background services
+export 'auth_service.dart';
+export 'config_service.dart';
+export 'storage_service.dart';
+export 'location_service.dart';
+export 'dummy_itinerary_service.dart';

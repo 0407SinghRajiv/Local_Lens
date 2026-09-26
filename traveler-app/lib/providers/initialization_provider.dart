@@ -36,8 +36,8 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
   final storageService = ref.watch(storageServiceProvider);
   final configService = ref.watch(configServiceProvider);
 
-  // Minimum splash duration enforced: 5 seconds (5000 ms)
-  final minimumDurationFuture = Future<void>.delayed(const Duration(milliseconds: 5000));
+  // Minimum splash duration: 1000ms for smooth branding transition without sluggish waiting
+  final minimumDurationFuture = Future<void>.delayed(const Duration(milliseconds: 1000));
 
   final tasksFuture = Future.wait([
     authService.checkAuthToken(),
@@ -47,7 +47,6 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
   ]);
 
   try {
-    // Run both the initialization tasks and the minimum splash timer concurrently
     final results = await Future.wait([
       tasksFuture,
       minimumDurationFuture,
@@ -62,17 +61,13 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
       return AppInitState.error('Server is currently undergoing scheduled maintenance.');
     }
 
-    // Navigation logic:
-    // 1. If first launch -> Onboarding
-    // 2. If already launched & logged in -> Home (/home)
-    // 3. If already launched & NOT logged in -> Login (/login)
     String targetRoute;
     if (isFirstLaunch) {
-      targetRoute = AppRoutes.onboarding;
+      targetRoute = AppRoutes.welcome;
     } else if (isAuthenticated) {
-      targetRoute = AppRoutes.home;
+      targetRoute = AppRoutes.travelerHome;
     } else {
-      targetRoute = AppRoutes.login;
+      targetRoute = AppRoutes.welcome;
     }
 
     return AppInitState(
@@ -82,7 +77,12 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
       isAuthenticated: isAuthenticated,
     );
   } catch (e) {
-    // Return error state without silent crashing
-    return AppInitState.error(e.toString());
+    return const AppInitState(
+      isInitialized: true,
+      targetRoute: AppRoutes.welcome,
+      isFirstLaunch: false,
+      isAuthenticated: false,
+      errorMessage: null,
+    );
   }
 });
