@@ -60,62 +60,95 @@ class _MockMapWidgetState extends State<MockMapWidget>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            // Map grid background
-            CustomPaint(
-              size: Size(double.infinity, widget.height),
-              painter: _MapGridPainter(),
-            ),
-            // Road lines
-            CustomPaint(
-              size: Size(double.infinity, widget.height),
-              painter: _RoadPainter(
-                driverLat: widget.driverLat,
-                driverLng: widget.driverLng,
-                pickupLat: widget.pickupLat,
-                pickupLng: widget.pickupLng,
-                destinationLat: widget.destinationLat,
-                destinationLng: widget.destinationLng,
-                showRoute: widget.showRoute,
-              ),
-            ),
-            // Driver marker with pulse
-            _buildDriverMarker(),
-            // Pickup marker
-            if (widget.pickupLat != null) _buildPickupMarker(),
-            // Destination marker
-            if (widget.destinationLat != null) _buildDestinationMarker(),
-            // Map attribution
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(4),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final height = constraints.maxHeight;
+
+            final minLat = _getMinLat() - 0.01;
+            final maxLat = _getMaxLat() + 0.01;
+            final minLng = _getMinLng() - 0.01;
+            final maxLng = _getMaxLng() + 0.01;
+
+            double getX(double lng) {
+              if (maxLng == minLng) return width / 2;
+              return ((lng - minLng) / (maxLng - minLng) * (width - 60)) + 30;
+            }
+
+            double getY(double lat) {
+              if (maxLat == minLat) return height / 2;
+              return ((maxLat - lat) / (maxLat - minLat) * (height - 60)) + 30;
+            }
+
+            return Stack(
+              children: [
+                // Map grid background
+                CustomPaint(
+                  size: Size(width, height),
+                  painter: _MapGridPainter(),
                 ),
-                child: Text(
-                  'Mock Map • Dev Mode',
-                  style: AppTheme.labelSmall.copyWith(
-                    fontSize: 8,
-                    color: AppTheme.onSurfaceVariant,
+                // Road lines
+                CustomPaint(
+                  size: Size(width, height),
+                  painter: _RoadPainter(
+                    driverLat: widget.driverLat,
+                    driverLng: widget.driverLng,
+                    pickupLat: widget.pickupLat,
+                    pickupLng: widget.pickupLng,
+                    destinationLat: widget.destinationLat,
+                    destinationLng: widget.destinationLng,
+                    showRoute: widget.showRoute,
                   ),
                 ),
-              ),
-            ),
-          ],
+                // Driver marker with pulse
+                _buildDriverMarker(
+                  getX(widget.driverLng),
+                  getY(widget.driverLat),
+                ),
+                // Pickup marker
+                if (widget.pickupLat != null && widget.pickupLng != null)
+                  _buildPickupMarker(
+                    getX(widget.pickupLng!),
+                    getY(widget.pickupLat!),
+                  ),
+                // Destination marker
+                if (widget.destinationLat != null && widget.destinationLng != null)
+                  _buildDestinationMarker(
+                    getX(widget.destinationLng!),
+                    getY(widget.destinationLat!),
+                  ),
+                // Map attribution
+                Positioned(
+                  bottom: 8,
+                  right: 8,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Mock Map • Dev Mode',
+                      style: AppTheme.labelSmall.copyWith(
+                        fontSize: 8,
+                        color: AppTheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _buildDriverMarker() {
+  Widget _buildDriverMarker(double x, double y) {
     return Positioned(
-      left: _getX(widget.driverLng) - 20,
-      top: _getY(widget.driverLat) - 20,
+      left: x - 20,
+      top: y - 20,
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
@@ -168,10 +201,10 @@ class _MockMapWidgetState extends State<MockMapWidget>
     );
   }
 
-  Widget _buildPickupMarker() {
+  Widget _buildPickupMarker(double x, double y) {
     return Positioned(
-      left: _getX(widget.pickupLng!) - 14,
-      top: _getY(widget.pickupLat!) - 28,
+      left: x - 14,
+      top: y - 28,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -211,10 +244,10 @@ class _MockMapWidgetState extends State<MockMapWidget>
     );
   }
 
-  Widget _buildDestinationMarker() {
+  Widget _buildDestinationMarker(double x, double y) {
     return Positioned(
-      left: _getX(widget.destinationLng!) - 14,
-      top: _getY(widget.destinationLat!) - 28,
+      left: x - 14,
+      top: y - 28,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -255,23 +288,10 @@ class _MockMapWidgetState extends State<MockMapWidget>
     );
   }
 
-  double _getX(double lng) {
-    // Map longitude to widget width (Mumbai area roughly 72.8 - 72.92)
-    final minLng = _getMinLng() - 0.01;
-    final maxLng = _getMaxLng() + 0.01;
-    final width = (context.findRenderObject() as RenderBox?)?.size.width ??
-        MediaQuery.of(context).size.width;
-    return ((lng - minLng) / (maxLng - minLng) * (width - 60)) + 30;
-  }
-
-  double _getY(double lat) {
-    // Map latitude to widget height (inverted: higher lat = lower y)
-    final minLat = _getMinLat() - 0.01;
-    final maxLat = _getMaxLat() + 0.01;
-    return ((maxLat - lat) / (maxLat - minLat) * (widget.height - 60)) + 30;
-  }
-
   double _getMinLat() {
+    if (widget.pickupLat != null && widget.destinationLat != null) {
+      return min(widget.pickupLat!, widget.destinationLat!);
+    }
     double m = widget.driverLat;
     if (widget.pickupLat != null) m = min(m, widget.pickupLat!);
     if (widget.destinationLat != null) m = min(m, widget.destinationLat!);
@@ -279,6 +299,9 @@ class _MockMapWidgetState extends State<MockMapWidget>
   }
 
   double _getMaxLat() {
+    if (widget.pickupLat != null && widget.destinationLat != null) {
+      return max(widget.pickupLat!, widget.destinationLat!);
+    }
     double m = widget.driverLat;
     if (widget.pickupLat != null) m = max(m, widget.pickupLat!);
     if (widget.destinationLat != null) m = max(m, widget.destinationLat!);
@@ -286,6 +309,9 @@ class _MockMapWidgetState extends State<MockMapWidget>
   }
 
   double _getMinLng() {
+    if (widget.pickupLng != null && widget.destinationLng != null) {
+      return min(widget.pickupLng!, widget.destinationLng!);
+    }
     double m = widget.driverLng;
     if (widget.pickupLng != null) m = min(m, widget.pickupLng!);
     if (widget.destinationLng != null) m = min(m, widget.destinationLng!);
@@ -293,6 +319,9 @@ class _MockMapWidgetState extends State<MockMapWidget>
   }
 
   double _getMaxLng() {
+    if (widget.pickupLng != null && widget.destinationLng != null) {
+      return max(widget.pickupLng!, widget.destinationLng!);
+    }
     double m = widget.driverLng;
     if (widget.pickupLng != null) m = max(m, widget.pickupLng!);
     if (widget.destinationLng != null) m = max(m, widget.destinationLng!);

@@ -13,10 +13,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  VoidCallback? _appStateListener;
+  String? _lastNavigatedRideId;
+  RideStatus? _lastNavigatedStatus;
+
   @override
   void initState() {
     super.initState();
-    // Listen for pending ride requests to navigate
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _listenForNavigation();
     });
@@ -24,36 +27,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _listenForNavigation() {
     final state = context.read<AppState>();
-    state.addListener(() {
+    _appStateListener = () {
       if (!mounted) return;
 
       // Navigate to ride request when pending
-      if (state.hasPendingRequest &&
-          state.pendingRequest!.status == RideStatus.searching) {
-        Navigator.pushNamed(context, '/ride-request');
-      }
-
-      // Navigate to pickup when ride accepted
-      if (state.hasActiveRide) {
-        final ride = state.activeRide!;
-        switch (ride.status) {
-          case RideStatus.accepted:
-            Navigator.pushNamed(context, '/pickup');
-            break;
-          case RideStatus.arrived:
-            Navigator.pushNamed(context, '/arrived');
-            break;
-          case RideStatus.started:
-            Navigator.pushNamed(context, '/active-ride');
-            break;
-          case RideStatus.completed:
-            Navigator.pushNamed(context, '/completed');
-            break;
-          default:
-            break;
+      if (state.hasPendingRequest) {
+        final request = state.pendingRequest!;
+        if (request.status == RideStatus.searching &&
+            (_lastNavigatedRideId != request.id || _lastNavigatedStatus != RideStatus.searching)) {
+          _lastNavigatedRideId = request.id;
+          _lastNavigatedStatus = RideStatus.searching;
+          Navigator.pushNamed(context, '/ride-request');
+          return;
         }
       }
-    });
+
+      // Navigate to active ride screens when ride state changes
+      if (state.hasActiveRide) {
+        final ride = state.activeRide!;
+        if (_lastNavigatedRideId != ride.id || _lastNavigatedStatus != ride.status) {
+          _lastNavigatedRideId = ride.id;
+          _lastNavigatedStatus = ride.status;
+
+          switch (ride.status) {
+            case RideStatus.accepted:
+              Navigator.pushNamed(context, '/pickup');
+              break;
+            case RideStatus.arrived:
+              Navigator.pushNamed(context, '/arrived');
+              break;
+            case RideStatus.started:
+              Navigator.pushNamed(context, '/active-ride');
+              break;
+            case RideStatus.completed:
+              Navigator.pushNamed(context, '/completed');
+              break;
+            default:
+              break;
+          }
+        }
+      } else if (!state.hasPendingRequest) {
+        _lastNavigatedRideId = null;
+        _lastNavigatedStatus = null;
+      }
+    };
+
+    state.addListener(_appStateListener!);
+  }
+
+  @override
+  void dispose() {
+    if (_appStateListener != null) {
+      context.read<AppState>().removeListener(_appStateListener!);
+    }
+    super.dispose();
   }
 
   @override
