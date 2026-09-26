@@ -262,10 +262,12 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
   @override
   Widget build(BuildContext context) {
     final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
-    final initialPos = widget.startLocation ??
-        (validItems.isNotEmpty
-            ? LatLng(validItems.first.latitude!, validItems.first.longitude!)
-            : const LatLng(18.9894, 73.1175));
+    if (_markers.isEmpty && (validItems.isNotEmpty || widget.startLocation != null)) {
+      _buildMapElementsSync();
+    }
+    final initialPos = (validItems.isNotEmpty)
+        ? LatLng(validItems.first.latitude!, validItems.first.longitude!)
+        : (widget.startLocation ?? const LatLng(18.9894, 73.1175));
 
     return Container(
       height: widget.height,

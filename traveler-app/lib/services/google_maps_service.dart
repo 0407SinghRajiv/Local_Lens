@@ -11,13 +11,22 @@ class GoogleMapsService {
     required List<ItineraryItem> items,
   }) {
     final points = <LatLng>[];
-    if (startLocation != null) {
-      points.add(startLocation);
+
+    final validItems = items.where((i) => i.latitude != null && i.longitude != null).toList();
+
+    for (final item in validItems) {
+      points.add(LatLng(item.latitude!, item.longitude!));
     }
 
-    for (final item in items) {
-      if (item.latitude != null && item.longitude != null) {
-        points.add(LatLng(item.latitude!, item.longitude!));
+    if (startLocation != null) {
+      // If we have items, only include startLocation if within 100km of the first stop
+      if (points.isNotEmpty) {
+        final dist = _approxDistanceKm(startLocation, points.first);
+        if (dist <= 100.0) {
+          points.insert(0, startLocation);
+        }
+      } else {
+        points.add(startLocation);
       }
     }
 
@@ -65,18 +74,30 @@ class GoogleMapsService {
     required List<ItineraryItem> items,
   }) {
     final route = <LatLng>[];
+    final validItems = items.where((i) => i.latitude != null && i.longitude != null).toList();
 
-    if (startLocation != null) {
+    if (startLocation != null && validItems.isNotEmpty) {
+      final dist = _approxDistanceKm(startLocation, LatLng(validItems.first.latitude!, validItems.first.longitude!));
+      if (dist <= 100.0) {
+        route.add(startLocation);
+      }
+    } else if (startLocation != null) {
       route.add(startLocation);
     }
 
-    for (final item in items) {
-      if (item.latitude != null && item.longitude != null) {
-        route.add(LatLng(item.latitude!, item.longitude!));
-      }
+    for (final item in validItems) {
+      route.add(LatLng(item.latitude!, item.longitude!));
     }
 
     return route;
+  }
+
+  static double _approxDistanceKm(LatLng p1, LatLng p2) {
+    const p = 0.017453292519943295;
+    final a = 0.5 -
+        cos((p2.latitude - p1.latitude) * p) / 2 +
+        cos(p1.latitude * p) * cos(p2.latitude * p) * (1 - cos((p2.longitude - p1.longitude) * p)) / 2;
+    return 12742 * asin(sqrt(a));
   }
 
   /// Create custom canvas numbered marker icon (e.g. [1], [2], [START]) with reliable fallback
