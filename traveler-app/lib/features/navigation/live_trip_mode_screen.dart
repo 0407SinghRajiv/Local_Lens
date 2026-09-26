@@ -31,7 +31,7 @@ class _LiveTripModeScreenState extends State<LiveTripModeScreen> {
               ),
             ),
             child: Container(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withValues(alpha: 0.15),
             ),
           ),
 
@@ -119,7 +119,7 @@ class _LiveTripModeScreenState extends State<LiveTripModeScreen> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: LocalLensColors.terracottaPrimary.withOpacity(0.12),
+                              color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -177,7 +177,7 @@ class _LiveTripModeScreenState extends State<LiveTripModeScreen> {
                                 padding: const EdgeInsets.symmetric(vertical: 10),
                                 decoration: BoxDecoration(
                                   color: _isVisited
-                                      ? LocalLensColors.coastalSage.withOpacity(0.15)
+                                      ? LocalLensColors.coastalSage.withValues(alpha: 0.15)
                                       : LocalLensColors.surfaceContainerLow,
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -298,7 +298,7 @@ class _LiveTripModeScreenState extends State<LiveTripModeScreen> {
                           Container(
                             height: 44,
                             decoration: BoxDecoration(
-                              color: LocalLensColors.coastalSage.withOpacity(0.12),
+                              color: LocalLensColors.coastalSage.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: IconButton(

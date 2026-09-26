@@ -27,10 +27,11 @@ class AppColors {
     Color(0xFFE85028),
   ];
 
-  // Neutral Colors (Alabaster & Pure White)
-  static const Color backgroundLight = Color(0xFFFAF9F6);
+  // App Palette: Soft Peach + Cream
+  static const Color topBar = Color(0xFFF7E2D5); // Soft Peach Top Bar (#F7E2D5)
+  static const Color backgroundLight = Color(0xFFFFFAF7); // Cream Background (#FFFAF7)
   static const Color backgroundDark = Color(0xFF121212);
-  static const Color surfaceLight = Colors.white;
+  static const Color surfaceLight = Color(0xFFFFFAF7); // Cream Surface (#FFFAF7)
   static const Color surfaceDark = Color(0xFF1E1E1E);
 
   // Text Colors (Deep Ink & Slate)

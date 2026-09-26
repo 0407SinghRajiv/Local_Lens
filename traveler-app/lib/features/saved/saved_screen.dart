@@ -7,7 +7,8 @@ import '../../widgets/common/locallens_components.dart';
 
 /// Screen: Saved Places & Wishlist (Stitch UI)
 class SavedScreen extends StatefulWidget {
-  const SavedScreen({super.key});
+  final bool isStormy;
+  const SavedScreen({super.key, this.isStormy = false});
 
   @override
   State<SavedScreen> createState() => _SavedScreenState();
@@ -27,129 +28,22 @@ class _SavedScreenState extends State<SavedScreen> {
             .where((e) => e.location.toLowerCase().contains(_activeTab.toLowerCase()))
             .toList();
 
-    return Scaffold(
-      backgroundColor: LocalLensColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header Section
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: LocalLensDimensions.paddingScreen,
-                  vertical: 12,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.bookmark_added_rounded,
-                              color: LocalLensColors.terracottaPrimary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'SAVED COLLECTION',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.1,
-                                color: LocalLensColors.terracottaPrimary,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            color: LocalLensColors.surfaceContainer,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.search_rounded,
-                            color: LocalLensColors.deepInk,
-                            size: 20,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'My Saved Places',
-                      style: LocalLensTypography.displayMedium.copyWith(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: LocalLensColors.deepInk,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '${experiences.length} places & experiences saved across 3 trips',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: LocalLensColors.textSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Filter Chips Carousel
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
-                child: Row(
-                  children: _tabs.map((tab) {
-                    final isSelected = _activeTab == tab;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _activeTab = tab),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? LocalLensColors.deepInk
-                                : LocalLensColors.surfaceContainerLow,
-                            borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                          ),
-                          child: Text(
-                            tab,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : LocalLensColors.textSecondary,
-                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Featured AI Itinerary Bento Card
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: LocalLensColors.borderSubtle),
-                    boxShadow: LocalLensDimensions.softCardShadow,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      color: widget.isStormy ? const Color(0xFF0F172A) : LocalLensColors.background,
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: SafeArea(
+          child: SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header Section
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: LocalLensDimensions.paddingScreen,
+                    vertical: 12,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -157,196 +51,320 @@ class _SavedScreenState extends State<SavedScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: LocalLensColors.coastalSage.withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.auto_awesome,
-                                  color: LocalLensColors.coastalSage,
-                                  size: 14,
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.bookmark_added_rounded,
+                                color: widget.isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'SAVED COLLECTION',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.1,
+                                  color: widget.isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
                                 ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  'Curated AI Itinerary',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
-                                    color: LocalLensColors.coastalSage,
-                                  ),
-                                ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            width: 36,
+                            height: 36,
                             decoration: BoxDecoration(
-                              color: LocalLensColors.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(12),
+                              color: widget.isStormy ? const Color(0xFF1E293B) : LocalLensColors.surfaceContainer,
+                              shape: BoxShape.circle,
                             ),
-                            child: Text(
-                              'Ready to launch',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                color: LocalLensColors.textSecondary,
-                              ),
+                            child: Icon(
+                              Icons.search_rounded,
+                              color: widget.isStormy ? const Color(0xFF38BDF8) : LocalLensColors.deepInk,
+                              size: 20,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
                       Text(
-                        '3-Day Jaipur Heritage & Bazaars',
-                        style: TextStyle(
-                          fontSize: 17,
+                        'My Saved Places',
+                        style: LocalLensTypography.displayMedium.copyWith(
+                          fontSize: 28,
                           fontWeight: FontWeight.w700,
-                          color: LocalLensColors.deepInk,
+                          color: widget.isStormy ? Colors.white : LocalLensColors.deepInk,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Stepwells, gemstone markets, royal astronomy & rooftop sunsets.',
+                        '${experiences.length} places & experiences saved across 3 trips',
                         style: TextStyle(
-                          fontSize: 12,
-                          color: LocalLensColors.textSecondary,
+                          fontSize: 13,
+                          color: widget.isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: LocalLensColors.terracottaPrimary.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(
-                              Icons.alt_route_rounded,
-                              color: LocalLensColors.terracottaPrimary,
-                              size: 26,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '12 Curated Stops',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: LocalLensColors.deepInk,
-                                  ),
-                                ),
-                                Text(
-                                  'Optimized driving & walking route',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: LocalLensColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          ElevatedButton.icon(
-                            onPressed: () => context.push(AppRoutes.aiItinerary),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: LocalLensColors.terracottaPrimary,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                            icon: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                            label: const Icon(Icons.arrow_forward_rounded, size: 14),
-                          ),
-                        ],
                       ),
                     ],
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 20),
-
-              // Saved Places Title
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Saved Places',
-                      style: LocalLensTypography.headlineMedium.copyWith(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        color: LocalLensColors.deepInk,
-                      ),
-                    ),
-                    Text(
-                      '${filtered.length} saved',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: LocalLensColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              // Grid of Saved Items
-              filtered.isEmpty
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 40),
-                      child: EmptyStateWidget(
-                        icon: Icons.bookmark_border_rounded,
-                        title: 'No saved places found',
-                        message: 'Explore experiences and tap the heart icon to save them to your wishlist.',
-                        buttonText: 'Explore Places',
-                        onButtonTap: () => context.push(AppRoutes.explore),
-                      ),
-                    )
-                  : Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
-                      child: GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          childAspectRatio: 0.78,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
+                // Filter Chips Carousel
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                  child: Row(
+                    children: _tabs.map((tab) {
+                      final isSelected = _activeTab == tab;
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: GestureDetector(
+                          onTap: () => setState(() => _activeTab = tab),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: widget.isStormy
+                                  ? (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF1E293B))
+                                  : (isSelected ? LocalLensColors.deepInk : LocalLensColors.surfaceContainerLow),
+                              borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
+                              border: Border.all(
+                                color: widget.isStormy
+                                    ? (isSelected ? const Color(0xFF38BDF8) : const Color(0xFF334155))
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            child: Text(
+                              tab,
+                              style: TextStyle(
+                                color: widget.isStormy
+                                    ? (isSelected ? const Color(0xFF0F172A) : const Color(0xFFCBD5E1))
+                                    : (isSelected ? Colors.white : LocalLensColors.textSecondary),
+                                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
                         ),
-                        itemCount: filtered.length,
-                        itemBuilder: (context, index) {
-                          final exp = filtered[index];
-                          return _SavedItemCard(
-                            title: exp.title,
-                            location: exp.location,
-                            price: '₹${exp.priceInr.toInt()}',
-                            rating: exp.rating,
-                            category: exp.category,
-                            imageUrl: exp.imageUrl,
-                            onTap: () => context.push(AppRoutes.experienceDetails),
-                          );
-                        },
-                      ),
-                    ),
+                      );
+                    }).toList(),
+                  ),
+                ),
 
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 16),
+
+                // Featured AI Itinerary Bento Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 350),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: widget.isStormy ? const Color(0xFF1E293B) : Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: widget.isStormy ? const Color(0xFF334155) : LocalLensColors.borderSubtle),
+                      boxShadow: LocalLensDimensions.softCardShadow,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: widget.isStormy
+                                    ? const Color(0xFF0288D1).withValues(alpha: 0.25)
+                                    : LocalLensColors.coastalSage.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.auto_awesome,
+                                    color: widget.isStormy ? const Color(0xFF38BDF8) : LocalLensColors.coastalSage,
+                                    size: 14,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Curated AI Itinerary',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: widget.isStormy ? const Color(0xFF38BDF8) : LocalLensColors.coastalSage,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: widget.isStormy ? const Color(0xFF334155) : LocalLensColors.surfaceContainerHigh,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                'Ready to launch',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                  color: widget.isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          '3-Day Jaipur Heritage & Bazaars',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: widget.isStormy ? Colors.white : LocalLensColors.deepInk,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Stepwells, gemstone markets, royal astronomy & rooftop sunsets.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: widget.isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                color: widget.isStormy
+                                    ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
+                                    : LocalLensColors.terracottaPrimary.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.alt_route_rounded,
+                                color: widget.isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                                size: 26,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '12 Curated Stops',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: widget.isStormy ? Colors.white : LocalLensColors.deepInk,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Optimized driving & walking route',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: widget.isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: () => context.push(AppRoutes.aiItinerary),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: widget.isStormy ? const Color(0xFF0288D1) : LocalLensColors.terracottaPrimary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                              icon: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                              label: const Icon(Icons.arrow_forward_rounded, size: 14),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                // Saved Places Title
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Saved Places',
+                        style: LocalLensTypography.headlineMedium.copyWith(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: widget.isStormy ? Colors.white : LocalLensColors.deepInk,
+                        ),
+                      ),
+                      Text(
+                        '${filtered.length} saved',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: widget.isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Grid of Saved Items
+                filtered.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 40),
+                        child: EmptyStateWidget(
+                          icon: Icons.bookmark_border_rounded,
+                          title: 'No saved places found',
+                          message: 'Explore experiences and tap the heart icon to save them to your wishlist.',
+                          buttonText: 'Explore Places',
+                          onButtonTap: () => context.push(AppRoutes.explore),
+                        ),
+                      )
+                    : Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                        child: GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            childAspectRatio: 0.78,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                          ),
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final exp = filtered[index];
+                            return _SavedItemCard(
+                              title: exp.title,
+                              location: exp.location,
+                              price: '₹${exp.priceInr.toInt()}',
+                              rating: exp.rating,
+                              category: exp.category,
+                              imageUrl: exp.imageUrl,
+                              onTap: () => context.push(AppRoutes.experienceDetails),
+                              isStormy: widget.isStormy,
+                            );
+                          },
+                        ),
+                      ),
+
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
@@ -362,6 +380,7 @@ class _SavedItemCard extends StatelessWidget {
   final String category;
   final String imageUrl;
   final VoidCallback onTap;
+  final bool isStormy;
 
   const _SavedItemCard({
     required this.title,
@@ -371,17 +390,19 @@ class _SavedItemCard extends StatelessWidget {
     required this.category,
     required this.imageUrl,
     required this.onTap,
+    this.isStormy = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isStormy ? const Color(0xFF1E293B) : Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: LocalLensColors.borderSubtle),
+          border: Border.all(color: isStormy ? const Color(0xFF334155) : LocalLensColors.borderSubtle),
           boxShadow: LocalLensDimensions.softCardShadow,
         ),
         child: Column(
@@ -394,13 +415,24 @@ class _SavedItemCard extends StatelessWidget {
                   child: Container(
                     height: 110,
                     width: double.infinity,
-                    color: LocalLensColors.surfaceContainerLow,
-                    child: Image.asset(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: LocalLensColors.terracottaPrimary.withOpacity(0.1),
-                        child: Icon(Icons.landscape_rounded, color: LocalLensColors.terracottaPrimary, size: 36),
+                    color: isStormy ? const Color(0xFF0F172A) : LocalLensColors.surfaceContainerLow,
+                    child: ColorFiltered(
+                      colorFilter: isStormy
+                          ? ColorFilter.mode(const Color(0xFF0F172A).withValues(alpha: 0.18), BlendMode.darken)
+                          : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+                      child: Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          color: isStormy
+                              ? const Color(0xFF38BDF8).withValues(alpha: 0.1)
+                              : LocalLensColors.terracottaPrimary.withValues(alpha: 0.1),
+                          child: Icon(
+                            Icons.landscape_rounded,
+                            color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                            size: 36,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -410,11 +442,15 @@ class _SavedItemCard extends StatelessWidget {
                   right: 8,
                   child: Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
+                    decoration: BoxDecoration(
+                      color: isStormy ? const Color(0xFF0F172A).withValues(alpha: 0.85) : Colors.white,
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.favorite_rounded, color: LocalLensColors.terracottaPrimary, size: 16),
+                    child: Icon(
+                      Icons.favorite_rounded,
+                      color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                      size: 16,
+                    ),
                   ),
                 ),
               ],
@@ -431,7 +467,7 @@ class _SavedItemCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: LocalLensColors.deepInk,
+                      color: isStormy ? Colors.white : LocalLensColors.deepInk,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -441,7 +477,7 @@ class _SavedItemCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 11,
-                      color: LocalLensColors.textSecondary,
+                      color: isStormy ? const Color(0xFF94A3B8) : LocalLensColors.textSecondary,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -453,7 +489,7 @@ class _SavedItemCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: LocalLensColors.terracottaPrimary,
+                          color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
                         ),
                       ),
                       Row(
@@ -465,7 +501,7 @@ class _SavedItemCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
-                              color: LocalLensColors.deepInk,
+                              color: isStormy ? Colors.white : LocalLensColors.deepInk,
                             ),
                           ),
                         ],

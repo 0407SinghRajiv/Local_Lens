@@ -41,10 +41,12 @@ class LocalLensColors {
   static const Color textMuted = Color(0xFF8A8998); // Muted Slate
   static const Color textWhite = Color(0xFFFFFFFF);
 
-  // Surfaces & Backgrounds
-  static const Color background = Color(0xFFFAF9F6); // Alabaster Cream
-  static const Color surface = Color(0xFFFFFFFF); // Pure White Surface
-  static const Color surfaceSecondary = Color(0xFFF5F4F0); // Pressed Stone
+  // Surfaces & Backgrounds - App Palette (Soft Peach + Cream)
+  static const Color softPeach = Color(0xFFF7E2D5); // Soft Peach Top Bar & Accent (#F7E2D5)
+  static const Color topBarBackground = Color(0xFFF7E2D5); // Top bar color (#F7E2D5)
+  static const Color background = Color(0xFFFFFAF7); // Warm Cream Background (#FFFAF7)
+  static const Color surface = Color(0xFFFFFAF7); // Warm Cream Surface (#FFFAF7)
+  static const Color surfaceSecondary = Color(0xFFF7E2D5); // Soft Peach Surface Accent (#F7E2D5)
   static const Color border = Color(0xFFEAE8E3); // Soft Card Outline
   static const Color borderLight = Color(0xFFF0EEE9); // Subtle Hairline
 
@@ -68,7 +70,7 @@ class LocalLensColors {
   );
 
   static const LinearGradient splashGradient = LinearGradient(
-    colors: [Color(0xFFFAF9F6), Color(0xFFF5F4F0)],
+    colors: [Color(0xFFFFFAF7), Color(0xFFF7E2D5)],
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );

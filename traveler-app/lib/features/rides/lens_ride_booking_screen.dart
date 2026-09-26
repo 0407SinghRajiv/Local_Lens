@@ -74,7 +74,7 @@ class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
                 ),
               ),
               child: Container(
-                color: Colors.black.withOpacity(0.12),
+                color: Colors.black.withValues(alpha: 0.12),
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -174,7 +174,7 @@ class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: LocalLensColors.coastalSage.withOpacity(0.15),
+                                    color: LocalLensColors.coastalSage.withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(12),
                                   ),
                                   child: Text(
@@ -219,7 +219,7 @@ class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
                             width: 36,
                             height: 36,
                             decoration: BoxDecoration(
-                              color: LocalLensColors.terracottaPrimary.withOpacity(0.12),
+                              color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(Icons.directions_walk_rounded, color: LocalLensColors.terracottaPrimary, size: 20),
@@ -312,7 +312,7 @@ class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: isSelected
-                                  ? LocalLensColors.terracottaPrimary.withOpacity(0.04)
+                                  ? LocalLensColors.terracottaPrimary.withValues(alpha: 0.04)
                                   : Colors.white,
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
