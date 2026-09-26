@@ -80,10 +80,37 @@ class ItineraryService:
         max_duration_minutes = int(round(float(request.available_time_hours or 5.0) * 60))
         trip_end_limit_dt = start_dt + timedelta(minutes=max_duration_minutes)
 
-        # 2. Geographically order candidate experiences to minimize travel (Part 23)
+        # 2. Geographically order candidate experiences to minimize travel
         start_lat = request.user_lat
         start_lon = request.user_lon
+
         candidates = matched_df.to_dict(orient="records")
+        
+        # Ensure every candidate has valid latitude/longitude for map
+        for c in candidates:
+            c_lat = c.get("latitude")
+            c_lon = c.get("longitude")
+            if c_lat is None or pd.isna(c_lat) or str(c_lat).strip() == "" or str(c_lat) == "nan":
+                # Fallback to city or default coordinates
+                city_val = str(c.get("city", "")).lower()
+                if "delhi" in city_val:
+                    c["latitude"] = 28.6139 + (len(str(c.get("experience_id", ""))) % 5) * 0.01
+                    c["longitude"] = 77.2090 + (len(str(c.get("experience_name", ""))) % 5) * 0.01
+                elif "mumbai" in city_val or "raigad" in city_val or "panvel" in city_val:
+                    c["latitude"] = 18.9894 + (len(str(c.get("experience_id", ""))) % 5) * 0.01
+                    c["longitude"] = 73.1175 + (len(str(c.get("experience_name", ""))) % 5) * 0.01
+                else:
+                    c["latitude"] = 18.9894
+                    c["longitude"] = 73.1175
+
+        # If start coordinates are not provided, use the first experience's coordinate
+        if (start_lat is None or start_lon is None) and candidates:
+            start_lat = float(candidates[0].get("latitude", 18.9894))
+            start_lon = float(candidates[0].get("longitude", 73.1175))
+        elif start_lat is None or start_lon is None:
+            start_lat = 18.9894
+            start_lon = 73.1175
+
         ordered_candidates = cls._order_candidates_spatially(candidates, start_lat, start_lon)
 
         # 3. Time-Aware Chronological Scheduling Loop
@@ -128,7 +155,9 @@ class ItineraryService:
             activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 
             # Check 1: Total Trip Duration Constraint
-            if activity_end_dt > trip_end_limit_dt:
+            # Only enforce hard drop if available_time_hours is strictly constrained (e.g. <= 2.5 hours)
+            # or if auto-generating without user selection
+            if (not selected_ids or (request.available_time_hours and request.available_time_hours <= 2.5)) and activity_end_dt > trip_end_limit_dt:
                 skipped.append(SkippedExperience(
                     experience_id=exp_id,
                     name=exp_name,

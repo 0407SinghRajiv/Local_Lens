@@ -222,6 +222,8 @@ class RecommendationService:
             rating=rating,
             review_count=int(raw.get("review_count")) if raw.get("review_count") is not None else None,
             distance_km=float(raw.get("distance_km")) if raw.get("distance_km") is not None else None,
+            latitude=float(raw.get("latitude")) if raw.get("latitude") is not None and str(raw.get("latitude")) != "nan" else None,
+            longitude=float(raw.get("longitude")) if raw.get("longitude") is not None and str(raw.get("longitude")) != "nan" else None,
             recommendation_score=round(score, 4),
             score=round(score, 4),
             reason=reason,

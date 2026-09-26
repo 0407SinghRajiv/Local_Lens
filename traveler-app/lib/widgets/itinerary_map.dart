@@ -64,7 +64,7 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
   Future<void> _buildMapElements() async {
     try {
       final markersMap = <MarkerId, Marker>{};
-      final validItems = widget.items.where((i) => i.isSelected && i.latitude != null && i.longitude != null).toList();
+      final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
 
       // 1. Add Start Location Marker
       if (widget.startLocation != null) {
@@ -102,7 +102,9 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
 
         final icon = await GoogleMapsService.createCustomNumberedMarker(
           text: '$visitOrder',
-          backgroundColor: isSelected ? LocalLensColors.accentOrange : LocalLensColors.primaryTeal,
+          backgroundColor: isSelected
+              ? LocalLensColors.accentOrange
+              : (item.isSelected ? LocalLensColors.primaryTeal : Colors.grey),
           textColor: Colors.white,
           isStart: false,
           isSelected: isSelected,
@@ -143,7 +145,8 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
             polylineId: const PolylineId('itinerary_main_route'),
             points: routePoints,
             color: LocalLensColors.primaryTeal,
-            width: 4,
+            width: 5,
+            geodesic: true,
             startCap: Cap.roundCap,
             endCap: Cap.roundCap,
             jointType: JointType.round,
@@ -206,7 +209,7 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final validItems = widget.items.where((i) => i.isSelected && i.latitude != null && i.longitude != null).toList();
+    final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
     final initialPos = widget.startLocation ??
         (validItems.isNotEmpty
             ? LatLng(validItems.first.latitude!, validItems.first.longitude!)
@@ -275,7 +278,8 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
                 if (!_controllerCompleter.isCompleted) {
                   _controllerCompleter.complete(controller);
                 }
-                Future.delayed(const Duration(milliseconds: 350), () {
+                _buildMapElements();
+                Future.delayed(const Duration(milliseconds: 400), () {
                   if (mounted) fitAllBounds();
                 });
               },

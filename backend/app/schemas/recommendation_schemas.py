@@ -99,6 +99,8 @@ class RecommendationItem(BaseModel):
     rating: Optional[float] = None
     review_count: Optional[int] = None
     distance_km: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     recommendation_score: float
     score: float  # alias for frontend
     reason: str

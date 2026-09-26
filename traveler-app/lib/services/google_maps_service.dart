@@ -71,7 +71,7 @@ class GoogleMapsService {
     }
 
     for (final item in items) {
-      if (item.isSelected && item.latitude != null && item.longitude != null) {
+      if (item.latitude != null && item.longitude != null) {
         route.add(LatLng(item.latitude!, item.longitude!));
       }
     }
@@ -79,7 +79,7 @@ class GoogleMapsService {
     return route;
   }
 
-  /// Create custom canvas numbered marker icon (e.g. [1], [2], [START])
+  /// Create custom canvas numbered marker icon (e.g. [1], [2], [START]) with reliable fallback
   static Future<BitmapDescriptor> createCustomNumberedMarker({
     required String text,
     required Color backgroundColor,
@@ -87,76 +87,82 @@ class GoogleMapsService {
     bool isStart = false,
     bool isSelected = false,
   }) async {
-    final pictureRecorder = ui.PictureRecorder();
-    final canvas = Canvas(pictureRecorder);
-    final size = isSelected ? 120.0 : 100.0;
-    final radius = size / 2.0;
+    try {
+      final pictureRecorder = ui.PictureRecorder();
+      final canvas = Canvas(pictureRecorder);
+      final size = isSelected ? 120.0 : 100.0;
+      final radius = size / 2.0;
 
-    final paint = Paint()
-      ..color = backgroundColor
-      ..style = PaintingStyle.fill;
-
-    final borderPaint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = isSelected ? 6.0 : 4.0
-      ..style = PaintingStyle.stroke;
-
-    final shadowPaint = Paint()
-      ..color = Colors.black.withValues(alpha: 0.25)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-
-    // Draw shadow circle
-    canvas.drawCircle(Offset(radius, radius + 4), radius - 8, shadowPaint);
-
-    // Draw main background circle
-    canvas.drawCircle(Offset(radius, radius), radius - 8, paint);
-    canvas.drawCircle(Offset(radius, radius), radius - 8, borderPaint);
-
-    if (isStart) {
-      // Draw Start Flag / Dot
-      final innerDot = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(radius, radius), radius - 24, innerDot);
-
-      final centerDot = Paint()
+      final paint = Paint()
         ..color = backgroundColor
         ..style = PaintingStyle.fill;
-      canvas.drawCircle(Offset(radius, radius), radius - 32, centerDot);
-    } else {
-      // Draw Visit Order Number
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            fontSize: isSelected ? 44.0 : 38.0,
-            fontWeight: FontWeight.w900,
-            color: textColor,
-            fontFamily: 'Roboto',
+
+      final borderPaint = Paint()
+        ..color = Colors.white
+        ..strokeWidth = isSelected ? 6.0 : 4.0
+        ..style = PaintingStyle.stroke;
+
+      final shadowPaint = Paint()
+        ..color = Colors.black.withValues(alpha: 0.25)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+
+      // Draw shadow circle
+      canvas.drawCircle(Offset(radius, radius + 4), radius - 8, shadowPaint);
+
+      // Draw main background circle
+      canvas.drawCircle(Offset(radius, radius), radius - 8, paint);
+      canvas.drawCircle(Offset(radius, radius), radius - 8, borderPaint);
+
+      if (isStart) {
+        // Draw Start Flag / Dot
+        final innerDot = Paint()
+          ..color = Colors.white
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(Offset(radius, radius), radius - 24, innerDot);
+
+        final centerDot = Paint()
+          ..color = backgroundColor
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(Offset(radius, radius), radius - 32, centerDot);
+      } else {
+        // Draw Visit Order Number
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: text,
+            style: TextStyle(
+              fontSize: isSelected ? 44.0 : 38.0,
+              fontWeight: FontWeight.w900,
+              color: textColor,
+            ),
           ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+          textDirection: TextDirection.ltr,
+        )..layout();
 
-      textPainter.paint(
-        canvas,
-        Offset(
-          radius - (textPainter.width / 2),
-          radius - (textPainter.height / 2),
-        ),
-      );
+        textPainter.paint(
+          canvas,
+          Offset(
+            radius - (textPainter.width / 2),
+            radius - (textPainter.height / 2),
+          ),
+        );
+      }
+
+      final picture = pictureRecorder.endRecording();
+      final image = await picture.toImage(size.toInt(), (size + 8).toInt());
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (bytes != null) {
+        return BitmapDescriptor.bytes(bytes.buffer.asUint8List());
+      }
+    } catch (e) {
+      debugPrint('[GoogleMapsService] Custom marker generation fallback: $e');
     }
 
-    final picture = pictureRecorder.endRecording();
-    final image = await picture.toImage(size.toInt(), (size + 8).toInt());
-    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-
-    if (bytes == null) {
-      return BitmapDescriptor.defaultMarkerWithHue(
-        isStart ? BitmapDescriptor.hueGreen : BitmapDescriptor.hueCyan,
-      );
-    }
-
-    return BitmapDescriptor.bytes(bytes.buffer.asUint8List());
+    // Default vector marker fallback
+    return BitmapDescriptor.defaultMarkerWithHue(
+      isStart
+          ? BitmapDescriptor.hueGreen
+          : (isSelected ? BitmapDescriptor.hueOrange : BitmapDescriptor.hueCyan),
+    );
   }
 }
