@@ -120,18 +120,7 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
       return;
     }
 
-    _showRecommendationModal(context);
-  }
-
-  void _showRecommendationModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return const _RecommendationSelectionSheet();
-      },
-    );
+    context.push(AppRoutes.recommendationSwipe);
   }
 
   @override

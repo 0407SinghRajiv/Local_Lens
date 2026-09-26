@@ -30,6 +30,7 @@ class AppRoutes {
 
   // Canonical Traveler Flow Routes
   static const String travelerCreateItinerary = '/traveler/create-itinerary';
+  static const String recommendationSwipe = '/traveler/recommendations/swipe';
   static const String aiItineraryGenerating = '/traveler/itinerary/generating';
   static const String aiItineraryResult = '/traveler/itinerary/result';
   static const String travelerRideSelect = '/traveler/ride/select';
