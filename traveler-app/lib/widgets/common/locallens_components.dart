@@ -423,3 +423,101 @@ class LocalLensBottomNav extends StatelessWidget {
     );
   }
 }
+
+/// Experience image component with network loading, placeholder skeleton, error fallback and aspect ratio preservation.
+class LocalLensNetworkImage extends StatelessWidget {
+  final String? imageUrl;
+  final String fallbackAsset;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final BorderRadius? borderRadius;
+
+  const LocalLensNetworkImage({
+    super.key,
+    required this.imageUrl,
+    this.fallbackAsset = 'assets/images/destinations/food_trail.png',
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.borderRadius,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget imageWidget;
+    final url = imageUrl?.trim() ?? '';
+
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      imageWidget = Image.network(
+        url,
+        width: width,
+        height: height,
+        fit: fit,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            width: width,
+            height: height,
+            color: LocalLensColors.surfaceSecondary,
+            child: Center(
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: const AlwaysStoppedAnimation<Color>(LocalLensColors.primaryTeal),
+                  value: loadingProgress.expectedTotalBytes != null
+                      ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                      : null,
+                ),
+              ),
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return _buildFallback();
+        },
+      );
+    } else if (url.startsWith('assets/')) {
+      imageWidget = Image.asset(
+        url,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => _buildFallback(),
+      );
+    } else {
+      imageWidget = _buildFallback();
+    }
+
+    if (borderRadius != null) {
+      return ClipRRect(
+        borderRadius: borderRadius!,
+        child: imageWidget,
+      );
+    }
+
+    return imageWidget;
+  }
+
+  Widget _buildFallback() {
+    return Image.asset(
+      fallbackAsset,
+      width: width,
+      height: height,
+      fit: fit,
+      errorBuilder: (_, _, _) => Container(
+        width: width,
+        height: height,
+        color: LocalLensColors.primaryTealSoft,
+        child: const Icon(
+          Icons.image_outlined,
+          color: LocalLensColors.primaryTeal,
+          size: 24,
+        ),
+      ),
+    );
+  }
+}
+

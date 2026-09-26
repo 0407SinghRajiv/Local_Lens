@@ -86,7 +86,7 @@ class _ItineraryGeneratingScreenState extends ConsumerState<ItineraryGeneratingS
 
   Future<void> _startGeneration() async {
     try {
-      final itinerary = await ref.read(itineraryProvider.notifier).generateItinerary();
+      final itinerary = await ref.read(itineraryProvider.notifier).generateFinalItinerary();
       if (!mounted) return;
 
       if (itinerary != null) {

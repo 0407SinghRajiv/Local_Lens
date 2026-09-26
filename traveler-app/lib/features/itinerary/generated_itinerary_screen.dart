@@ -130,13 +130,82 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               // TOP SUMMARY HERO CARD
               _buildTopSummaryCard(
                 destination: itinerary.destination,
+                tripDate: itinerary.tripDate,
+                startTime: itinerary.startTime,
                 formattedDuration: dynamicDuration,
                 totalCost: dynamicCost,
                 selectedCount: selectedCount,
                 totalCount: totalCount,
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // BUDGET WARNING BANNER IF EXCEEDED
+              if (itinerary.budgetExceeded || itinerary.budgetWarning != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: LocalLensColors.warmAmberSoft,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: LocalLensColors.warmAmber, width: 1.2),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, color: LocalLensColors.warmAmber, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          itinerary.budgetWarning ?? 'Your selected experiences exceed the available budget.',
+                          style: LocalLensTypography.caption.copyWith(
+                            color: LocalLensColors.textPrimary,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+
+              // SKIPPED EXPERIENCES CARD IF CONSTRAINTS EXCEEDED TIME
+              if (itinerary.skippedExperiences.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: LocalLensColors.surfaceSecondary,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: LocalLensColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, color: LocalLensColors.textSecondary, size: 16),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Skipped Experiences (${itinerary.skippedExperiences.length})',
+                            style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ...itinerary.skippedExperiences.map((sk) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              '• ${sk.name}: ${sk.reason}',
+                              style: LocalLensTypography.caption.copyWith(
+                                color: LocalLensColors.textSecondary,
+                                fontSize: 11,
+                              ),
+                            ),
+                          )),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
 
               // Interactive Selection Status Bar
               Container(
@@ -196,8 +265,11 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                     style: LocalLensTypography.titleLarge.copyWith(fontWeight: FontWeight.w800),
                   ),
                   Text(
-                    'Toggle to customize',
-                    style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textMuted),
+                    'Starts at ${itinerary.startTime}',
+                    style: LocalLensTypography.caption.copyWith(
+                      color: LocalLensColors.primaryTeal,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
@@ -227,6 +299,8 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
 
   Widget _buildTopSummaryCard({
     required String destination,
+    required String tripDate,
+    required String startTime,
     required String formattedDuration,
     required double totalCost,
     required int selectedCount,
@@ -273,10 +347,10 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.bolt_rounded, color: Colors.amber, size: 14),
-                    const SizedBox(width: 2),
+                    const Icon(Icons.schedule_rounded, color: Colors.amber, size: 14),
+                    const SizedBox(width: 4),
                     Text(
-                      'Curated',
+                      startTime,
                       style: LocalLensTypography.badge.copyWith(color: Colors.white),
                     ),
                   ],
@@ -291,9 +365,9 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               _buildSummaryPill(
-                icon: Icons.schedule_rounded,
-                label: 'Available Time',
-                value: formattedDuration,
+                icon: Icons.calendar_today_rounded,
+                label: 'Trip Date',
+                value: tripDate,
               ),
               _buildSummaryPill(
                 icon: Icons.currency_rupee_rounded,
@@ -483,21 +557,12 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Thumbnail Image
-                            ClipRRect(
+                            // Thumbnail Image (Remote Supabase URL with fallback)
+                            LocalLensNetworkImage(
+                              imageUrl: item.image,
+                              width: 72,
+                              height: 72,
                               borderRadius: BorderRadius.circular(10),
-                              child: Image.asset(
-                                item.image,
-                                width: 72,
-                                height: 72,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, _, _) => Container(
-                                  width: 72,
-                                  height: 72,
-                                  color: LocalLensColors.primaryTealSoft,
-                                  child: const Icon(Icons.image_rounded, color: LocalLensColors.primaryTeal),
-                                ),
-                              ),
                             ),
                             const SizedBox(width: 12),
 
