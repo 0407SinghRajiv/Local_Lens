@@ -14,6 +14,7 @@ import '../../features/experience/experience_map_screen.dart';
 import '../../features/explore/explore_screen.dart';
 import '../../features/home/home_screen.dart';
 import '../../features/itinerary/create_itinerary_screen.dart';
+import '../../features/itinerary/recommendation_swipe_screen.dart';
 import '../../features/itinerary/itinerary_generating_screen.dart';
 import '../../features/itinerary/generated_itinerary_screen.dart';
 import '../../features/itinerary/ai_replanning_screen.dart';
@@ -181,6 +182,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.travelerCreateItinerary,
         pageBuilder: (context, state) => _buildPage(state, const CreateItineraryScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.recommendationSwipe,
+        pageBuilder: (context, state) => _buildPage(state, const RecommendationSwipeScreen()),
       ),
       GoRoute(
         path: AppRoutes.aiItineraryGenerating,

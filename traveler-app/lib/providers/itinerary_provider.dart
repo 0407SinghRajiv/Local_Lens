@@ -228,6 +228,10 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     state = state.copyWith(selectedExperienceIds: current);
   }
 
+  void setSelectedExperienceIds(Set<String> ids) {
+    state = state.copyWith(selectedExperienceIds: ids);
+  }
+
   void selectAllRecommendations() {
     final allIds = state.recommendations.map((r) => r.experienceId).toSet();
     state = state.copyWith(selectedExperienceIds: allIds);
