@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<meta content="mobile_tab" name="shell-type"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body { width: 100vw; margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+      .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+    body { min-height: max(884px, 100dvh); }
+  </style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-container": "#f0eded",
+            "surface-container-high": "#eae7e7",
+            "background": "#fcf9f8",
+            "outline": "#8e7069",
+            "surface-container-low": "#f6f3f2",
+            "surface-dim": "#dcd9d9",
+            "surface-container-highest": "#e5e2e1",
+            "surface": "#fcf9f8",
+            "primary-fixed-dim": "#ffb4a2",
+            "on-secondary-fixed": "#082014",
+            "on-tertiary": "#ffffff",
+            "surface-variant": "#e5e2e1",
+            "on-error-container": "#93000a",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-fixed": "#2c1600",
+            "on-primary-container": "#fffbff",
+            "primary-fixed": "#ffdbd2",
+            "primary-container": "#d2411a",
+            "tertiary-fixed": "#ffdcbd",
+            "on-primary-fixed-variant": "#891e00",
+            "secondary-fixed-dim": "#b2cdba",
+            "inverse-surface": "#313030",
+            "secondary-container": "#cbe6d3",
+            "tertiary-container": "#966c41",
+            "inverse-on-surface": "#f3f0ef",
+            "error-container": "#ffdad6",
+            "error": "#ba1a1a",
+            "secondary": "#4b6454",
+            "on-tertiary-fixed-variant": "#623f18",
+            "on-secondary": "#ffffff",
+            "surface-bright": "#fcf9f8",
+            "secondary-fixed": "#cee9d6",
+            "on-background": "#1c1b1b",
+            "on-surface-variant": "#5a413a",
+            "tertiary": "#7b542b",
+            "surface-tint": "#b32b01",
+            "outline-variant": "#e3beb6",
+            "tertiary-fixed-dim": "#f0bd8b",
+            "inverse-primary": "#ffb4a2",
+            "on-primary-fixed": "#3c0800",
+            "on-primary": "#ffffff",
+            "on-secondary-fixed-variant": "#344c3e",
+            "on-surface": "#1c1b1b",
+            "on-secondary-container": "#4f6859",
+            "primary": "#af2900",
+            "on-tertiary-container": "#fffbff",
+            "on-error": "#ffffff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin": "1.5rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2rem",
+            "margin-mobile": "1.25rem",
+            "space-lg": "1.5rem",
+            "space-md": "1rem",
+            "gutter-mobile": "0.75rem",
+            "space-xs": "0.25rem",
+            "gutter": "1rem"
+          },
+          "fontFamily": {
+            "headline-md": ["Plus Jakarta Sans"],
+            "label-sm": ["Inter"],
+            "label-md": ["Inter"],
+            "display-hero-mobile": ["Plus Jakarta Sans"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "label-lg": ["Inter"],
+            "display-hero": ["Plus Jakarta Sans"],
+            "body-sm": ["Inter"],
+            "body-lg": ["Inter"],
+            "headline-lg": ["Plus Jakarta Sans"],
+            "body-md": ["Inter"]
+          },
+          "fontSize": {
+            "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "600" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "display-hero-mobile": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.025em", "fontWeight": "700" }],
+            "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-lg": ["14px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "display-hero": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "700" }],
+            "body-sm": ["12px", { "lineHeight": "18px", "letterSpacing": "0.005em", "fontWeight": "400" }],
+            "body-lg": ["16px", { "lineHeight": "26px", "letterSpacing": "-0.005em", "fontWeight": "400" }],
+            "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "body-md": ["14px", { "lineHeight": "22px", "letterSpacing": "0", "fontWeight": "400" }]
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen">
+<header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(26,26,26,0.04)]">
+<div class="h-16 px-margin-mobile flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<img alt="Wander Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5j_99Dp4SDDnluNeyE5-jdzAY5go3NrCiLihHvoI1eiH0ZjuTmDe8i3szfIHPN7zO4cJrFiggLctrq8EaTZhafbilXdr_LC53x6G4yuvvcK6Ia7ipV7ldJf8sZJV4V0Fet2qisHjeV1CgomWyKN8vVeYY4Sy8pUrdMadHY-100PRmJuu9VFRJtB0s_H5yB80EjLZ01OhrZE9WtsWWBSCF0akvWKssSWx891AafZ1D7LMMViTDya7h5Q"/>
+<span class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Wander</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<h1 class="font-label-lg text-label-lg text-on-surface-variant font-medium">Saved</h1>
+<a aria-label="Traveler Profile" class="w-11 h-11 flex items-center justify-center rounded-full hover:opacity-90 active:scale-95 transition-all" data-path="traveler-profile" href="#">
+<img alt="Traveler Avatar" class="w-8 h-8 rounded-full object-cover ring-1 ring-outline-variant/30" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDX-Woy_utSc_ERkUUmGmB8ezxwW-NB7nhZChKttIPEPzNA4hEDA1-PsAZB77QqH4Y_KlwX1bPka-BXJQIXgrDJYXqVQ__6XR5XV-N4t-z0-AhGG2FHvbApBbmMD5yzqJDwVPBnNvR7PTrf5c6hXN6cQQBorORJ1GOaUN9DuVlxmOXK2zh2sJU5aZcXGq1RJpUF6Ls39JO-Nm0OWwX9aA0kzx4DZqJcNeP2fwo95c0RYXeyLekX3Js8Cg"/>
+</a>
+</div>
+</div>
+</header>
+<main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Interactive Feedback Banner Notification (Hidden by default, triggered on add to trip) -->
+<div class="fixed top-20 left-1/2 -translate-x-1/2 z-40 px-space-md py-2.5 bg-inverse-surface text-inverse-on-surface rounded-full shadow-lg opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-space-xs text-body-sm" id="toast-banner">
+<span class="material-symbols-outlined text-primary text-[18px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+<span class="font-label-md" id="toast-message">Added to "Royal Rajasthan 2025"</span>
+</div>
+<!-- Header Section with Editorial Warmth -->
+<section class="px-margin-mobile pt-space-md pb-space-sm flex flex-col gap-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]" style="font-variation-settings: 'FILL' 1;">bookmark_heart</span>
+<span class="font-label-sm tracking-wider uppercase">Saved Collection</span>
+</div>
+<button class="w-8 h-8 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-[18px]">search</span>
+</button>
+</div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface tracking-tight mt-1">My Saved Places</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">24 places &amp; experiences across 3 trips</p>
+</section>
+<!-- Filter Chips (Horizontal Snap Carousel) -->
+<div class="w-full overflow-x-auto no-scrollbar py-space-sm pl-margin-mobile">
+<div class="flex items-center gap-2 pr-margin-mobile">
+<button class="filter-chip active-chip flex-shrink-0 px-4 py-2 rounded-full font-label-md text-label-md transition-all shadow-sm bg-on-background text-surface-container-lowest" data-filter="all">
+        All (24)
+      </button>
+<button class="filter-chip flex-shrink-0 px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" data-filter="jaipur">
+        Jaipur (14)
+      </button>
+<button class="filter-chip flex-shrink-0 px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" data-filter="udaipur">
+        Udaipur (6)
+      </button>
+<button class="filter-chip flex-shrink-0 px-4 py-2 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" data-filter="itineraries">
+        Custom Itineraries (4)
+      </button>
+</div>
+</div>
+<!-- Featured AI Itinerary Bento Card -->
+<section class="px-margin-mobile mt-space-sm">
+<div class="bg-surface-container-lowest rounded-xl shadow-sm p-4 relative overflow-hidden flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1.5 px-2.5 py-1 bg-secondary-container text-on-secondary-container rounded-full">
+<span class="material-symbols-outlined text-[14px]">auto_awesome</span>
+<span class="font-label-sm text-label-sm font-semibold">Curated AI Itinerary</span>
+</div>
+<span class="px-2 py-0.5 bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm rounded-full">Ready to launch</span>
+</div>
+<div class="flex flex-col gap-1">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">3-Day Jaipur Heritage &amp; Bazaars</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Stepwells, gemstone markets, royal astronomy &amp; rooftop sunsets.</p>
+</div>
+<!-- Route Thumbnail & Highlights Strip -->
+<div class="flex items-center gap-3 bg-surface-container-low p-2.5 rounded-lg">
+<div class="w-16 h-16 rounded-lg bg-cover bg-center flex-shrink-0 relative overflow-hidden" data-location="Jaipur Old City, Rajasthan, India" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuC5Cni-wSz7E2mWYcYWV6SUX5D3nPPyrdU4k3t_N_rHdPMwvcWSpTCTFR8BdBaZ7Y8rVmldpLp7Y2wc3_0mo-i9Oq8yxeeb_Gw6XX6C4RteFok4kWORLaoLXJbhAnF3IcUOlC4OyHh66TnFk3by3R4mU1XZreokHd2zo0FSd5dK8yWm8JJaxfs14I03Dryxp--JXvi3iNu8xpgLFqt1-Cbxd28gcSpA66c9tlXWY4LGuieJAjcpstiaEg')">
+<div class="absolute inset-0 bg-primary/10 backdrop-blur-[0.5px]"></div>
+<div class="absolute inset-0 flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[22px]">route</span>
+</div>
+</div>
+<div class="flex flex-col flex-1 min-w-0">
+<div class="flex items-center gap-2 text-on-surface font-label-md text-label-md">
+<span class="material-symbols-outlined text-secondary text-[16px]">location_on</span>
+<span class="truncate">12 Curated Stops</span>
+</div>
+<div class="flex items-center gap-2 text-on-surface-variant font-body-sm text-body-sm mt-0.5">
+<span class="material-symbols-outlined text-tertiary text-[16px]">schedule</span>
+<span>Optimized driving path</span>
+</div>
+</div>
+<a class="h-9 px-3 bg-primary text-on-primary rounded-lg font-label-md text-label-md flex items-center justify-center gap-1 hover:opacity-90 active:scale-95 transition-all" href="#">
+<span>View</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+<!-- Section Title: Saved Experiences -->
+<div class="px-margin-mobile mt-space-lg mb-2 flex items-center justify-between">
+<div class="flex items-center gap-2">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Saved Discoveries</h3>
+<span class="px-2 py-0.5 bg-primary-fixed text-on-primary-fixed font-label-sm text-label-sm rounded-full">4 Recent</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface-variant">
+<button class="w-7 h-7 flex items-center justify-center rounded bg-surface-container text-on-surface">
+<span class="material-symbols-outlined text-[18px]">view_agenda</span>
+</button>
+<button class="w-7 h-7 flex items-center justify-center rounded text-on-surface-variant hover:bg-surface-container">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+</button>
+</div>
+</div>
+<!-- Cards List -->
+<div class="px-margin-mobile flex flex-col gap-space-md pb-space-xl">
+<!-- Item 1: Panna Meena Ka Kund -->
+<article class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md">
+<!-- Media Box -->
+<div class="relative w-full h-48 overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Geometric terracotta and sandstone stepped well in Panna Meena Ka Kund, Jaipur India. Symmetrical geometric stone steps descending into clear water, bathed in warm golden morning light with tranquil historic atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBMpvlc_q7lJe40zKX5Uw9V-CtYDlBY3CVHnL3WjaVe0_Ibzgl_2byqQijVUmJgBbl7jgqIofnx4HX5PoOJHUPKe9wall_LFG5K8FPw9g8jbt9b1vUKcu-A2pY8CPDJd4eWJ_SzErCenaW0Pl7BzDDujZ-IAOfzvZ7-5NsiERXhFSMhrsSd4c9swG6evKhpI8kGyAG1fLeaAEUEYO5iIp7aJKo-vQqt4FikkDk8OY8WS8G0lT6SxjK2lw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<!-- Category & Time Badges -->
+<div class="absolute top-3 left-3 flex items-center gap-1.5">
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-surface-container-lowest/90 backdrop-blur-md text-on-surface shadow-sm">
+            Architecture
+          </span>
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-black/40 backdrop-blur-md text-white">
+            Added 2 hrs ago
+          </span>
+</div>
+<!-- Wishlist Toggle -->
+<button class="heart-toggle absolute top-3 right-3 w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-sm hover:scale-105 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+<!-- Distance & Rating Scrim Pill -->
+<div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-body-sm">
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-md">
+<span class="material-symbols-outlined text-amber-300 text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span>4.8</span>
+<span class="text-white/70 font-body-sm">(340 reviews)</span>
+</div>
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-sm">
+<span class="material-symbols-outlined text-white text-[14px]">near_me</span>
+<span>800m away</span>
+</div>
+</div>
+</div>
+<!-- Card Body -->
+<div class="p-4 flex flex-col gap-3">
+<div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Panna Meena Ka Kund</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-0.5">
+            An 8-century symmetrical stepwell tucked beside Amer Fort. Famous for interlocking geometrical stairs and quiet morning ambiance.
+          </p>
+</div>
+<!-- Actions -->
+<div class="flex items-center justify-between pt-1">
+<button class="add-to-trip-btn h-10 px-4 bg-primary text-on-primary rounded-lg font-label-md text-label-md flex items-center gap-1.5 active:scale-95 transition-all" data-title="Panna Meena Ka Kund">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>Add to Trip</span>
+</button>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</article>
+<!-- Item 2: Hawa Mahal Rooftop Sunset -->
+<article class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md">
+<!-- Media Box -->
+<div class="relative w-full h-48 overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Hawa Mahal pink palace of winds in Jaipur photographed from an opposite vintage cafe rooftop during an exquisite golden hour sunset. Glowing warm lanterns, brass teapots, and intricate lattice honeycomb windows in soft dusk." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHcM8Wjd-ms5rAyHCkY_n-eYSHxXziErkL0Kos7Bp6_3hVFqCVdB-5pYaYzn0WvIxQd1OkZK0hA3xP42gZst1wD7L7vFVnN4HQ-qNo8DCCxTbWjpxzg5x7gxJIEQd2EGOQOWyAagdtVgTtrFIq1WcoN9fmHBxexNIs1MkrJ5shuPI_3w8zzh1OJLxd0_XyTX_TdDU7JJapMPHS-eD-H9pEjQcr0lHMfiYIup-mAwsKP49ga86W_CgKwQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute top-3 left-3 flex items-center gap-1.5">
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-surface-container-lowest/90 backdrop-blur-md text-on-surface shadow-sm">
+            Culture
+          </span>
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-tertiary-container text-on-tertiary-container shadow-sm">
+            Sunset View
+          </span>
+</div>
+<button class="heart-toggle absolute top-3 right-3 w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-sm hover:scale-105 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+<div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-body-sm">
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-md">
+<span class="material-symbols-outlined text-amber-300 text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span>4.9</span>
+<span class="text-white/70 font-body-sm">(1,210 reviews)</span>
+</div>
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-sm">
+<span class="material-symbols-outlined text-white text-[14px]">wb_twilight</span>
+<span>Best at 5:30 PM</span>
+</div>
+</div>
+</div>
+<!-- Card Body -->
+<div class="p-4 flex flex-col gap-3">
+<div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Hawa Mahal Rooftop Sunset</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-0.5">
+            The quintessential sunset perch directly overlooking the terracotta honeycomb façade with spiced masala chai.
+          </p>
+</div>
+<!-- Actions -->
+<div class="flex items-center justify-between pt-1">
+<button class="add-to-trip-btn h-10 px-4 bg-primary text-on-primary rounded-lg font-label-md text-label-md flex items-center gap-1.5 active:scale-95 transition-all" data-title="Hawa Mahal Rooftop Sunset">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>Add to Trip</span>
+</button>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</article>
+<!-- Item 3: Anokhi Block Printing Workshop -->
+<article class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md">
+<!-- Media Box -->
+<div class="relative w-full h-48 overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Traditional Indian artisan hands holding carved wooden blocks stamping deep indigo and madder red vegetable dyes onto raw unbleached organic cotton in an airy sunlit courtyard studio in Amer Rajasthan." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4PxEkO6aEq5fxKUCRNCGVyHjJvdEKa82K_ucZGlu8ljwIgCPbnRfRbyOz9ktW3abMG9rp6iMvMqGqjml3zcAezN3Bxcdt6CDJOwGNaDzeV-HYZhZfDxqFfAr6DHRBhRuPZn8FPxNIAx5psemFAxt03weeDZCtl5TIwB469bYkmrq0NQY0n2lFeA3Olgt0DMQ1Hbw_WO4arfy_7WH8EAyXqf_1jvgmtLpuUBGKFeWXk4lgAQra8TPwZQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute top-3 left-3 flex items-center gap-1.5">
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-surface-container-lowest/90 backdrop-blur-md text-on-surface shadow-sm">
+            Workshop
+          </span>
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-surface-container-lowest/90 backdrop-blur-md text-on-surface font-semibold shadow-sm">
+            ₹1,750 / person
+          </span>
+</div>
+<button class="heart-toggle absolute top-3 right-3 w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-sm hover:scale-105 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+<div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-body-sm">
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-md">
+<span class="material-symbols-outlined text-amber-300 text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span>4.95</span>
+<span class="text-white/70 font-body-sm">(185 reviews)</span>
+</div>
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-sm">
+<span class="material-symbols-outlined text-white text-[14px]">palette</span>
+<span>Hands-on 2.5 hrs</span>
+</div>
+</div>
+</div>
+<!-- Card Body -->
+<div class="p-4 flex flex-col gap-3">
+<div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">Anokhi Block Printing Workshop</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-0.5">
+            Learn age-old woodblock textile traditions inside an intricately restored haveli museum. Take home your custom printed scarf.
+          </p>
+</div>
+<!-- Actions -->
+<div class="flex items-center justify-between pt-1">
+<button class="add-to-trip-btn h-10 px-4 bg-primary text-on-primary rounded-lg font-label-md text-label-md flex items-center gap-1.5 active:scale-95 transition-all" data-title="Anokhi Workshop">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>Add to Trip</span>
+</button>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</article>
+<!-- Item 4: LMB - Laxmi Misthan Bhandar -->
+<article class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col transition-all hover:shadow-md">
+<!-- Media Box -->
+<div class="relative w-full h-48 overflow-hidden bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Traditional Rajasthani golden honeycomb Ghewar dessert topped with silver vark and crushed green pistachios, next to crispy golden pyaaz kachoris on handcrafted brass platters in iconic heritage sweetshop." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfjOJw7VMv4IY36a5A4bTVIqXdlAsiM5NPfOUDQdLi2nRqwKGuovxsut50AzstVWzpdRTATjpzxhTPU33b8BDBY14LDP7NcmzaFqlSwv-YtD1O3oA7SJBeEEDtc7ilj75kSEfv16VuqfAz02mzQ8YtY35eWMyUD5IVDtPLHa0zEba5q9cayZ4cib4tAR2GnbWPWeNkaHwAzasTJH0E2lM9CLDx-GI7SiPfGjKdLDlYsflYyfJOStEk3g"/>
+<div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+<div class="absolute top-3 left-3 flex items-center gap-1.5">
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-surface-container-lowest/90 backdrop-blur-md text-on-surface shadow-sm">
+            Food
+          </span>
+<span class="px-2.5 py-1 rounded-full font-label-sm text-label-sm bg-primary/20 backdrop-blur-md text-white font-medium">
+            Historic Since 1727
+          </span>
+</div>
+<button class="heart-toggle absolute top-3 right-3 w-10 h-10 rounded-full bg-surface-container-lowest/90 backdrop-blur-md flex items-center justify-center text-primary shadow-sm hover:scale-105 active:scale-90 transition-all">
+<span class="material-symbols-outlined text-[22px]" style="font-variation-settings: 'FILL' 1;">favorite</span>
+</button>
+<div class="absolute bottom-3 left-3 right-3 flex items-center justify-between text-white text-body-sm">
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-md">
+<span class="material-symbols-outlined text-amber-300 text-[16px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span>4.7</span>
+<span class="text-white/70 font-body-sm">(2,450 reviews)</span>
+</div>
+<div class="flex items-center gap-1 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full font-label-sm">
+<span class="material-symbols-outlined text-white text-[14px]">restaurant</span>
+<span>Johari Bazaar</span>
+</div>
+</div>
+</div>
+<!-- Card Body -->
+<div class="p-4 flex flex-col gap-3">
+<div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface">LMB - Laxmi Misthan Bhandar</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant line-clamp-2 mt-0.5">
+            Legendary sweet shop famous for piping hot Pyaaz Kachoris and jewel-like Rajasthani Ghewar sweets in the heart of old walled city.
+          </p>
+</div>
+<!-- Actions -->
+<div class="flex items-center justify-between pt-1">
+<button class="add-to-trip-btn h-10 px-4 bg-primary text-on-primary rounded-lg font-label-md text-label-md flex items-center gap-1.5 active:scale-95 transition-all" data-title="LMB Sweet Shop">
+<span class="material-symbols-outlined text-[18px]">add_circle</span>
+<span>Add to Trip</span>
+</button>
+<div class="flex items-center gap-1">
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">share</span>
+</button>
+<button class="w-10 h-10 rounded-lg flex items-center justify-center text-on-surface-variant hover:bg-surface-container transition-colors">
+<span class="material-symbols-outlined text-[20px]">more_vert</span>
+</button>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- Micro-interactions Script -->
+<script>
+    // Filter chip toggle interactions
+    document.querySelectorAll('.filter-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        document.querySelectorAll('.filter-chip').forEach(c => {
+          c.classList.remove('bg-on-background', 'text-surface-container-lowest', 'shadow-sm');
+          c.classList.add('bg-surface-container-low', 'text-on-surface-variant');
+        });
+        chip.classList.add('bg-on-background', 'text-surface-container-lowest', 'shadow-sm');
+        chip.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
+      });
+    });
+
+    // Wishlist Heart Micro-interaction
+    document.querySelectorAll('.heart-toggle').forEach(heartBtn => {
+      heartBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const icon = heartBtn.querySelector('.material-symbols-outlined');
+        const isFilled = icon.style.fontVariationSettings.includes("'FILL' 1");
+        
+        if (isFilled) {
+          icon.style.fontVariationSettings = "'FILL' 0";
+          heartBtn.classList.remove('text-primary');
+          heartBtn.classList.add('text-on-surface-variant');
+        } else {
+          icon.style.fontVariationSettings = "'FILL' 1";
+          heartBtn.classList.remove('text-on-surface-variant');
+          heartBtn.classList.add('text-primary');
+          // Little bounce scale
+          heartBtn.animate([
+            { transform: 'scale(1)' },
+            { transform: 'scale(1.3)' },
+            { transform: 'scale(1)' }
+          ], { duration: 300, easing: 'ease-out' });
+        }
+      });
+    });
+
+    // Add to Trip Toast Notification
+    const toast = document.getElementById('toast-banner');
+    const toastMsg = document.getElementById('toast-message');
+    let toastTimeout = null;
+
+    document.querySelectorAll('.add-to-trip-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const itemTitle = btn.getAttribute('data-title') || 'Experience';
+        toastMsg.textContent = `Added "${itemTitle}" to trip`;
+        
+        clearTimeout(toastTimeout);
+        toast.classList.remove('opacity-0', 'pointer-events-none');
+        toast.classList.add('opacity-100', 'translate-y-1');
+
+        toastTimeout = setTimeout(() => {
+          toast.classList.remove('opacity-100', 'translate-y-1');
+          toast.classList.add('opacity-0', 'pointer-events-none');
+        }, 2200);
+      });
+    });
+  </script>
+</div></main>
+<nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/85 backdrop-blur-xl shadow-[0_-4px_24px_rgba(26,26,26,0.04)]" data-active-classes="text-primary font-semibold relative after:content-[''] after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:absolute after:bottom-1">
+<div class="flex justify-around items-center h-16 px-space-xs">
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="explore" href="#">
+<span class="material-symbols-outlined text-[24px]">explore</span>
+<span class="font-label-sm text-label-sm mt-0.5">Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="trips" href="#">
+<span class="material-symbols-outlined text-[24px]">luggage</span>
+<span class="font-label-sm text-label-sm mt-0.5">Trips</span>
+</a>
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="map" href="#">
+<span class="material-symbols-outlined text-[24px]">map</span>
+<span class="font-label-sm text-label-sm mt-0.5">Map</span>
+</a>
+<a aria-current="page" class="flex flex-col items-center justify-center w-14 h-14 transition-colors text-primary font-semibold relative after:content-[''] after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:absolute after:bottom-1" data-path="saved" href="#">
+<span class="material-symbols-outlined text-[24px]">bookmark</span>
+<span class="font-label-sm text-label-sm mt-0.5">Saved</span>
+</a>
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="traveler-profile" href="#">
+<span class="material-symbols-outlined text-[24px]">account_circle</span>
+<span class="font-label-sm text-label-sm mt-0.5">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

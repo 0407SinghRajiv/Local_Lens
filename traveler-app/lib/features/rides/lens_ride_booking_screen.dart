@@ -5,9 +5,8 @@ import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../models/ride_model.dart';
 import '../../providers/ride_provider.dart';
-import '../../widgets/common/locallens_components.dart';
 
-/// Screen 22: Lens Ride Booking Screen
+/// Screen: Lens Ride Booking (Stitch UI)
 class LensRideBookingScreen extends ConsumerStatefulWidget {
   const LensRideBookingScreen({super.key});
 
@@ -16,12 +15,12 @@ class LensRideBookingScreen extends ConsumerStatefulWidget {
 }
 
 class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
-  int _selectedVehicleIndex = 1;
+  int _selectedVehicleIndex = 0;
 
   final List<Map<String, dynamic>> _vehicleOptions = [
     {
       'title': 'Lens Auto',
-      'subtitle': 'Fastest for narrow streets',
+      'subtitle': 'Fastest for narrow heritage lanes',
       'price': 60,
       'eta': '4 min',
       'icon': Icons.electric_rickshaw_rounded,
@@ -45,7 +44,7 @@ class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
     },
     {
       'title': 'Lens Moto',
-      'subtitle': 'Quick solo commute',
+      'subtitle': 'Quick solo heritage commute',
       'price': 35,
       'eta': '3 min',
       'icon': Icons.two_wheeler_rounded,
@@ -58,256 +57,441 @@ class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
     final selectedOption = _vehicleOptions[_selectedVehicleIndex];
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: LocalLensColors.textPrimary, size: 20),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: LocalLensDimensions.paddingScreen,
-            vertical: 8,
+      backgroundColor: LocalLensColors.background,
+      body: Stack(
+        children: [
+          // Top Map Header Section
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 320,
+            child: Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage('assets/images/54511.png'),
+                  fit: BoxFit.cover,
+                ),
+              ),
+              child: Container(
+                color: Colors.black.withOpacity(0.12),
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Colors.white,
+                          child: IconButton(
+                            icon: const Icon(Icons.arrow_back_rounded, color: LocalLensColors.deepInk),
+                            onPressed: () => context.pop(),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: LocalLensDimensions.softCardShadow,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.near_me_rounded, color: LocalLensColors.terracottaPrimary, size: 16),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Amer Fort → Hawa Mahal',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: LocalLensColors.deepInk,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        CircleAvatar(
+                          backgroundColor: Colors.white,
+                          child: IconButton(
+                            icon: const Icon(Icons.my_location_rounded, color: LocalLensColors.deepInk),
+                            onPressed: () {},
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('How are you\ngetting there?', style: LocalLensTypography.displayMedium),
-              const SizedBox(height: 8),
 
-              // Lens Ride Header Card
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: LocalLensColors.primaryTealSoft,
-                  borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: LocalLensColors.primaryTeal,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.local_taxi_rounded, color: Colors.white, size: 24),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Lens Ride', style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.bold)),
-                          Text('Local verified drivers synced with your itinerary', style: LocalLensTypography.caption),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+          // Bottom Tactile Ride-Booking Sheet
+          Positioned.fill(
+            top: 260,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: LocalLensDimensions.floatingShadow,
               ),
+              child: Column(
+                children: [
+                  // Sheet Handle
+                  const SizedBox(height: 10),
+                  Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.borderSubtle,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
 
-              const SizedBox(height: 14),
-
-              // Location Inputs Card (Pickup & Drop)
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                  border: Border.all(color: LocalLensColors.border),
-                  boxShadow: LocalLensDimensions.softCardShadow,
-                ),
-                child: Column(
-                  children: [
-                    Row(
+                  // Sheet Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Icon(Icons.my_location_rounded, color: LocalLensColors.primaryTeal, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Pickup', style: LocalLensTypography.caption.copyWith(fontSize: 10)),
-                              Text('Current Location • Panvel Station', style: LocalLensTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 6),
-                      child: Divider(height: 1),
-                    ),
-                    Row(
-                      children: [
-                        const Icon(Icons.place_rounded, color: LocalLensColors.accentOrange, size: 18),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Drop-off', style: LocalLensTypography.caption.copyWith(fontSize: 10)),
-                              Text('Local Food Experience (Stop 2)', style: LocalLensTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700)),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              Text('Choose Vehicle', style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 8),
-
-              // Selectable Vehicle Options
-              Expanded(
-                child: ListView.separated(
-                  itemCount: _vehicleOptions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final option = _vehicleOptions[index];
-                    final isSelected = _selectedVehicleIndex == index;
-
-                    return GestureDetector(
-                      onTap: () => setState(() => _selectedVehicleIndex = index),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: isSelected ? LocalLensColors.primaryTealSoft : Colors.white,
-                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                          border: Border.all(
-                            color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.border,
-                            width: isSelected ? 1.8 : 1.0,
-                          ),
-                        ),
-                        child: Row(
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.surfaceSecondary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                option['icon'] as IconData,
-                                color: isSelected ? Colors.white : LocalLensColors.textPrimary,
-                                size: 22,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Text(
-                                        option['title'] as String,
-                                        style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        '• ${option['eta']}',
-                                        style: LocalLensTypography.caption.copyWith(color: LocalLensColors.primaryTeal, fontWeight: FontWeight.bold),
-                                      ),
-                                    ],
+                            Row(
+                              children: [
+                                Icon(Icons.travel_explore_rounded, color: LocalLensColors.terracottaPrimary, size: 20),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Lens Ride',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: LocalLensColors.deepInk,
                                   ),
-                                  Text(
-                                    option['subtitle'] as String,
-                                    style: LocalLensTypography.caption.copyWith(fontSize: 11),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: LocalLensColors.coastalSage.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                ],
-                              ),
+                                  child: Text(
+                                    'Connected',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                      color: LocalLensColors.coastalSage,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 2),
                             Text(
-                              '₹${option['price']}',
-                              style: LocalLensTypography.titleMedium.copyWith(
-                                color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.textPrimary,
-                                fontWeight: FontWeight.w800,
+                              'Heritage corridor transit synced with your schedule',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: LocalLensColors.textSecondary,
                               ),
                             ),
                           ],
                         ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Walking Guidance Card
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: LocalLensColors.surfaceContainerLow,
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  },
-                ),
-              ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              color: LocalLensColors.terracottaPrimary.withOpacity(0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.directions_walk_rounded, color: LocalLensColors.terracottaPrimary, size: 20),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      'Amer Fort Parking Lot A',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: LocalLensColors.deepInk,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      '• 2 min walk',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                        color: LocalLensColors.coastalSage,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  'Walk past Elephant Stand Gate towards Pillar 4',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: LocalLensColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              'Change',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: LocalLensColors.terracottaPrimary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
 
-              const SizedBox(height: 10),
+                  const SizedBox(height: 14),
 
-              // Price & ETA summary bar
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: LocalLensColors.surfaceSecondary,
-                  borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Transits List Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Available Transits',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: LocalLensColors.deepInk,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Vehicle Selector Cards
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                      itemCount: _vehicleOptions.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final option = _vehicleOptions[index];
+                        final isSelected = _selectedVehicleIndex == index;
+
+                        return GestureDetector(
+                          onTap: () => setState(() => _selectedVehicleIndex = index),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? LocalLensColors.terracottaPrimary.withOpacity(0.04)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isSelected
+                                    ? LocalLensColors.terracottaPrimary
+                                    : LocalLensColors.borderSubtle,
+                                width: isSelected ? 2.0 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 44,
+                                  height: 44,
+                                  decoration: BoxDecoration(
+                                    color: isSelected
+                                        ? LocalLensColors.terracottaPrimary
+                                        : LocalLensColors.surfaceContainerLow,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Icon(
+                                    option['icon'] as IconData,
+                                    color: isSelected ? Colors.white : LocalLensColors.deepInk,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Text(
+                                            option['title'] as String,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w700,
+                                              color: LocalLensColors.deepInk,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          Text(
+                                            '• ${option['eta']}',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600,
+                                              color: LocalLensColors.terracottaPrimary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        option['subtitle'] as String,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: LocalLensColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '₹${option['price']}',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w800,
+                                    color: isSelected
+                                        ? LocalLensColors.terracottaPrimary
+                                        : LocalLensColors.deepInk,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  // Bottom Action Section
+                  Padding(
+                    padding: const EdgeInsets.all(LocalLensDimensions.paddingScreen),
+                    child: Column(
                       children: [
-                        Text('Total to pay', style: LocalLensTypography.caption),
-                        Text(
-                          '₹${selectedOption['price']}',
-                          style: LocalLensTypography.titleLarge.copyWith(
-                            color: LocalLensColors.primaryTeal,
-                            fontWeight: FontWeight.w800,
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: LocalLensColors.surfaceContainerLow,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Total Fare',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: LocalLensColors.textSecondary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '₹${selectedOption['price']}',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w800,
+                                      color: LocalLensColors.terracottaPrimary,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  Icon(Icons.schedule_rounded, size: 14, color: LocalLensColors.coastalSage),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${selectedOption['eta']} arrival',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                      color: LocalLensColors.deepInk,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              final vehicleType = selectedOption['type'] as VehicleType;
+                              final option = VehicleOption(
+                                type: vehicleType,
+                                name: selectedOption['title'] as String,
+                                estimatedFare: (selectedOption['price'] as num).toDouble(),
+                                etaMinutes: 4,
+                                capacity: '4 seats',
+                                icon: selectedOption['icon'] as IconData,
+                              );
+                              ref.read(rideProvider.notifier).selectVehicle(option);
+                              ref.read(rideProvider.notifier).requestRide(
+                                pickup: 'Amer Fort Parking Lot A',
+                                drop: 'Hawa Mahal, Pink City',
+                              );
+                              context.push(AppRoutes.rideSearching);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: LocalLensColors.terracottaPrimary,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            child: Text(
+                              'Book ${selectedOption['title']}',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    Row(
-                      children: [
-                        const Icon(Icons.timer_outlined, size: 16, color: LocalLensColors.textMuted),
-                        const SizedBox(width: 4),
-                        Text('${selectedOption['eta']} arrival', style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-
-              const SizedBox(height: 12),
-
-              // Book Button (Orange)
-              LocalLensPrimaryButton(
-                text: 'Book ${selectedOption['title']}',
-                isOrange: true,
-                onPressed: () {
-                  final vehicleType = selectedOption['type'] as VehicleType;
-                  final option = VehicleOption(
-                    type: vehicleType,
-                    name: selectedOption['title'] as String,
-                    estimatedFare: (selectedOption['price'] as num).toDouble(),
-                    etaMinutes: 5,
-                    capacity: '4 seats',
-                    icon: selectedOption['icon'] as IconData,
-                  );
-                  ref.read(rideProvider.notifier).selectVehicle(option);
-                  ref.read(rideProvider.notifier).requestRide(
-                    pickup: 'Panvel Station, Mumbai',
-                    drop: 'Local Food Experience, Bandra',
-                  );
-                  context.push(AppRoutes.rideSearching);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
