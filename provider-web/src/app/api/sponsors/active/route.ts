@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
-import { serverCampaignsRegistry } from "@/app/api/sponsors/route";
+import { serverCampaignsRegistry } from "@/lib/sponsorRegistry";
 import { SponsorCampaign } from "@/types/sponsor";
 
 export async function GET(request: Request) {
@@ -33,19 +33,34 @@ export async function GET(request: Request) {
             // Fetch related experience details using listing_id
             let expDetails: any = null;
             if (camp.listing_id) {
-              const { data: expData } = await supabase
+              let { data: expData } = await supabase
                 .from("experience")
                 .select("*")
                 .eq("experience_id", camp.listing_id)
                 .maybeSingle();
 
+              if (!expData) {
+                const { data: fallbackData } = await supabase
+                  .from("experience")
+                  .select("*")
+                  .eq("id", camp.listing_id)
+                  .maybeSingle();
+                expData = fallbackData;
+              }
+
               if (expData) {
                 expDetails = {
-                  image_url: expData.image_url,
+                  image_url:
+                    expData.image_url ||
+                    (Array.isArray(expData.images) && expData.images[0]) ||
+                    null,
                   rating: Number(expData.rating) || 4.8,
                   review_count: Number(expData.review_count) || 120,
-                  location: `${expData.city || "Mumbai"}`,
-                  original_price: Number(expData.price_inr_clean) || 1200,
+                  location: expData.city || expData.meeting_point || "Mumbai",
+                  original_price:
+                    Number(expData.price_inr_clean) ||
+                    Number(expData.price_inr) ||
+                    1200,
                 };
               }
             }

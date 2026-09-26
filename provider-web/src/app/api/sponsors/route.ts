@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
 import { SponsorCampaign } from "@/types/sponsor";
-
-// Server-side persistent storage partitioned strictly by user ID / email
-export const serverCampaignsRegistry: Map<string, SponsorCampaign[]> = new Map();
+import { serverCampaignsRegistry } from "@/lib/sponsorRegistry";
 
 // Helper to sanitize UUID
 function ensureUuid(id?: string): string {
@@ -142,7 +140,8 @@ export async function POST(request: Request) {
     let dbSuccess = false;
     let dbNotice: string | null = null;
     try {
-      const { data, error } = await supabase.from("sponsor_campaigns").insert({
+      // 1. Try full 22-column insert
+      const fullRecord = {
         id: newCampaign.id,
         user_id: newCampaign.user_id,
         business_id: newCampaign.business_id,
@@ -153,16 +152,50 @@ export async function POST(request: Request) {
         sponsor_type: newCampaign.sponsor_type,
         sponsor_package: newCampaign.sponsor_package,
         amount: newCampaign.amount,
+        offer_type: newCampaign.offer_type,
+        offer_value: newCampaign.offer_value,
+        offer_price: newCampaign.offer_price,
+        offer_description: newCampaign.offer_description,
         start_at: newCampaign.start_at,
         end_at: newCampaign.end_at,
         timezone: newCampaign.timezone,
         payment_method: newCampaign.payment_method,
         payment_status: "pending",
         campaign_status: "draft",
-      }).select();
+        created_at: newCampaign.created_at,
+        updated_at: newCampaign.updated_at,
+      };
+
+      const { data, error } = await supabase.from("sponsor_campaigns").insert(fullRecord).select();
 
       if (error) {
-        dbNotice = error.message;
+        // If error was due to extra columns not yet in DB, try base columns fallback
+        const baseRecord = {
+          id: newCampaign.id,
+          user_id: newCampaign.user_id,
+          business_id: newCampaign.business_id,
+          listing_id: newCampaign.listing_id,
+          owner_name: newCampaign.owner_name,
+          shop_name: newCampaign.shop_name,
+          listing_name: newCampaign.listing_name,
+          sponsor_type: newCampaign.sponsor_type,
+          sponsor_package: newCampaign.sponsor_package,
+          amount: newCampaign.amount,
+          start_at: newCampaign.start_at,
+          end_at: newCampaign.end_at,
+          timezone: newCampaign.timezone,
+          payment_method: newCampaign.payment_method,
+          payment_status: "pending",
+          campaign_status: "draft",
+        };
+
+        const { error: fallbackError } = await supabase.from("sponsor_campaigns").insert(baseRecord).select();
+        if (fallbackError) {
+          dbNotice = fallbackError.message;
+        } else {
+          dbSuccess = true;
+          dbNotice = "Saved using base table schema.";
+        }
       } else {
         dbSuccess = true;
       }
