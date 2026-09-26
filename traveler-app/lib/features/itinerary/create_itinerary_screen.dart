@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
-import '../../providers/itinerary_provider.dart';
+import 'package:traveler_app/providers/itinerary_provider.dart';
 import '../../services/location_service.dart';
 import '../../widgets/common/locallens_components.dart';
 

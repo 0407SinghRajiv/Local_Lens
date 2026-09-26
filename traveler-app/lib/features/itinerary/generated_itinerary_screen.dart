@@ -4,10 +4,10 @@ import 'package:go_router/go_router.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
-import '../../models/itinerary_model.dart';
-import '../../models/ride_model.dart';
-import '../../providers/itinerary_provider.dart';
-import '../../providers/ride_provider.dart';
+import 'package:traveler_app/models/itinerary_model.dart';
+import 'package:traveler_app/models/ride_model.dart';
+import 'package:traveler_app/providers/itinerary_provider.dart';
+import 'package:traveler_app/providers/ride_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/itinerary_map.dart';
 
