@@ -7,13 +7,12 @@ import '../../data/mock_data.dart';
 import '../../models/sponsored_experience.dart';
 import '../../services/location_service.dart';
 import '../../services/sponsor_service.dart';
-import '../../widgets/common/locallens_components.dart';
 import '../explore/explore_screen.dart';
 import '../itinerary/my_itinerary_screen.dart';
 import '../saved/saved_screen.dart';
 import '../profile/profile_screen.dart';
 
-/// Screen 10: Home Screen & Main Shell with Real Sponsored Experiences
+/// Screen: Home Screen & Main Shell matching reference UI design
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
 
@@ -23,8 +22,19 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentTabIndex = 0;
-  String _selectedCategory = 'Food';
+  String _selectedCategory = 'Stays';
+  bool _displayTotalPrice = true;
   late Future<List<SponsoredExperience>> _sponsoredFuture;
+  final Set<String> _wishlistedIds = {};
+
+  final List<Map<String, dynamic>> _categories = [
+    {'label': 'Stays', 'icon': Icons.apartment_rounded},
+    {'label': 'Flights', 'icon': Icons.flight_takeoff_rounded},
+    {'label': 'Rail', 'icon': Icons.train_rounded},
+    {'label': 'Cruises', 'icon': Icons.directions_boat_rounded},
+    {'label': 'Rides', 'icon': Icons.directions_car_rounded},
+    {'label': 'Boats', 'icon': Icons.sailing_rounded},
+  ];
 
   @override
   void initState() {
@@ -62,50 +72,155 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const ProfileScreen(),
         ],
       ),
-      bottomNavigationBar: LocalLensBottomNav(
-        currentIndex: _currentTabIndex,
-        onTap: (index) {
-          setState(() {
-            _currentTabIndex = index;
-          });
-        },
-      ),
+      bottomNavigationBar: _buildCustomBottomNav(),
     );
   }
 
   Widget _buildHomeTab(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final experiences = LocalLensMockData.featuredExperiences;
 
-    return SafeArea(
-      child: RefreshIndicator(
-        onRefresh: () async => _refreshSponsored(),
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(
-            horizontal: LocalLensDimensions.paddingScreen,
-            vertical: 12,
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: () async => _refreshSponsored(),
+          color: LocalLensColors.coralPrimary,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 1. Top Curved Coral Header Card
+                _buildHeaderSection(context),
+
+                const SizedBox(height: 16),
+
+                // 2. Black Pill Category Selector
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                  child: _buildCategoryBar(),
+                ),
+
+                const SizedBox(height: 16),
+
+                // 3. "Display total price" Toggle Card
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                  child: _buildTotalPriceToggleCard(),
+                ),
+
+                const SizedBox(height: 20),
+
+                // 4. Sponsored Experiences Spotlight (If available)
+                _buildSponsoredSection(),
+
+                // 5. Featured Experience Listings Grid / Cards matching image layout
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+                  child: Column(
+                    children: experiences.map((exp) {
+                      return _buildListingCard(exp);
+                    }).toList(),
+                  ),
+                ),
+
+                const SizedBox(height: 100), // Bottom padding for floating map button & nav
+              ],
+            ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ),
+
+        // 6. Floating "📍 Map" Capsule Button
+        Positioned(
+          bottom: 16,
+          left: 0,
+          right: 0,
+          child: Center(
+            child: GestureDetector(
+              onTap: () => context.push(AppRoutes.experienceMap),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF181818),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.map_rounded, color: LocalLensColors.coralPrimary, size: 18),
+                    SizedBox(width: 8),
+                    Text(
+                      'Map',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 1. Top Curved Coral Header Card
+  Widget _buildHeaderSection(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: LocalLensColors.coralPrimary,
+        borderRadius: BorderRadius.vertical(
+          bottom: Radius.circular(32),
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Top Header: Greeting + Location + Notification & Avatar
+              // Avatar + Welcome Greeting
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _currentTabIndex = 4),
+                    child: Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        image: const DecorationImage(
+                          image: AssetImage('assets/images/characters/solo.png'),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Text(
-                            'Good morning, Traveler',
-                            style: LocalLensTypography.titleLarge.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Text('✨', style: TextStyle(fontSize: 18)),
-                        ],
+                      const Text(
+                        'Welcome',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          letterSpacing: -0.3,
+                        ),
                       ),
                       const SizedBox(height: 2),
                       GestureDetector(
@@ -115,7 +230,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: const Text('Location synced: Panvel, Maharashtra'),
-                                backgroundColor: LocalLensColors.primaryTeal,
+                                backgroundColor: LocalLensColors.deepInk,
                                 behavior: SnackBarBehavior.floating,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               ),
@@ -123,60 +238,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           }
                         },
                         child: Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_rounded,
-                              size: 14,
-                              color: LocalLensColors.primaryTeal,
-                            ),
-                            const SizedBox(width: 4),
+                          children: const [
+                            Icon(Icons.location_on_outlined, size: 14, color: Colors.white70),
+                            SizedBox(width: 4),
                             Text(
                               'Panvel, Maharashtra',
-                              style: LocalLensTypography.caption.copyWith(
-                                color: LocalLensColors.primaryTeal,
-                                fontWeight: FontWeight.w700,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white70,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(
-                              Icons.keyboard_arrow_down_rounded,
-                              size: 14,
-                              color: LocalLensColors.primaryTeal,
-                            ),
                           ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.notifications_none_rounded,
-                          color: LocalLensColors.textPrimary,
-                          size: 26,
-                        ),
-                        onPressed: () {
-                          context.push(AppRoutes.notifications);
-                        },
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _currentTabIndex = 4; // Go to Profile tab
-                          });
-                        },
-                        child: Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: LocalLensColors.primaryTeal, width: 1.5),
-                            image: const DecorationImage(
-                              image: AssetImage('assets/images/characters/solo.png'),
-                              fit: BoxFit.cover,
-                            ),
-                          ),
                         ),
                       ),
                     ],
@@ -184,598 +257,292 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ],
               ),
 
-              const SizedBox(height: 18),
-
-              // Hero Discovery & Custom Itinerary Banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LocalLensColors.heroCardGradient,
-                  borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
-                  boxShadow: [
-                    BoxShadow(
-                      color: LocalLensColors.primaryTealDark.withValues(alpha: 0.3),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+              // Action Buttons: Search & Notification
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
                     ),
-                  ],
+                    child: IconButton(
+                      icon: const Icon(Icons.search_rounded, color: Colors.white, size: 20),
+                      onPressed: () => context.push(AppRoutes.explore),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: IconButton(
+                      icon: const Icon(Icons.notifications_none_rounded, color: Colors.white, size: 20),
+                      onPressed: () => context.push(AppRoutes.notifications),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 2. Black Capsule Category Selection Bar
+  Widget _buildCategoryBar() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFF181818),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: Row(
+          children: _categories.map((cat) {
+            final isSelected = _selectedCategory == cat['label'];
+            return GestureDetector(
+              onTap: () => setState(() => _selectedCategory = cat['label'] as String),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: isSelected ? Colors.white : Colors.transparent,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Row(
+                child: Icon(
+                  cat['icon'] as IconData,
+                  color: isSelected ? const Color(0xFF181818) : Colors.white70,
+                  size: 22,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  /// 3. "Display total price" Toggle Card
+  Widget _buildTotalPriceToggleCard() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: LocalLensColors.borderSubtle),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Display total price',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: LocalLensColors.deepInk,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Includes all fees, before taxes',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: LocalLensColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          Switch(
+            value: _displayTotalPrice,
+            activeColor: LocalLensColors.coralPrimary,
+            onChanged: (val) => setState(() => _displayTotalPrice = val),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 4. Listing Card matching reference UI image
+  Widget _buildListingCard(dynamic exp) {
+    final isWishlisted = _wishlistedIds.contains(exp.id);
+    final displayPrice = _displayTotalPrice
+        ? (exp.priceInr * 1.18).toInt() // Include total estimate
+        : exp.priceInr.toInt();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: LocalLensColors.borderSubtle),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Banner Image & Wishlist Heart Button
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                child: Container(
+                  height: 210,
+                  width: double.infinity,
+                  color: LocalLensColors.surfaceContainerLow,
+                  child: Image.asset(
+                    exp.imageUrl,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      color: LocalLensColors.coralSoft,
+                      child: Icon(Icons.landscape_rounded, color: LocalLensColors.coralPrimary, size: 48),
+                    ),
+                  ),
+                ),
+              ),
+              // Floating Heart Button
+              Positioned(
+                top: 14,
+                right: 14,
+                child: GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      if (isWishlisted) {
+                        _wishlistedIds.remove(exp.id);
+                      } else {
+                        _wishlistedIds.add(exp.id);
+                      }
+                    });
+                  },
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: const BoxDecoration(
+                      color: LocalLensColors.coralPrimary,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black12,
+                          blurRadius: 6,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Content Section
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            'Your next local\nadventure is waiting',
-                            style: LocalLensTypography.titleLarge.copyWith(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w800,
-                              height: 1.2,
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          GestureDetector(
-                            onTap: () {
-                              context.push(AppRoutes.travelerCreateItinerary);
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: LocalLensColors.accentOrange,
-                                borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Plan with Local AI',
-                                    style: LocalLensTypography.caption.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  const Icon(Icons.arrow_forward_rounded, color: Colors.white, size: 14),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Image.asset(
-                      'assets/images/characters/brand_characters.png',
-                      width: 90,
-                      height: 90,
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) =>
-                          const Icon(Icons.explore, color: Colors.white, size: 64),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 14),
-
-              // Swipe to Discover Banner (design.md Section 11 & 12)
-              GestureDetector(
-                onTap: () {
-                  context.push(AppRoutes.recommendationSwipe);
-                },
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    border: Border.all(color: LocalLensColors.border),
-                    boxShadow: AppShadows.card,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: LocalLensColors.accentOrangeSoft,
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                        child: const Icon(
-                          Icons.swipe_rounded,
-                          color: LocalLensColors.accentOrange,
-                          size: 24,
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Discover your way',
-                              style: LocalLensTypography.titleSmall.copyWith(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Swipe right to save, up to add to trip',
-                              style: LocalLensTypography.caption,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        size: 14,
-                        color: LocalLensColors.textMuted,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ==============================================================
-              // REAL DATABASE-DRIVEN SPONSORED EXPERIENCES SECTION
-              // Supabase query: campaign_status = 'active' AND payment_status = 'paid'
-              // AND start_at <= NOW() AND end_at > NOW()
-              // ==============================================================
-              FutureBuilder<List<SponsoredExperience>>(
-                future: _sponsoredFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Container(
-                      padding: const EdgeInsets.all(16),
-                      margin: const EdgeInsets.only(bottom: 20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                        border: Border.all(color: LocalLensColors.border),
-                      ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: LocalLensColors.primaryTeal),
-                          ),
-                          SizedBox(width: 10),
-                          Text('Checking for active sponsored experiences...', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                        ],
-                      ),
-                    );
-                  }
-
-                  final campaigns = snapshot.data ?? [];
-                  if (campaigns.isEmpty) {
-                    return const SizedBox.shrink();
-                  }
-
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFEF3C7),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFFDE68A)),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.star_rounded, size: 13, color: Color(0xFFD97706)),
-                                SizedBox(width: 4),
-                                Text(
-                                  'FEATURED SPOTLIGHT',
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on_outlined, size: 16, color: LocalLensColors.deepInk),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: Text(
+                                  exp.title,
                                   style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: Color(0xFF92400E),
-                                    letterSpacing: 0.5,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: LocalLensColors.deepInk,
                                   ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${exp.location} • ${exp.durationHours} hrs • ${exp.category}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: LocalLensColors.textSecondary,
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-
-                      ...campaigns.map((camp) => _buildSponsoredCard(context, camp, isDark)),
-                      const SizedBox(height: 16),
-                    ],
-                  );
-                },
-              ),
-
-              // Categories Chips
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildCategoryChip('Food', '🍱'),
-                    _buildCategoryChip('Heritage', '🏛️'),
-                    _buildCategoryChip('Culture', '🎭'),
-                    _buildCategoryChip('Nature', '🌿'),
-                    _buildCategoryChip('Crafts', '🏺'),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section: Top Experiences
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Trending near you', style: LocalLensTypography.titleLarge),
-                  GestureDetector(
-                    onTap: () {
-                      setState(() {
-                        _currentTabIndex = 1; // Go to Explore
-                      });
-                    },
-                    child: Text(
-                      'See all',
-                      style: LocalLensTypography.caption.copyWith(
-                        color: LocalLensColors.primaryTeal,
-                        fontWeight: FontWeight.w700,
-                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              SizedBox(
-                height: 250,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: LocalLensMockData.featuredExperiences.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 14),
-                  itemBuilder: (context, index) {
-                    final exp = LocalLensMockData.featuredExperiences[index];
-                    return ExperienceCard(
-                      title: exp.title,
-                      imageUrl: exp.imageUrl,
-                      rating: exp.rating,
-                      category: exp.category,
-                      priceInr: exp.priceInr,
-                      location: exp.location,
-                      distanceKm: exp.distanceKm,
-                      durationHours: exp.durationHours,
-                      onTap: () => context.push(AppRoutes.experienceDetails),
-                      width: 200,
-                    );
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // Section: Your Trip
-              Text('Your trip', style: LocalLensTypography.titleLarge),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _currentTabIndex = 2; // Go to Trips
-                  });
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                    boxShadow: LocalLensDimensions.softCardShadow,
-                    border: Border.all(color: LocalLensColors.border),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: LocalLensColors.primaryTealSoft,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.route_rounded, color: LocalLensColors.primaryTeal, size: 26),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Panvel Local Discovery',
-                              style: LocalLensTypography.titleMedium,
+                    const SizedBox(width: 10),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        RichText(
+                          text: TextSpan(
+                            text: '₹$displayPrice',
+                            style: TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w800,
+                              color: LocalLensColors.deepInk,
                             ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '4 experiences • 6h 30m • ₹1,450',
-                              style: LocalLensTypography.caption,
-                            ),
-                          ],
+                            children: [
+                              TextSpan(
+                                text: _displayTotalPrice ? ' total' : ' /exp',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  color: LocalLensColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: LocalLensColors.textMuted),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(String label, String emoji) {
-    final isSelected = _selectedCategory == label;
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _selectedCategory = label;
-        });
-      },
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? LocalLensColors.primaryTeal : Colors.white,
-          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-          border: Border.all(
-            color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.border,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: LocalLensColors.primaryTeal.withValues(alpha: 0.3),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: LocalLensTypography.caption.copyWith(
-                color: isSelected ? Colors.white : LocalLensColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSponsoredCard(BuildContext context, SponsoredExperience camp, bool isDark) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: const Color(0xFFFBBF24).withValues(alpha: 0.5),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFFF59E0B).withValues(alpha: 0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Stack(
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-                child: Image.network(
-                  camp.imageUrl,
-                  height: 180,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    height: 180,
-                    color: Colors.grey.shade300,
-                    child: const Center(
-                      child: Icon(Icons.image_not_supported_rounded, size: 40, color: Colors.grey),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 12,
-                left: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.75),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.bolt_rounded, color: Color(0xFFFBBF24), size: 14),
-                      const SizedBox(width: 4),
-                      Text(
-                        camp.badge.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 12,
-                right: 12,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF00875A),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.25),
-                        blurRadius: 6,
-                      ),
-                    ],
-                  ),
-                  child: Text(
-                    camp.offer,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  camp.listingName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    const Text(
-                      'Sponsored by: ',
-                      style: TextStyle(fontSize: 12, color: Colors.black54),
-                    ),
-                    Text(
-                      camp.shopName,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF00875A),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${camp.rating} (${camp.reviewsCount})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    const SizedBox(width: 14),
-                    const Icon(Icons.location_on_rounded, size: 15, color: Color(0xFFEF4444)),
-                    const SizedBox(width: 3),
-                    Expanded(
-                      child: Text(
-                        camp.location,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Colors.black54),
-                      ),
+                      ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 12),
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    const Icon(Icons.star_rounded, color: LocalLensColors.coralPrimary, size: 16),
+                    const SizedBox(width: 4),
                     Text(
-                      '₹${camp.offerPrice.toInt()}',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF00875A),
+                      '${exp.rating}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: LocalLensColors.deepInk,
                       ),
                     ),
-                    const Text(
-                      '/person',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey),
-                    ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 4),
                     Text(
-                      '₹${camp.originalPrice.toInt()}/person',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        decoration: TextDecoration.lineThrough,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Viewing ${camp.listingName} details'), behavior: SnackBarBehavior.floating),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          side: BorderSide(color: Colors.grey.shade300),
-                        ),
-                        child: const Text('View Experience', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Booking ${camp.listingName} with ${camp.offer} applied!'),
-                              backgroundColor: const Color(0xFF00875A),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF00875A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Book Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      '(${exp.reviewsCount} reviews)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: LocalLensColors.textSecondary,
                       ),
                     ),
                   ],
@@ -784,6 +551,181 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 5. Sponsored Section
+  Widget _buildSponsoredSection() {
+    return FutureBuilder<List<SponsoredExperience>>(
+      future: _sponsoredFuture,
+      builder: (context, snapshot) {
+        final campaigns = snapshot.data ?? [];
+        if (campaigns.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: LocalLensDimensions.paddingScreen),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: campaigns.map((camp) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: LocalLensColors.coralPrimary.withOpacity(0.4)),
+                  boxShadow: LocalLensDimensions.softCardShadow,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                          child: Image.network(
+                            camp.imageUrl,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              height: 180,
+                              color: LocalLensColors.surfaceContainerLow,
+                              child: const Icon(Icons.image_not_supported_rounded, size: 40, color: Colors.grey),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 12,
+                          left: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: LocalLensColors.coralPrimary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              camp.badge.toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            camp.listingName,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: LocalLensColors.deepInk,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Sponsored by ${camp.shopName}',
+                            style: TextStyle(fontSize: 11, color: LocalLensColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 6. Custom Curved Bottom Navigation Bar
+  Widget _buildCustomBottomNav() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildNavItem(0, Icons.search_rounded, 'Explore'),
+              _buildNavItem(1, Icons.favorite_border_rounded, ''),
+              _buildNavItem(2, Icons.explore_outlined, ''),
+              _buildNavItem(3, Icons.chat_bubble_outline_rounded, ''),
+              _buildNavItem(4, Icons.person_outline_rounded, ''),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem(int index, IconData icon, String label) {
+    final isSelected = _currentTabIndex == index;
+
+    if (isSelected && label.isNotEmpty) {
+      return GestureDetector(
+        onTap: () => setState(() => _currentTabIndex = index),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: LocalLensColors.coralSoft,
+            borderRadius: BorderRadius.circular(24),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  color: LocalLensColors.coralPrimary,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: Colors.white, size: 16),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: LocalLensColors.deepInk,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () => setState(() => _currentTabIndex = index),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        color: Colors.transparent,
+        child: Icon(
+          icon,
+          size: 22,
+          color: LocalLensColors.textSecondary,
+        ),
       ),
     );
   }
