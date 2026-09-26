@@ -101,17 +101,73 @@ class ProfileScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Vehicle card
-                _buildInfoSection(
-                  title: 'Vehicle Information',
-                  items: [
-                    _InfoItem(
-                        Icons.directions_car, 'Model', driver.vehicleModel),
-                    _InfoItem(
-                        Icons.pin, 'Number', driver.vehicleNumber),
-                    _InfoItem(
-                        Icons.category, 'Type', driver.vehicleType),
-                  ],
+                // Vehicle & DL Details Card
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.cardWhite,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: AppTheme.outline.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Vehicle & Driving Licence', style: AppTheme.titleMedium),
+                          IconButton(
+                            icon: const Icon(Icons.edit_outlined, color: AppTheme.primary),
+                            tooltip: 'Edit Car Details',
+                            onPressed: () {
+                              Navigator.pushNamed(context, '/car-details');
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      _buildInfoRow(Icons.directions_car_rounded, 'Make & Model', driver.vehicleModel.isEmpty ? 'Not specified' : driver.vehicleModel),
+                      _buildInfoRow(Icons.pin_outlined, 'Plate Number', driver.vehicleNumber.isEmpty ? 'Not specified' : driver.vehicleNumber),
+                      _buildInfoRow(Icons.category_outlined, 'Type', driver.vehicleType),
+                      _buildInfoRow(Icons.palette_outlined, 'Color', driver.vehicleColor.isEmpty ? 'White' : driver.vehicleColor),
+                      _buildInfoRow(Icons.badge_outlined, 'DL Number', driver.licenseNumber.isEmpty ? 'Not uploaded' : driver.licenseNumber),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: (driver.licenseNumber.isNotEmpty ? const Color(0xFF059669) : Colors.amber.shade800).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: (driver.licenseNumber.isNotEmpty ? const Color(0xFF059669) : Colors.amber.shade800).withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              driver.licenseNumber.isNotEmpty ? Icons.verified_user_rounded : Icons.pending_rounded,
+                              color: driver.licenseNumber.isNotEmpty ? const Color(0xFF059669) : Colors.amber.shade800,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                driver.licenseNumber.isNotEmpty
+                                    ? 'Status: Verified Format (OCR + Confirmation)'
+                                    : 'Status: Pending DL Upload & OCR Verification',
+                                style: AppTheme.bodySmall.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: driver.licenseNumber.isNotEmpty ? const Color(0xFF059669) : Colors.amber.shade800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 16),
 
@@ -232,6 +288,27 @@ class ProfileScreen extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppTheme.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Text(
+            label,
+            style: AppTheme.bodySmall.copyWith(color: AppTheme.onSurfaceVariant),
+          ),
+          const Spacer(),
+          Text(
+            value,
+            style: AppTheme.titleMedium.copyWith(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
     );
   }
 

@@ -7,7 +7,13 @@ class Driver {
   final String vehicleType;
   final String vehicleNumber;
   final String vehicleModel;
+  final String vehicleColor;
   final String profileImageUrl;
+  final String licenseNumber;
+  final String licenseVerificationStatus;
+  final String licenseVerificationMethod;
+  final DateTime? licenseVerifiedAt;
+  final String city;
   final double rating;
   final int totalRides;
   final double todayEarnings;
@@ -27,17 +33,37 @@ class Driver {
     required this.vehicleType,
     required this.vehicleNumber,
     required this.vehicleModel,
+    this.vehicleColor = 'White',
     this.profileImageUrl = '',
+    this.licenseNumber = '',
+    this.licenseVerificationStatus = 'not_uploaded',
+    this.licenseVerificationMethod = 'ocr',
+    this.licenseVerifiedAt,
+    this.city = '',
     this.rating = 4.8,
-    this.totalRides = 342,
-    this.todayEarnings = 1250.0,
-    this.todayRides = 5,
+    this.totalRides = 0,
+    this.todayEarnings = 0.0,
+    this.todayRides = 0,
     this.isOnline = false,
     this.isAvailable = false,
     this.latitude = 19.0760,
     this.longitude = 72.8777,
     this.updatedAt,
   });
+
+  /// Check if the driver has completed onboarding (valid real phone, vehicle plate & DL)
+  bool get isProfileCompleted {
+    final cleanPhone = phone.replaceAll(RegExp(r'\s+'), '');
+    final cleanVehicle = vehicleNumber.replaceAll(RegExp(r'\s+'), '');
+    final cleanLicense = licenseNumber.replaceAll(RegExp(r'\s+'), '');
+    return name.trim().isNotEmpty &&
+        cleanPhone.isNotEmpty &&
+        cleanPhone != '+919876543210' &&
+        cleanVehicle.isNotEmpty &&
+        cleanVehicle != 'MH04AB1234' &&
+        vehicleModel.trim().isNotEmpty &&
+        cleanLicense.isNotEmpty;
+  }
 
   Driver copyWith({
     String? id,
@@ -48,7 +74,13 @@ class Driver {
     String? vehicleType,
     String? vehicleNumber,
     String? vehicleModel,
+    String? vehicleColor,
     String? profileImageUrl,
+    String? licenseNumber,
+    String? licenseVerificationStatus,
+    String? licenseVerificationMethod,
+    DateTime? licenseVerifiedAt,
+    String? city,
     double? rating,
     int? totalRides,
     double? todayEarnings,
@@ -59,16 +91,23 @@ class Driver {
     double? longitude,
     DateTime? updatedAt,
   }) {
+    final newId = id ?? this.id;
     return Driver(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
+      id: newId,
+      userId: userId ?? id ?? this.userId,
       name: name ?? this.name,
       phone: phone ?? this.phone,
       email: email ?? this.email,
       vehicleType: vehicleType ?? this.vehicleType,
       vehicleNumber: vehicleNumber ?? this.vehicleNumber,
       vehicleModel: vehicleModel ?? this.vehicleModel,
+      vehicleColor: vehicleColor ?? this.vehicleColor,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      licenseNumber: licenseNumber ?? this.licenseNumber,
+      licenseVerificationStatus: licenseVerificationStatus ?? this.licenseVerificationStatus,
+      licenseVerificationMethod: licenseVerificationMethod ?? this.licenseVerificationMethod,
+      licenseVerifiedAt: licenseVerifiedAt ?? this.licenseVerifiedAt,
+      city: city ?? this.city,
       rating: rating ?? this.rating,
       totalRides: totalRides ?? this.totalRides,
       todayEarnings: todayEarnings ?? this.todayEarnings,
@@ -92,7 +131,13 @@ class Driver {
       vehicleType: 'Sedan',
       vehicleNumber: 'MH 04 AB 1234',
       vehicleModel: 'Maruti Suzuki Dzire',
+      vehicleColor: 'White',
       profileImageUrl: '',
+      licenseNumber: 'MH1420210012345',
+      licenseVerificationStatus: 'verified_format',
+      licenseVerificationMethod: 'ocr',
+      licenseVerifiedAt: DateTime.now(),
+      city: 'Mumbai',
       rating: 4.85,
       totalRides: 342,
       todayEarnings: 1250.0,

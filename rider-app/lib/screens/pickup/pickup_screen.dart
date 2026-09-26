@@ -89,12 +89,12 @@ class PickupScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Map
+                // Map — Real Google Maps
                 Expanded(
                   flex: 5,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: MockMapWidget(
+                    child: GoogleMapWidget(
                       driverLat:
                           state.currentLocation?.latitude ?? 19.076,
                       driverLng:

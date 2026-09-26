@@ -88,12 +88,12 @@ class ActiveRideScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Large Map
+                // Large Map — Real Google Maps
                 Expanded(
                   flex: 5,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: MockMapWidget(
+                    child: GoogleMapWidget(
                       driverLat:
                           state.currentLocation?.latitude ?? ride.pickupLat,
                       driverLng: state.currentLocation?.longitude ??

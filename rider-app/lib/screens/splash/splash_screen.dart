@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_state.dart';
 import '../../core/theme/app_theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -30,12 +32,32 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _controller.forward();
 
-    // Navigate after 3 seconds
-    Timer(const Duration(seconds: 3), () {
-      if (mounted) {
+    _checkAuthAndNavigate();
+  }
+
+  Future<void> _checkAuthAndNavigate() async {
+    final startTime = DateTime.now();
+    final appState = context.read<AppState>();
+    final isLoggedIn = await appState.initAuth();
+
+    // Ensure splash displays for at least 2 seconds for visual smoothness
+    final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+    if (elapsed < 2000) {
+      await Future.delayed(Duration(milliseconds: 2000 - elapsed));
+    }
+
+    if (mounted) {
+      if (isLoggedIn || appState.isAuthenticated) {
+        final isCompleted = appState.driver?.isProfileCompleted ?? false;
+        if (isCompleted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        } else {
+          Navigator.pushReplacementNamed(context, '/onboarding');
+        }
+      } else {
         Navigator.pushReplacementNamed(context, '/login');
       }
-    });
+    }
   }
 
   @override

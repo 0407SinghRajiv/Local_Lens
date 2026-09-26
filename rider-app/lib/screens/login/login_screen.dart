@@ -17,8 +17,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _obscurePassword = true;
 
+  VoidCallback? _authListener;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupAuthListener();
+  }
+
+  void _setupAuthListener() {
+    final state = context.read<AppState>();
+    _authListener = () {
+      _navigateToNextScreen();
+    };
+    state.addListener(_authListener!);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigateToNextScreen();
+    });
+  }
+
+  void _navigateToNextScreen() {
+    if (!mounted) return;
+    final state = context.read<AppState>();
+    if (state.isAuthenticated && state.driver != null) {
+      if (state.driver!.isProfileCompleted) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/onboarding');
+      }
+    }
+  }
+
   @override
   void dispose() {
+    if (_authListener != null) {
+      context.read<AppState>().removeListener(_authListener!);
+    }
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -33,8 +68,17 @@ class _LoginScreenState extends State<LoginScreen> {
       _passwordController.text,
     );
 
-    if (success && mounted) {
-      Navigator.pushReplacementNamed(context, '/home');
+    if (success && mounted && appState.isAuthenticated) {
+      _navigateToNextScreen();
+    }
+  }
+
+  Future<void> _handleGoogleLogin() async {
+    final appState = context.read<AppState>();
+    final success = await appState.loginWithGoogle();
+
+    if (success && mounted && appState.isAuthenticated) {
+      _navigateToNextScreen();
     }
   }
 
@@ -234,6 +278,82 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontSize: 16,
                                 ),
                               ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Divider
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Divider(
+                            color: AppTheme.outline.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Text(
+                            'OR',
+                            style: AppTheme.labelSmall.copyWith(
+                              color: AppTheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: Divider(
+                            color: AppTheme.outline.withValues(alpha: 0.3),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Google Sign-In button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: OutlinedButton(
+                        onPressed: state.isLoading ? null : _handleGoogleLogin,
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          side: BorderSide(
+                            color: AppTheme.outline.withValues(alpha: 0.4),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 24,
+                              height: 24,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'G',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF4285F4),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Sign in with Google',
+                              style: AppTheme.titleMedium.copyWith(
+                                color: const Color(0xFF1F2937),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(height: 24),
