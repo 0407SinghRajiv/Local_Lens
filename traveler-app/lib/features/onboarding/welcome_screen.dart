@@ -53,7 +53,7 @@ class WelcomeScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
                   boxShadow: LocalLensDimensions.softCardShadow,
                   image: const DecorationImage(
-                    image: AssetImage('assets/images/54506.png'),
+                    image: AssetImage('assets/images/onboarding/welcome_traveler.png'),
                     fit: BoxFit.cover,
                   ),
                 ),

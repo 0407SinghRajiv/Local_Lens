@@ -215,7 +215,7 @@ class LocalLensMockData {
       location: 'Panvel Coastline, Maharashtra',
       description:
           'Enjoy a beautiful sunset with authentic local food, coastal viewpoints, and a rich cultural experience curated by local guides.',
-      imageUrl: 'assets/images/54506.png',
+      imageUrl: 'assets/images/destinations/sunset_coast.png',
       matchReasons: [
         'Matches your interest in scenic views',
         'Fits your 3-hour afternoon window',
@@ -235,7 +235,7 @@ class LocalLensMockData {
       location: 'Old Town Heritage Market',
       description:
           'Taste 6+ iconic authentic street delicacies with a veteran foodie and uncover culinary traditions.',
-      imageUrl: 'assets/images/54511.png',
+      imageUrl: 'assets/images/destinations/food_trail.png',
       matchReasons: [
         'Top-rated culinary experience',
         'Direct local provider connection',
@@ -254,7 +254,7 @@ class LocalLensMockData {
       location: 'Karnala Foothills, Panvel',
       description:
           'Discover 16th-century fortress history, ancient stone steps, and hidden stories of the region.',
-      imageUrl: 'assets/images/54506.png',
+      imageUrl: 'assets/images/destinations/heritage_walk.png',
       matchReasons: [
         'Matches your cultural interest',
         'Moderate walking intensity',
@@ -273,7 +273,7 @@ class LocalLensMockData {
       location: 'Alibaug Coast Road',
       description:
           'Relax by the waves with artisanal cold brews and coastal snacks in a tranquil open-air atmosphere.',
-      imageUrl: 'assets/images/54511.png',
+      imageUrl: 'assets/images/destinations/beach_cafe.png',
     ),
     ExperienceItem(
       id: 'exp-5',
@@ -288,7 +288,7 @@ class LocalLensMockData {
       location: 'Gadeshwar Reservoir Trail',
       description:
           'Trek through lush green valleys, stream crossings, and dip into natural freshwater plunge pools.',
-      imageUrl: 'assets/images/54506.png',
+      imageUrl: 'assets/images/destinations/waterfall.png',
     ),
   ];
 

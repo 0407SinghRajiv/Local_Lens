@@ -91,18 +91,32 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Container(
-                              width: 44,
-                              height: 44,
+                              width: 52,
+                              height: 52,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? LocalLensColors.accentOrange
+                                    ? LocalLensColors.accentOrangeSoft
                                     : LocalLensColors.surfaceSecondary,
                                 shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: isSelected
+                                      ? LocalLensColors.accentOrange
+                                      : Colors.transparent,
+                                  width: 1.5,
+                                ),
                               ),
-                              child: Icon(
-                                group.icon,
-                                color: isSelected ? Colors.white : LocalLensColors.primaryTeal,
-                                size: 24,
+                              child: ClipOval(
+                                child: Image.asset(
+                                  'assets/images/characters/${group.id}.png',
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, _, _) => Icon(
+                                    group.icon,
+                                    color: isSelected
+                                        ? LocalLensColors.accentOrange
+                                        : LocalLensColors.primaryTeal,
+                                    size: 26,
+                                  ),
+                                ),
                               ),
                             ),
                             const SizedBox(height: 10),

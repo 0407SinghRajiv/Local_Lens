@@ -40,7 +40,7 @@ class AdventureCompleteScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
                   boxShadow: LocalLensDimensions.softCardShadow,
                   image: const DecorationImage(
-                    image: AssetImage('assets/images/54506.png'),
+                    image: AssetImage('assets/images/illustrations/adventure_complete.png'),
                     fit: BoxFit.cover,
                   ),
                 ),

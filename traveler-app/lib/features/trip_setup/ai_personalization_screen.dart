@@ -119,7 +119,7 @@ class _AIPersonalizationScreenState extends State<AIPersonalizationScreen> {
                     borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
                     boxShadow: LocalLensDimensions.softCardShadow,
                     image: const DecorationImage(
-                      image: AssetImage('assets/images/54511.png'),
+                      image: AssetImage('assets/images/illustrations/ai_robot_traveler.png'),
                       fit: BoxFit.cover,
                     ),
                   ),

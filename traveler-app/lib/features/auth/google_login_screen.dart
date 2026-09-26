@@ -45,7 +45,7 @@ class GoogleLoginScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
                   boxShadow: LocalLensDimensions.softCardShadow,
                   image: const DecorationImage(
-                    image: AssetImage('assets/images/54511.png'),
+                    image: AssetImage('assets/images/onboarding/login_traveler.png'),
                     fit: BoxFit.cover,
                   ),
                 ),

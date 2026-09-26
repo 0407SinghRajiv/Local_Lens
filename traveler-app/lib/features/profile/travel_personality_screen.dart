@@ -36,11 +36,11 @@ class TravelPersonalityScreen extends StatelessWidget {
               // 3 Illustrated Cards Row
               Row(
                 children: [
-                  Expanded(child: _buildStyleCard('assets/images/54506.png', 'Offbeat Gems')),
+                  Expanded(child: _buildStyleCard('assets/images/characters/brand_characters.png', 'Offbeat Gems')),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildStyleCard('assets/images/54511.png', 'Local Food')),
+                  Expanded(child: _buildStyleCard('assets/images/destinations/food_trail.png', 'Local Food')),
                   const SizedBox(width: 8),
-                  Expanded(child: _buildStyleCard('assets/images/54506.png', 'Culture Walks')),
+                  Expanded(child: _buildStyleCard('assets/images/destinations/sunset_coast.png', 'Culture Walks')),
                 ],
               ),
 

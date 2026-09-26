@@ -121,7 +121,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           shape: BoxShape.circle,
                           border: Border.all(color: LocalLensColors.primaryTeal, width: 1.5),
                           image: const DecorationImage(
-                            image: AssetImage('assets/images/54511.png'),
+                            image: AssetImage('assets/images/characters/solo.png'),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -202,7 +202,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       image: const DecorationImage(
-                        image: AssetImage('assets/images/54506.png'),
+                        image: AssetImage('assets/images/destinations/home_banner.png'),
                         fit: BoxFit.cover,
                       ),
                     ),

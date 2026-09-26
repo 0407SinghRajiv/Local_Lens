@@ -30,5 +30,12 @@ flutter:
   assets:
     - .env
     - assets/images/
+    - assets/images/onboarding/
+    - assets/images/characters/
+    - assets/images/destinations/
+    - assets/images/illustrations/
+    - assets/images/maps/
+    - assets/images/rides/
+    - assets/images/logo/
     - assets/animations/
     - assets/icons/

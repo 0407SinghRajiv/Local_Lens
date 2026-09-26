@@ -35,7 +35,7 @@ class _ExperienceDetailsScreenState extends State<ExperienceDetailsScreen> {
                       width: double.infinity,
                       decoration: const BoxDecoration(
                         image: DecorationImage(
-                          image: AssetImage('assets/images/54506.png'),
+                          image: AssetImage('assets/images/destinations/sunset_coast.png'),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -179,7 +179,7 @@ class _ExperienceDetailsScreenState extends State<ExperienceDetailsScreen> {
                             borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
                             border: Border.all(color: LocalLensColors.border),
                             image: const DecorationImage(
-                              image: AssetImage('assets/images/54511.png'),
+                              image: AssetImage('assets/images/maps/experience_map.png'),
                               fit: BoxFit.cover,
                             ),
                           ),

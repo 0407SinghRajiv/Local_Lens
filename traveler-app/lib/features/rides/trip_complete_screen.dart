@@ -47,7 +47,7 @@ class _TripCompleteScreenState extends State<TripCompleteScreen> {
                   borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
                   boxShadow: LocalLensDimensions.softCardShadow,
                   image: const DecorationImage(
-                    image: AssetImage('assets/images/54511.png'),
+                    image: AssetImage('assets/images/illustrations/ride_arrived.png'),
                     fit: BoxFit.cover,
                   ),
                 ),

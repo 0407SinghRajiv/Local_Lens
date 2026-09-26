@@ -37,7 +37,7 @@ class SoldOutScreen extends StatelessWidget {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
                   image: const DecorationImage(
-                    image: AssetImage('assets/images/54511.png'),
+                    image: AssetImage('assets/images/illustrations/sold_out_traveler.png'),
                     fit: BoxFit.cover,
                   ),
                 ),

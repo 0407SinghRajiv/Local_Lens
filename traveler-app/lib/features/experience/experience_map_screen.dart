@@ -19,7 +19,7 @@ class ExperienceMapScreen extends StatelessWidget {
             height: double.infinity,
             decoration: const BoxDecoration(
               image: DecorationImage(
-                image: AssetImage('assets/images/54506.png'),
+                image: AssetImage('assets/images/maps/experience_map.png'),
                 fit: BoxFit.cover,
               ),
             ),
@@ -97,7 +97,7 @@ class ExperienceMapScreen extends StatelessWidget {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(12),
                           image: const DecorationImage(
-                            image: AssetImage('assets/images/54506.png'),
+                            image: AssetImage('assets/images/destinations/sunset_coast.png'),
                             fit: BoxFit.cover,
                           ),
                         ),
