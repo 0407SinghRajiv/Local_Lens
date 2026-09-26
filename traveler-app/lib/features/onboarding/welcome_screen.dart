@@ -21,10 +21,21 @@ class WelcomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const SizedBox(height: 12),
-              // Brand Logo at top
-              const LocalLensLogo(size: 40, showTagline: false),
-              const SizedBox(height: 24),
+              const SizedBox(height: 8),
+              // Brand Logo & Home Action at top
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const SizedBox(width: 44),
+                  const LocalLensLogo(size: 38, showTagline: false),
+                  IconButton(
+                    icon: const Icon(Icons.home_outlined, color: LocalLensColors.primaryTeal, size: 26),
+                    tooltip: 'Go to Home',
+                    onPressed: () => context.go(AppRoutes.home),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
 
               // Title & Subtitle
               Text(
@@ -61,7 +72,7 @@ class WelcomeScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // Action: Sign In Button only
+              // Action: Sign In Button
               LocalLensPrimaryButton(
                 text: 'Sign In',
                 isOrange: true,
@@ -69,7 +80,19 @@ class WelcomeScreen extends StatelessWidget {
                   context.push(AppRoutes.login);
                 },
               ),
+              const SizedBox(height: 12),
+
+              // Action: Continue to Home
+              LocalLensSecondaryButton(
+                text: 'Continue to Home',
+                isOutlined: true,
+                icon: Icons.home_rounded,
+                onPressed: () {
+                  context.go(AppRoutes.home);
+                },
+              ),
               const SizedBox(height: 14),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
