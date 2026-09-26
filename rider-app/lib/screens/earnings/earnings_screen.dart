@@ -41,10 +41,11 @@ class _EarningsScreenState extends State<EarningsScreen> {
             title: const Text('Earnings & Payouts'),
             centerTitle: true,
           ),
-          body: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.all(16),
-            child: Column(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Filter Segmented Pill Bar
@@ -295,7 +296,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }

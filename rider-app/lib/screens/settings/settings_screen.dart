@@ -34,9 +34,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             title: const Text('Settings'),
             centerTitle: true,
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 1. Account & Profile Info Header
@@ -286,11 +288,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 24),
               ],
             ),
           ),
-        );
+        ),
+      );
       },
     );
   }
