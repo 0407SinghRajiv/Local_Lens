@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:traveler_app/models/itinerary_model.dart';
-import 'package:traveler_app/models/recommendation_model.dart';
-import 'package:traveler_app/services/itinerary_api_service.dart';
+import '../models/itinerary_model.dart';
+import '../models/recommendation_model.dart';
+import '../services/itinerary_api_service.dart';
 
 enum LocationMode { exact, destination }
 
@@ -208,10 +208,6 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       updated.add(interest);
     }
     state = state.copyWith(interests: updated);
-  }
-
-  void setInterests(List<String> interests) {
-    state = state.copyWith(interests: interests);
   }
 
   void setPreferences(String preferences) {

@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
-import 'package:traveler_app/providers/itinerary_provider.dart';
+import '../../providers/itinerary_provider.dart';
 
 /// Screen: AI-style Loading & Itinerary Generation Screen
 class ItineraryGeneratingScreen extends ConsumerStatefulWidget {

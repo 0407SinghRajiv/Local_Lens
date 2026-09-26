@@ -10,8 +10,6 @@ class LocalLensColors {
   static const Color stitchTertiary = Color(0xFFD4A373); // Sand
 
   static const Color terracottaPrimary = Color(0xFFE85028);
-  static const Color coralPrimary = Color(0xFFFF5A5F); // Reference UI Coral Red
-  static const Color coralSoft = Color(0xFFFFEBEB);
   static const Color coastalSage = Color(0xFF5A7363);
   static const Color sandTertiary = Color(0xFFD4A373);
   static const Color deepInk = Color(0xFF1A1A1A);
@@ -21,7 +19,7 @@ class LocalLensColors {
   static const Color surfaceContainerHigh = Color(0xFFEAE7E7);
   static const Color borderSubtle = Color(0xFFEAE8E3);
 
-  static const Color primaryTeal = Color(0xFFFF5A5F); // Coral Red Primary Accent
+  static const Color primaryTeal = Color(0xFFE85028); // Stitch Terracotta
   static const Color primaryTealDark = Color(0xFFCF3E18);
   static const Color primaryTealLight = Color(0xFFFA7252);
   static const Color primaryTealSoft = Color(0xFFFDF0ED);

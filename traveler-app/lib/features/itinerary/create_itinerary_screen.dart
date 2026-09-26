@@ -4,9 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
-import 'package:traveler_app/providers/itinerary_provider.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../services/location_service.dart';
-import '../../widgets/ai_itinerary_prompt_bar.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 1 — Create Itinerary & Recommendation Discovery
@@ -18,7 +17,6 @@ class CreateItineraryScreen extends ConsumerStatefulWidget {
 }
 
 class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
-  late TextEditingController _aiPromptController;
   late TextEditingController _destinationController;
   late TextEditingController _timeController;
   late TextEditingController _budgetController;
@@ -54,7 +52,6 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
   void initState() {
     super.initState();
     final state = ref.read(itineraryProvider);
-    _aiPromptController = TextEditingController();
     _destinationController = TextEditingController(text: state.destination);
     _timeController = TextEditingController(text: state.availableTime);
     _budgetController = TextEditingController(
@@ -64,67 +61,11 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
 
   @override
   void dispose() {
-    _aiPromptController.dispose();
     _destinationController.dispose();
     _timeController.dispose();
     _budgetController.dispose();
     _preferencesController.dispose();
     super.dispose();
-  }
-
-  void _handleAiPromptApplied(AiPromptParsedResult result) {
-    final notifier = ref.read(itineraryProvider.notifier);
-
-    // 1. Destination
-    if (result.destination != null && result.destination!.isNotEmpty) {
-      _destinationController.text = result.destination!;
-      notifier.setDestination(result.destination!);
-    }
-
-    // 2. Time / Duration
-    if (result.time != null && result.time!.isNotEmpty) {
-      _timeController.text = result.time!;
-      notifier.setTime(result.time!, result.timeUnit ?? 'Hours');
-    }
-
-    // 3. Budget
-    if (result.budget != null && result.budget! > 0) {
-      _budgetController.text = result.budget!.toInt().toString();
-      notifier.setBudget(result.budget!);
-    }
-
-    // 4. Group & Traveler count
-    if (result.groupType != null) {
-      notifier.setGroup(result.groupType!, result.travelerCount ?? 2);
-    } else if (result.travelerCount != null) {
-      notifier.setTravelerCount(result.travelerCount!);
-    }
-
-    // 5. Interests
-    if (result.interests.isNotEmpty) {
-      notifier.setInterests(result.interests);
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 18),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'AI auto-configured form parameters from prompt!',
-                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color(0xFF00875A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        duration: const Duration(milliseconds: 2400),
-      ),
-    );
   }
 
   Future<void> _handleExactLocationSelection() async {
@@ -230,23 +171,12 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Tell us a little about your trip or speak your plan using AI prompt.',
+                      'Tell us a little about your trip and our ML recommender will find top local experiences.',
                       style: LocalLensTypography.bodyMedium.copyWith(
                         color: LocalLensColors.textSecondary,
                         height: 1.35,
                       ),
                     ),
-                    const SizedBox(height: 16),
-
-                    // Top AI Prompt Field with Google-Style Voice Mic
-                    AiItineraryPromptBar(
-                      controller: _aiPromptController,
-                      onPromptApplied: _handleAiPromptApplied,
-                      onClear: () {
-                        setState(() {});
-                      },
-                    ),
-
                     const SizedBox(height: 24),
 
                     // SECTION 1: LOCATION

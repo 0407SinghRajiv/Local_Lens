@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/locallens_design_system.dart';
-import 'package:traveler_app/models/recommendation_model.dart';
+import '../models/recommendation_model.dart';
 import 'common/locallens_components.dart';
 
 /// Direction of card swipe
