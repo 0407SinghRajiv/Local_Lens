@@ -61,23 +61,39 @@ class WelcomeScreen extends StatelessWidget {
 
               const Spacer(),
 
-              // Action Buttons
+              // Action: Sign In Button only
               LocalLensPrimaryButton(
-                text: 'Start Exploring',
-                isOrange: true,
-                onPressed: () {
-                  context.push(AppRoutes.tripSetup);
-                },
-              ),
-              const SizedBox(height: 14),
-              LocalLensSecondaryButton(
                 text: 'Sign In',
-                isOutlined: false,
+                isOrange: true,
                 onPressed: () {
                   context.push(AppRoutes.login);
                 },
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Don\'t have an account? ',
+                    style: LocalLensTypography.bodyMedium.copyWith(
+                      color: LocalLensColors.textSecondary,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      context.push(AppRoutes.signup);
+                    },
+                    child: Text(
+                      'Sign Up',
+                      style: LocalLensTypography.bodyMedium.copyWith(
+                        color: LocalLensColors.primaryTeal,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
