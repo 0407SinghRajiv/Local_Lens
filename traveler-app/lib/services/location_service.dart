@@ -13,9 +13,11 @@ class LocationService {
   }
 
   /// Request location permission via bottom sheet
-  static Future<bool> requestLocationPermission(BuildContext context) async {
-    final isGranted = await isLocationPermissionGranted();
-    if (isGranted) return true;
+  static Future<bool> requestLocationPermission(BuildContext context, {bool forcePrompt = false}) async {
+    if (!forcePrompt) {
+      final isGranted = await isLocationPermissionGranted();
+      if (isGranted) return true;
+    }
     if (!context.mounted) return false;
 
     final result = await showModalBottomSheet<bool>(

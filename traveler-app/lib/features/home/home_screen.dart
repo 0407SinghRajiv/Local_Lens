@@ -24,6 +24,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   String _selectedCategory = 'Food';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _promptLocationOnAppOpen();
+    });
+  }
+
+  Future<void> _promptLocationOnAppOpen() async {
+    // Prompt for location permission right after login/signup or opening the app
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) {
+      await LocationService.requestLocationPermission(context);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: LocalLensColors.background,
