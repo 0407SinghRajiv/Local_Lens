@@ -71,52 +71,26 @@ class SupabaseAuthService extends AuthService {
 
           if (response.user != null) {
             final user = response.user!;
-            final driver = Driver(
-              id: user.id,
-              userId: user.id,
-              name: googleUser.displayName ?? user.email?.split('@').first ?? 'Rider',
-              email: user.email ?? googleUser.email,
-              phone: user.phone ?? '+91 98765 43210',
-              vehicleType: 'Sedan',
-              vehicleNumber: 'MH 04 AB 1234',
-              vehicleModel: 'Maruti Suzuki Dzire',
-              profileImageUrl: googleUser.photoUrl ?? '',
-              rating: 4.9,
-              totalRides: 0,
-              todayEarnings: 0.0,
-              todayRides: 0,
-              isOnline: false,
-              isAvailable: false,
-              latitude: 19.0760,
-              longitude: 72.8777,
-            );
-
-            _currentDriver = driver;
-
             try {
-              await client.from('riders').upsert({
-                'id': user.id,
-                'user_id': user.id,
-                'name': driver.name,
-                'email': driver.email,
-                'phone': driver.phone,
-                'profile_image_url': driver.profileImageUrl,
-                'vehicle_type': driver.vehicleType,
-                'vehicle_number': driver.vehicleNumber,
-                'vehicle_model': driver.vehicleModel,
-                'rating': driver.rating,
-                'total_rides': driver.totalRides,
-                'today_earnings': driver.todayEarnings,
-                'today_rides': driver.todayRides,
-                'is_online': false,
-                'is_available': false,
-                'latitude': 19.0760,
-                'longitude': 72.8777,
-                'updated_at': DateTime.now().toIso8601String(),
-              });
-              debugPrint('[SupabaseAuth] Native Google Sign-In OK: ${user.email}, saved to riders table');
+              final existing = await client.from('riders').select().eq('id', user.id).maybeSingle();
+              if (existing == null) {
+                // Insert initial skeleton ONLY if driver row doesn't exist yet
+                await client.from('riders').insert({
+                  'id': user.id,
+                  'user_id': user.id,
+                  'name': googleUser.displayName ?? user.email?.split('@').first ?? 'Rider',
+                  'email': user.email ?? googleUser.email,
+                  'profile_image_url': googleUser.photoUrl ?? '',
+                  'is_online': false,
+                  'is_available': false,
+                  'updated_at': DateTime.now().toIso8601String(),
+                });
+                debugPrint('[SupabaseAuth] Created initial rider skeleton row in Supabase: ${user.email}');
+              } else {
+                debugPrint('[SupabaseAuth] Existing rider row found in Supabase for ${user.email}. Preserving existing registration data.');
+              }
             } catch (dbErr) {
-              debugPrint('[SupabaseAuth] Error upserting rider DB row: $dbErr');
+              debugPrint('[SupabaseAuth] Notice inserting initial rider DB row: $dbErr');
             }
           }
 

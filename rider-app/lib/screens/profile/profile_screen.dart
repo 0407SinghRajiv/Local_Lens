@@ -196,19 +196,19 @@ class ProfileScreen extends StatelessWidget {
                       _buildSettingsTile(
                         Icons.history_rounded,
                         'Ride History',
-                        () {},
+                        () => Navigator.pushNamed(context, '/ride-history'),
                       ),
                       _buildDivider(),
                       _buildSettingsTile(
                         Icons.account_balance_wallet_rounded,
                         'Earnings',
-                        () {},
+                        () => Navigator.pushNamed(context, '/earnings'),
                       ),
                       _buildDivider(),
                       _buildSettingsTile(
                         Icons.settings_outlined,
                         'Settings',
-                        () {},
+                        () => Navigator.pushNamed(context, '/settings'),
                       ),
                       _buildDivider(),
                       _buildSettingsTile(

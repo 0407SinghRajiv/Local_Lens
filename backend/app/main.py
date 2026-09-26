@@ -23,9 +23,15 @@ app.add_middleware(
 )
 
 
+from app.api.rider.router import rider_router
+
+app.include_router(rider_router, prefix=settings.API_V1_STR)
+
+
 @app.get("/health", tags=["Health"])
 async def health_check():
     """
     Health check endpoint for container probes and service verification.
     """
     return {"status": "ok"}
+

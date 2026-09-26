@@ -420,47 +420,68 @@ class _MockMapWidgetState extends State<MockMapWidget>
 
   Widget _buildDriverMarker(double x, double y) {
     return Positioned(
-      left: x - 20,
-      top: y - 20,
+      left: x - 22,
+      top: y - 22,
       child: AnimatedBuilder(
         animation: _pulseController,
         builder: (context, child) {
-          final scale = 1.0 + (_pulseController.value * 0.3);
-          final opacity = 1.0 - _pulseController.value;
+          final scale = 1.0 + (_pulseController.value * 0.6);
+          final opacity = (1.0 - _pulseController.value).clamp(0.0, 1.0);
+          final blinkOpacity = 0.3 + (_pulseController.value * 0.7);
+
           return SizedBox(
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             child: Stack(
               alignment: Alignment.center,
               children: [
+                // Outer expanding radar pulse ring
                 Transform.scale(
                   scale: scale,
                   child: Container(
-                    width: 36,
-                    height: 36,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
+                      color: AppTheme.primary.withValues(alpha: opacity * 0.35),
                       border: Border.all(
-                        color: AppTheme.primary.withValues(alpha: opacity * 0.5),
+                        color: AppTheme.primary.withValues(alpha: opacity * 0.8),
                         width: 2,
                       ),
                     ),
                   ),
                 ),
-                Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                    color: AppTheme.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.primary.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
+                // Middle continuous blinking ring
+                Opacity(
+                  opacity: blinkOpacity,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppTheme.primary.withValues(alpha: 0.2),
+                      border: Border.all(color: Colors.white, width: 2.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primary.withValues(alpha: 0.6),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                // Core blinking dot
+                Opacity(
+                  opacity: blinkOpacity,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: AppTheme.primary,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2.5),
+                    ),
                   ),
                 ),
               ],

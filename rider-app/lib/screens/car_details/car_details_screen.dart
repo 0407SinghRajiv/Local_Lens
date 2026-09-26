@@ -177,6 +177,65 @@ class _CarDetailsScreenState extends State<CarDetailsScreen> {
                   ],
                 ),
               ),
+              // ─── DRIVING LICENCE & VEHICLE COMPATIBILITY SUMMARY ────────────────
+              Builder(
+                builder: (context) {
+                  final driver = context.watch<AppState>().driver;
+                  final dlNumber = driver?.licenseNumber ?? '';
+                  final dlClasses = driver?.licenseVehicleClasses ?? const [];
+                  final confidence = (driver?.licenseConfidenceScore ?? 0.0) * 100;
+                  final status = driver?.licenseVerificationStatus ?? 'not_uploaded';
+
+                  final isVerified = status == 'verified' || status == 'verified_format';
+                  final statusColor = isVerified
+                      ? const Color(0xFF059669)
+                      : (status == 'review' ? Colors.amber.shade800 : AppTheme.error);
+
+                  return Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surfaceContainer,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              isVerified ? Icons.verified_user_rounded : Icons.shield_outlined,
+                              color: statusColor,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              isVerified
+                                  ? 'DL Document Verified (${confidence.round()}% Confidence)'
+                                  : 'DL Verification Requires Review',
+                              style: AppTheme.titleMedium.copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('DL Number: ${dlNumber.isNotEmpty ? dlNumber : "Not provided"}',
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                            Text('Classes: ${dlClasses.isNotEmpty ? dlClasses.join(", ") : "LMV"}',
+                                style: const TextStyle(color: AppTheme.onSurfaceVariant, fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 24),
 
               // ─── VEHICLE INFORMATION FORM ───────────────────────────

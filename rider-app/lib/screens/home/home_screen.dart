@@ -16,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
   VoidCallback? _appStateListener;
   String? _lastNavigatedRideId;
   RideStatus? _lastNavigatedStatus;
+  double _mapHeightFactor = 1.0; // 1.0 = full height (100%), when swiped up = 0.60 (60% height)
 
   @override
   void initState() {
@@ -29,6 +30,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final state = context.read<AppState>();
     _appStateListener = () {
       if (!mounted) return;
+
+      if (!state.isAuthenticated || state.driver == null) {
+        Navigator.pushReplacementNamed(context, '/login');
+        return;
+      }
 
       // Navigate to ride request when pending
       if (state.hasPendingRequest) {
@@ -92,41 +98,125 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           body: SafeArea(
-            child: Stack(
-              children: [
-                // ─── 1. BIG FULL-SCREEN GOOGLE MAP BACKDROP ───
-                Positioned.fill(
-                  child: GoogleMapWidget(
-                    driverLat: state.currentLocation?.latitude ?? 19.076,
-                    driverLng: state.currentLocation?.longitude ?? 72.877,
-                    height: double.infinity,
-                  ),
-                ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final fullHeight = constraints.maxHeight;
+                final currentMapHeight = fullHeight * _mapHeightFactor;
 
-                // ─── 2. FLOATING TOP HEADER BAR ───
-                Positioned(
-                  top: 12,
-                  left: 16,
-                  right: 16,
-                  child: _buildTopBar(state),
-                ),
+                return Stack(
+                  children: [
+                    // ─── 1. FLEXIBLE GOOGLE MAP BACKDROP (SHRINKS TO 60% ON SWIPE UP) ───
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: currentMapHeight,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        curve: Curves.easeOut,
+                        height: currentMapHeight,
+                        width: double.infinity,
+                        child: GoogleMapWidget(
+                          driverLat: state.currentLocation?.latitude ?? 19.076,
+                          driverLng: state.currentLocation?.longitude ?? 72.877,
+                          height: currentMapHeight,
+                        ),
+                      ),
+                    ),
 
-                // ─── 3. FLOATING GPS BADGE OVER MAP ───
-                if (state.isOnline && state.currentLocation != null)
-                  Positioned(
-                    top: 80,
-                    right: 20,
-                    child: _buildGpsBadge(state),
-                  ),
+                    // ─── 2. FLOATING TOP HEADER BAR ───
+                    Positioned(
+                      top: 12,
+                      left: 16,
+                      right: 16,
+                      child: _buildTopBar(state),
+                    ),
 
-                // ─── 4. FLOATING BOTTOM PANEL (STATS & CARDS) ───
-                Positioned(
-                  left: 16,
-                  right: 16,
-                  bottom: 12,
-                  child: _buildFloatingPanel(state),
-                ),
-              ],
+                    // ─── 3. FLOATING GPS BADGE OVER MAP ───
+                    if (state.isOnline && state.currentLocation != null)
+                      Positioned(
+                        top: 80,
+                        right: 20,
+                        child: _buildGpsBadge(state),
+                      ),
+
+                    // ─── 4. FLEXIBLE DRAGGABLE SHEET (SWIPE UP SHRINKS MAP TO 60%) ───
+                    NotificationListener<DraggableScrollableNotification>(
+                      onNotification: (notification) {
+                        final extent = notification.extent;
+                        const minExtent = 0.28;
+                        const maxExtent = 0.70;
+                        final progress = ((extent - minExtent) / (maxExtent - minExtent)).clamp(0.0, 1.0);
+                        final newFactor = 1.0 - (progress * 0.40); // Shrinks from 1.0 down to 0.60 (60%)
+
+                        if ((newFactor - _mapHeightFactor).abs() > 0.005) {
+                          setState(() {
+                            _mapHeightFactor = newFactor;
+                          });
+                        }
+                        return true;
+                      },
+                      child: DraggableScrollableSheet(
+                        initialChildSize: 0.35,
+                        minChildSize: 0.28,
+                        maxChildSize: 0.70,
+                        builder: (context, scrollController) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: AppTheme.cardWhite,
+                              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.12),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, -4),
+                                ),
+                              ],
+                            ),
+                            child: ListView(
+                              controller: scrollController,
+                              physics: const BouncingScrollPhysics(),
+                              children: [
+                                // Drag Handle Indicator
+                                Center(
+                                  child: Container(
+                                    width: 42,
+                                    height: 5,
+                                    margin: const EdgeInsets.only(bottom: 12, top: 4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade300,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                  ),
+                                ),
+
+                                // Status Card (Online Only — Offline Black Div Removed!)
+                                if (state.isOnline) ...[
+                                  _buildStatusCard(state),
+                                  const SizedBox(height: 10),
+                                ],
+
+                                // Stats Row
+                                _buildStatsRow(state),
+
+                                if (state.isOnline) ...[
+                                  const SizedBox(height: 10),
+                                  _buildTestRideButton(state),
+                                ],
+                                const SizedBox(height: 10),
+
+                                // Vehicle Information Card
+                                _buildDriverInfoCard(state),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
 
@@ -294,36 +384,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFloatingPanel(AppState state) {
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 320),
-      child: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Status Card
-            _buildStatusCard(state),
-            const SizedBox(height: 10),
-
-            // Stats Row (Today's Earnings & Today's Rides)
-            _buildStatsRow(state),
-
-            // Test Ride Request Button (Dev)
-            if (state.isOnline) ...[
-              const SizedBox(height: 10),
-              _buildTestRideButton(state),
-            ],
-            const SizedBox(height: 10),
-
-            // Vehicle Information Card
-            _buildDriverInfoCard(state),
-          ],
-        ),
       ),
     );
   }
@@ -555,6 +615,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'Today\'s Earnings',
           value: '₹${driver.todayEarnings.toStringAsFixed(0)}',
           color: AppTheme.primary,
+          onTap: () => Navigator.pushNamed(context, '/earnings'),
         ),
         const SizedBox(width: 12),
         _buildStatCard(
@@ -562,6 +623,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'Today\'s Rides',
           value: '${driver.todayRides}',
           color: AppTheme.secondary,
+          onTap: () => Navigator.pushNamed(context, '/ride-history'),
         ),
       ],
     );
@@ -572,48 +634,53 @@ class _HomeScreenState extends State<HomeScreen> {
     required String label,
     required String value,
     required Color color,
+    required VoidCallback onTap,
   }) {
     return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppTheme.cardWhite.withValues(alpha: 0.95),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.outline.withValues(alpha: 0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(icon, size: 16, color: color),
-                ),
-                const Spacer(),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Text(value, style: AppTheme.headlineMedium),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: AppTheme.bodySmall.copyWith(
-                color: AppTheme.onSurfaceVariant,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppTheme.cardWhite.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.outline.withValues(alpha: 0.3)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(icon, size: 16, color: color),
+                  ),
+                  const Spacer(),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: Colors.grey),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(value, style: AppTheme.headlineMedium),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: AppTheme.bodySmall.copyWith(
+                  color: AppTheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

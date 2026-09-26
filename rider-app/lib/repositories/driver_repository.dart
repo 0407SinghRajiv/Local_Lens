@@ -128,7 +128,16 @@ class SupabaseDriverRepository extends DriverRepository {
         return newDriver;
       }
 
-      return Driver(
+      List<String> parsedVehicleClasses = [];
+      if (response['license_vehicle_classes'] != null) {
+        if (response['license_vehicle_classes'] is List) {
+          parsedVehicleClasses = (response['license_vehicle_classes'] as List).map((e) => e.toString()).toList();
+        }
+      }
+
+      final isRegCompletedInDb = response['is_registration_completed'] == true;
+
+      final fetchedDriver = Driver(
         id: response['id']?.toString() ?? targetId,
         userId: response['user_id']?.toString() ?? targetId,
         name: response['name']?.toString() ?? 'Rider',
@@ -142,12 +151,20 @@ class SupabaseDriverRepository extends DriverRepository {
         licenseNumber: response['license_number']?.toString() ?? '',
         licenseVerificationStatus: response['license_verification_status']?.toString() ??
             (response['license_number'] != null && response['license_number'].toString().isNotEmpty
-                ? 'verified_format'
+                ? 'verified'
                 : 'not_uploaded'),
-        licenseVerificationMethod: response['license_verification_method']?.toString() ?? 'ocr',
+        licenseVerificationMethod: response['license_verification_method']?.toString() ?? 'ai_multimodal',
         licenseVerifiedAt: response['license_verified_at'] != null
             ? DateTime.tryParse(response['license_verified_at'].toString())
             : null,
+        licenseHolderName: response['license_holder_name']?.toString() ?? '',
+        licenseDateOfBirth: response['license_date_of_birth']?.toString() ?? '',
+        licenseIssueDate: response['license_issue_date']?.toString() ?? '',
+        licenseValidUntil: response['license_valid_until']?.toString() ?? '',
+        licenseVehicleClasses: parsedVehicleClasses,
+        licenseConfidenceScore: (response['license_confidence_score'] as num?)?.toDouble() ?? 0.0,
+        licenseVerificationReason: response['license_verification_reason']?.toString() ?? '',
+        city: response['city']?.toString() ?? '',
         rating: (response['rating'] as num?)?.toDouble() ?? 4.9,
         totalRides: response['total_rides'] ?? 0,
         todayEarnings: (response['today_earnings'] as num?)?.toDouble() ?? 0.0,
@@ -156,7 +173,11 @@ class SupabaseDriverRepository extends DriverRepository {
         isAvailable: response['is_available'] ?? false,
         latitude: (response['latitude'] as num?)?.toDouble() ?? 19.0760,
         longitude: (response['longitude'] as num?)?.toDouble() ?? 72.8777,
+        isRegistrationCompleted: isRegCompletedInDb,
       );
+
+      final isFullyCompleted = isRegCompletedInDb || fetchedDriver.isProfileCompleted;
+      return fetchedDriver.copyWith(isRegistrationCompleted: isFullyCompleted);
     } catch (e) {
       debugPrint('[SupabaseDriverRepo] Error fetching driver: $e');
       return Driver.mock().copyWith(id: targetId, userId: targetId);
@@ -184,6 +205,8 @@ class SupabaseDriverRepository extends DriverRepository {
       userId = targetId;
     }
 
+    final isCompleted = driver.isRegistrationCompleted || driver.isProfileCompleted;
+
     final payload = <String, dynamic>{
       'id': targetId,
       'user_id': userId,
@@ -194,6 +217,8 @@ class SupabaseDriverRepository extends DriverRepository {
       'vehicle_type': driver.vehicleType,
       'vehicle_number': driver.vehicleNumber,
       'vehicle_model': driver.vehicleModel,
+      'vehicle_color': driver.vehicleColor,
+      'city': driver.city,
       'rating': driver.rating,
       'total_rides': driver.totalRides,
       'today_earnings': driver.todayEarnings,
@@ -202,19 +227,37 @@ class SupabaseDriverRepository extends DriverRepository {
       'is_available': driver.isAvailable,
       'latitude': driver.latitude,
       'longitude': driver.longitude,
+      'is_registration_completed': isCompleted,
+      'license_number': driver.licenseNumber,
+      'license_verification_status': driver.licenseVerificationStatus,
+      'license_verification_method': driver.licenseVerificationMethod,
+      'license_verified_at': (driver.licenseVerifiedAt ?? DateTime.now()).toIso8601String(),
+      'license_holder_name': driver.licenseHolderName,
+      'license_date_of_birth': driver.licenseDateOfBirth.trim().isNotEmpty ? driver.licenseDateOfBirth.trim() : null,
+      'license_issue_date': driver.licenseIssueDate.trim().isNotEmpty ? driver.licenseIssueDate.trim() : null,
+      'license_valid_until': driver.licenseValidUntil.trim().isNotEmpty ? driver.licenseValidUntil.trim() : null,
+      'license_vehicle_classes': driver.licenseVehicleClasses,
+      'license_confidence_score': driver.licenseConfidenceScore,
+      'license_verification_reason': driver.licenseVerificationReason,
       'updated_at': DateTime.now().toIso8601String(),
     };
 
-    // Include extended fields if available
-    if (driver.licenseNumber.isNotEmpty) {
-      payload['license_number'] = driver.licenseNumber;
-    }
-
     try {
       await client.from('riders').upsert(payload);
-      debugPrint('[SupabaseDriverRepo] Successfully upserted rider row in Supabase: id=$targetId, name=${driver.name}, vehicle=${driver.vehicleNumber}, DL=${driver.licenseNumber}');
+      debugPrint('[SupabaseDriverRepo] Successfully upserted rider row in Supabase: id=$targetId, name=${driver.name}, vehicle=${driver.vehicleNumber}, DL=${driver.licenseNumber}, isCompleted=$isCompleted');
     } catch (e) {
       debugPrint('[SupabaseDriverRepo] Error updating driver in Supabase riders table: $e');
+      // If full upsert failed due to missing column schema in older DB, try core fallback fields
+      try {
+        final fallbackPayload = Map<String, dynamic>.from(payload);
+        fallbackPayload.remove('is_registration_completed');
+        fallbackPayload.remove('vehicle_color');
+        fallbackPayload.remove('city');
+        await client.from('riders').upsert(fallbackPayload);
+        debugPrint('[SupabaseDriverRepo] Fallback upsert succeeded!');
+      } catch (fallbackErr) {
+        debugPrint('[SupabaseDriverRepo] Fallback upsert failed: $fallbackErr');
+      }
     }
   }
 

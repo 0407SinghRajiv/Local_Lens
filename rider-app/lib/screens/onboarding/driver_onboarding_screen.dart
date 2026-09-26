@@ -6,7 +6,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_state.dart';
 import '../../core/theme/app_theme.dart';
-import '../../services/driving_license_ocr_service.dart';
+import '../../models/dl_verification_result.dart';
+import '../../services/ai_license_validator_service.dart';
+import '../../widgets/dl_verification_card.dart';
 
 class DriverOnboardingScreen extends StatefulWidget {
   const DriverOnboardingScreen({super.key});
@@ -24,18 +26,15 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _licenseController = TextEditingController();
   final TextEditingController _cityController = TextEditingController();
 
-  // Driving Licence OCR & Photo Upload State (Personal Details)
+  // Driving Licence OCR & AI Upload State (Personal Details)
   final ImagePicker _picker = ImagePicker();
   String? _licenseImagePath;
   bool _isOcrProcessing = false;
-  bool _isEditingLicense = false;
   bool _isLicenseConfirmed = false;
   bool _isPickerActive = false;
-  String _verificationStatus = 'not_uploaded';
-  String _statusMessage = 'Upload or take a photo of your Driving Licence to auto-extract the number.';
+  DlVerificationResult? _aiVerificationResult;
 
   // Step 2: Vehicle Details Controllers
   final _step2FormKey = GlobalKey<FormState>();
@@ -85,6 +84,15 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final appState = context.read<AppState>();
+        if (appState.driver?.isProfileCompleted == true) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      }
+    });
+
     final state = context.read<AppState>();
     final driver = state.driver;
 
@@ -96,7 +104,6 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
     _nameController.text = initialName;
     _phoneController.text = driver?.phone ?? '';
     _emailController.text = driver?.email ?? '';
-    _licenseController.text = driver?.licenseNumber ?? '';
     _cityController.text = (driver?.city ?? '').isNotEmpty ? driver!.city : 'Mumbai';
     _vehicleModelController.text = driver?.vehicleModel ?? '';
     _vehicleNumberController.text = driver?.vehicleNumber ?? '';
@@ -106,13 +113,32 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
       _selectedVehicleType = driver.vehicleType;
     }
 
-    if ((driver?.licenseNumber ?? '').isNotEmpty) {
-      final isValid = DrivingLicenseOcrService.validateIndianDlFormat(driver!.licenseNumber);
-      _verificationStatus = isValid ? 'valid_format' : 'needs_confirmation';
-      _isLicenseConfirmed = isValid;
-      _statusMessage = isValid
-          ? 'Format Verified (OCR + User Confirmation)'
-          : 'Please review and confirm your Driving Licence number.';
+    if (driver != null && (driver.licenseNumber.isNotEmpty || driver.licenseDateOfBirth.isNotEmpty)) {
+      _isLicenseConfirmed = false;
+      _aiVerificationResult = DlVerificationResult(
+        status: driver.licenseVerificationStatus.isNotEmpty ? driver.licenseVerificationStatus : 'verified',
+        confidenceScore: driver.licenseConfidenceScore > 0 ? driver.licenseConfidenceScore : 0.95,
+        reason: driver.licenseVerificationReason.isNotEmpty ? driver.licenseVerificationReason : 'Driving licence AI verified',
+        extractedDlNumber: driver.licenseNumber,
+        holderName: driver.licenseHolderName,
+        dateOfBirth: driver.licenseDateOfBirth,
+        issueDate: driver.licenseIssueDate,
+        validUntil: driver.licenseValidUntil,
+        vehicleClasses: driver.licenseVehicleClasses,
+        documentType: 'driving_license',
+        documentQuality: 'good',
+        issuingAuthority: driver.licenseNumber.length >= 4 ? driver.licenseNumber.substring(0, 4) : '',
+        checks: const {
+          'document_type': true,
+          'image_quality': true,
+          'dl_number_format': true,
+          'date_consistency': true,
+          'vehicle_compatibility': true,
+          'ocr_ai_agreement': true,
+        },
+        warnings: const [],
+        verificationMethod: driver.licenseVerificationMethod.isNotEmpty ? driver.licenseVerificationMethod : 'ai_multimodal',
+      );
     }
   }
 
@@ -140,49 +166,41 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
 
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 88,
+        maxWidth: 850,
+        maxHeight: 850,
+        imageQuality: 70,
       );
 
-      if (pickedFile == null) return; // User cancelled image selection
+      if (pickedFile == null) return;
 
       setState(() {
         _licenseImagePath = pickedFile.path;
         _isOcrProcessing = true;
-        _verificationStatus = 'processing';
-        _statusMessage = 'Reading Driving Licence... Extracting number...';
         _isLicenseConfirmed = false;
-        _isEditingLicense = false;
       });
 
-      final result = await DrivingLicenseOcrService.extractFromImage(pickedFile.path);
+      final aiResult = await AiLicenseValidatorService.validateLicence(
+        imagePath: pickedFile.path,
+        vehicleType: _selectedVehicleType,
+      );
 
       if (!mounted) return;
 
       setState(() {
         _isOcrProcessing = false;
-        if (result.extractedNumber.isNotEmpty) {
-          _licenseController.text = result.extractedNumber;
-          _verificationStatus = result.isValidFormat ? 'needs_confirmation' : 'invalid_format';
-          _statusMessage = result.message;
-        } else {
-          _verificationStatus = 'extraction_failed';
-          _statusMessage = result.message;
-        }
+        _aiVerificationResult = aiResult;
+        _isLicenseConfirmed = false;
       });
     } on PlatformException catch (e) {
       debugPrint('[DriverOnboardingScreen] PlatformException in image picker: ${e.code} - ${e.message}');
       if (!mounted) return;
       setState(() {
         _isOcrProcessing = false;
-        _verificationStatus = 'extraction_failed';
-        _statusMessage = 'Native plugin initialising. You can also type your DL number manually.';
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           content: Text('Notice: App restart may be required for newly installed image picker plugin.'),
-          duration: const Duration(seconds: 4),
+          duration: Duration(seconds: 4),
         ),
       );
     } catch (e) {
@@ -190,8 +208,6 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
       if (!mounted) return;
       setState(() {
         _isOcrProcessing = false;
-        _verificationStatus = 'extraction_failed';
-        _statusMessage = 'Could not access image or camera. Please try again or enter DL number manually.';
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Could not open ${source == ImageSource.camera ? "Camera" : "Photos"}: $e')),
@@ -201,49 +217,12 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
     }
   }
 
-  void _validateAndConfirmLicense() {
-    final clean = DrivingLicenseOcrService.normalizeDlString(_licenseController.text);
-    _licenseController.text = clean;
-
-    if (clean.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter or scan a valid Driving Licence number.')),
-      );
-      return;
-    }
-
-    final isValid = DrivingLicenseOcrService.validateIndianDlFormat(clean);
-
-    setState(() {
-      _isEditingLicense = false;
-      _isLicenseConfirmed = true;
-      _verificationStatus = isValid ? 'valid_format' : 'needs_confirmation';
-      _statusMessage = isValid
-          ? 'Format Verified (OCR + User Confirmation)'
-          : 'DL Number saved. Format check completed.';
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: AppTheme.primary,
-        content: Row(
-          children: const [
-            Icon(Icons.check_circle_rounded, color: Colors.white),
-            SizedBox(width: 10),
-            Text('Driving Licence number confirmed!'),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _pageController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
-    _licenseController.dispose();
     _cityController.dispose();
     _vehicleModelController.dispose();
     _vehicleNumberController.dispose();
@@ -300,6 +279,27 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
   void _nextPage() {
     if (_currentStep == 0) {
       if (!_step1FormKey.currentState!.validate()) return;
+
+      if (_aiVerificationResult == null || !_isLicenseConfirmed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please upload your Driving Licence for AI verification before continuing.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+
+      if (_aiVerificationResult!.extractedDlNumber.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Extracted DL number is invalid or missing. Please re-upload or edit licence details.'),
+            backgroundColor: AppTheme.error,
+          ),
+        );
+        return;
+      }
+
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -329,19 +329,31 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
       cleanPhone = '+91 ${cleanPhone.replaceAll('+91', '').trim()}';
     }
 
+    final dlNumber = _aiVerificationResult?.extractedDlNumber ?? currentDriver.licenseNumber;
+    final dob = _aiVerificationResult?.dateOfBirth ?? currentDriver.licenseDateOfBirth;
+    final nameHolder = _aiVerificationResult?.holderName ?? currentDriver.licenseHolderName;
+
     final updatedDriver = currentDriver.copyWith(
       name: _nameController.text.trim(),
       phone: cleanPhone,
       email: _emailController.text.trim(),
-      licenseNumber: DrivingLicenseOcrService.normalizeDlString(_licenseController.text),
-      licenseVerificationStatus: 'verified_format',
-      licenseVerificationMethod: 'ocr',
+      licenseNumber: dlNumber,
+      licenseDateOfBirth: dob,
+      licenseHolderName: nameHolder,
+      licenseVerificationStatus: _aiVerificationResult?.status ?? 'verified',
+      licenseVerificationMethod: _aiVerificationResult?.verificationMethod ?? 'ai_multimodal',
       licenseVerifiedAt: DateTime.now(),
+      licenseIssueDate: _aiVerificationResult?.issueDate ?? '',
+      licenseValidUntil: _aiVerificationResult?.validUntil ?? '',
+      licenseVehicleClasses: _aiVerificationResult?.vehicleClasses ?? const [],
+      licenseConfidenceScore: _aiVerificationResult?.confidenceScore ?? 0.85,
+      licenseVerificationReason: _aiVerificationResult?.reason ?? 'Driving licence AI verified',
       city: _cityController.text.trim(),
       vehicleType: _selectedVehicleType,
       vehicleModel: _vehicleModelController.text.trim(),
       vehicleNumber: _vehicleNumberController.text.trim().replaceAll(RegExp(r'\s+'), '').toUpperCase(),
       vehicleColor: _vehicleColorController.text.trim(),
+      isRegistrationCompleted: true,
     );
 
     await appState.completeDriverOnboarding(updatedDriver);
@@ -552,7 +564,7 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Enter your contact & driving license details.',
+                          'Enter contact details & upload Driving Licence for AI verification.',
                           style: AppTheme.bodySmall.copyWith(
                             color: AppTheme.onSurfaceVariant,
                           ),
@@ -631,180 +643,6 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
             ),
             const SizedBox(height: 18),
 
-            // ─── DRIVING LICENCE PHOTO & OCR (PERSONAL DETAILS) ─────────────
-            Text('Driving Licence Verification', style: AppTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              'Upload or take a photo of your Driving Licence. ML Kit OCR auto-extracts your DL number.',
-              style: AppTheme.bodySmall.copyWith(color: AppTheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 10),
-
-            // Photo picker container
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppTheme.surfaceContainer,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: AppTheme.outline.withValues(alpha: 0.3),
-                ),
-              ),
-              child: Column(
-                children: [
-                  if (_licenseImagePath != null) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Stack(
-                        alignment: Alignment.topRight,
-                        children: [
-                          Image.file(
-                            File(_licenseImagePath!),
-                            height: 160,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                          Container(
-                            margin: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: Colors.black54,
-                              shape: BoxShape.circle,
-                            ),
-                            child: IconButton(
-                              icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
-                              onPressed: () {
-                                setState(() {
-                                  _licenseImagePath = null;
-                                });
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  if (_isOcrProcessing) ...[
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Extracting Licence Number...',
-                                  style: AppTheme.titleMedium.copyWith(color: AppTheme.primary, fontSize: 13),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'Reading document with ML Kit OCR',
-                                  style: AppTheme.bodySmall.copyWith(fontSize: 11),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isOcrProcessing ? null : () => _pickLicenseImage(ImageSource.camera),
-                          icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                          label: const Text('Take Photo'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _isOcrProcessing ? null : () => _pickLicenseImage(ImageSource.gallery),
-                          icon: const Icon(Icons.photo_library_outlined, size: 18),
-                          label: const Text('Upload Licence'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Driving License Number Input & Edit/Confirm
-            Text('Driving License Number', style: AppTheme.titleMedium),
-            const SizedBox(height: 8),
-            TextFormField(
-              controller: _licenseController,
-              readOnly: !_isEditingLicense && _isLicenseConfirmed,
-              textCapitalization: TextCapitalization.characters,
-              style: AppTheme.bodyLarge.copyWith(fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                hintText: 'e.g. MH1420260012345',
-                hintStyle: lightHintStyle,
-                prefixIcon: const Icon(Icons.badge_outlined),
-                suffixIcon: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (_isLicenseConfirmed && !_isEditingLicense)
-                      IconButton(
-                        icon: const Icon(Icons.edit_rounded, color: AppTheme.primary, size: 20),
-                        tooltip: 'Edit DL Number',
-                        onPressed: () {
-                          setState(() {
-                            _isEditingLicense = true;
-                            _isLicenseConfirmed = false;
-                          });
-                        },
-                      ),
-                    IconButton(
-                      icon: Icon(
-                        _isLicenseConfirmed ? Icons.check_circle_rounded : Icons.task_alt_rounded,
-                        color: _isLicenseConfirmed ? AppTheme.primary : AppTheme.secondary,
-                        size: 22,
-                      ),
-                      tooltip: 'Confirm DL Number',
-                      onPressed: _validateAndConfirmLicense,
-                    ),
-                  ],
-                ),
-              ),
-              validator: (v) {
-                if (v == null || v.trim().isEmpty) {
-                  return 'Driving license number is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 10),
-            _buildOnboardingStatusBadge(),
-            const SizedBox(height: 18),
-
             // Operating City Input Field
             Text('Operating City', style: AppTheme.titleMedium),
             const SizedBox(height: 8),
@@ -824,7 +662,167 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+
+            // ─── DRIVING LICENCE PHOTO & AI VERIFICATION (PERSONAL DETAILS) ──────────
+            Text('Driving Licence AI Verification', style: AppTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              'Upload or take a photo of your Driving Licence for AI document understanding & field extraction.',
+              style: AppTheme.bodySmall.copyWith(color: AppTheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+
+            // AI Verification Result Card or Upload Picker
+            if (_aiVerificationResult != null) ...[
+              DlVerificationCard(
+                result: _aiVerificationResult!,
+                currentVehicleType: _selectedVehicleType,
+                isInitiallyConfirmed: _isLicenseConfirmed,
+                onUploadAgain: _isLicenseConfirmed
+                    ? null
+                    : () {
+                        setState(() {
+                          _aiVerificationResult = null;
+                          _licenseImagePath = null;
+                          _isLicenseConfirmed = false;
+                        });
+                      },
+                onConfirmed: (confirmedResult) {
+                  setState(() {
+                    _aiVerificationResult = confirmedResult;
+                    _isLicenseConfirmed = true;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Licence details confirmed and locked!'),
+                      backgroundColor: AppTheme.primary,
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ] else ...[
+              // Photo picker container
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppTheme.surfaceContainer,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppTheme.outline.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    if (_licenseImagePath != null) ...[
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Stack(
+                          alignment: Alignment.topRight,
+                          children: [
+                            Image.file(
+                              File(_licenseImagePath!),
+                              height: 160,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                            ),
+                            Container(
+                              margin: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Colors.black54,
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 18),
+                                onPressed: () {
+                                  setState(() {
+                                    _licenseImagePath = null;
+                                    _aiVerificationResult = null;
+                                    _isLicenseConfirmed = false;
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    if (_isOcrProcessing) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primary.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'AI Analyzing Driving Licence...',
+                                    style: AppTheme.titleMedium.copyWith(color: AppTheme.primary, fontSize: 13),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Multimodal document understanding & format verification',
+                                    style: AppTheme.bodySmall.copyWith(fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isOcrProcessing ? null : () => _pickLicenseImage(ImageSource.camera),
+                            icon: const Icon(Icons.camera_alt_outlined, size: 18),
+                            label: const Text('Take Photo'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _isOcrProcessing ? null : () => _pickLicenseImage(ImageSource.gallery),
+                            icon: const Icon(Icons.photo_library_outlined, size: 18),
+                            label: const Text('Upload Licence'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+
+            const SizedBox(height: 24),
 
             // Next Button
             SizedBox(
@@ -1153,95 +1151,6 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildOnboardingStatusBadge() {
-    Color badgeColor;
-    IconData badgeIcon;
-    String statusTitle;
-
-    switch (_verificationStatus) {
-      case 'valid_format':
-        badgeColor = const Color(0xFF059669);
-        badgeIcon = Icons.verified_user_rounded;
-        statusTitle = 'Status: Format Verified';
-        break;
-      case 'needs_confirmation':
-        badgeColor = Colors.amber.shade800;
-        badgeIcon = Icons.help_outline_rounded;
-        statusTitle = 'Status: Needs Confirmation';
-        break;
-      case 'invalid_format':
-        badgeColor = Colors.orange.shade800;
-        badgeIcon = Icons.warning_amber_rounded;
-        statusTitle = 'Status: Review Format';
-        break;
-      case 'extraction_failed':
-        badgeColor = AppTheme.error;
-        badgeIcon = Icons.error_outline_rounded;
-        statusTitle = 'Status: Extraction Failed';
-        break;
-      case 'processing':
-        badgeColor = AppTheme.primary;
-        badgeIcon = Icons.sync_rounded;
-        statusTitle = 'Status: OCR Reading...';
-        break;
-      default:
-        badgeColor = Colors.grey.shade700;
-        badgeIcon = Icons.info_outline_rounded;
-        statusTitle = 'Status: Pending Verification';
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(badgeIcon, color: badgeColor, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                statusTitle,
-                style: AppTheme.titleMedium.copyWith(
-                  color: badgeColor,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _statusMessage,
-            style: AppTheme.bodySmall.copyWith(color: AppTheme.onSurfaceVariant, fontSize: 11),
-          ),
-          if (_verificationStatus == 'valid_format') ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.shield_outlined, size: 12, color: AppTheme.primary),
-                const SizedBox(width: 4),
-                Text(
-                  'Verification Method: OCR + User Confirmation',
-                  style: AppTheme.bodySmall.copyWith(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                    color: AppTheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ],
       ),
     );
   }

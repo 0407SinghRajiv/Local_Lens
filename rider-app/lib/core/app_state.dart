@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../models/driver.dart';
 import '../models/ride.dart';
@@ -56,15 +58,99 @@ class AppState extends ChangeNotifier {
                 event == AuthChangeEvent.tokenRefreshed ||
                 event == AuthChangeEvent.initialSession) &&
             session != null) {
-          _driver = await _driverRepo.getDriver(session.user.id);
-          await _driverRepo.updateDriver(_driver!);
+          final loadedDriver = await _driverRepo.getDriver(session.user.id);
+          final localDriver = await _loadDriverSession(session.user.id);
+          final isReg = (localDriver?.isRegistrationCompleted ?? false) ||
+              loadedDriver.isRegistrationCompleted ||
+              loadedDriver.isProfileCompleted;
+
+          _driver = loadedDriver.copyWith(
+            name: loadedDriver.name.isNotEmpty && loadedDriver.name != 'Rider'
+                ? loadedDriver.name
+                : (localDriver?.name ?? loadedDriver.name),
+            phone: loadedDriver.phone.isNotEmpty
+                ? loadedDriver.phone
+                : (localDriver?.phone ?? loadedDriver.phone),
+            vehicleNumber: loadedDriver.vehicleNumber.isNotEmpty
+                ? loadedDriver.vehicleNumber
+                : (localDriver?.vehicleNumber ?? loadedDriver.vehicleNumber),
+            vehicleModel: loadedDriver.vehicleModel.isNotEmpty
+                ? loadedDriver.vehicleModel
+                : (localDriver?.vehicleModel ?? loadedDriver.vehicleModel),
+            licenseNumber: loadedDriver.licenseNumber.isNotEmpty
+                ? loadedDriver.licenseNumber
+                : (localDriver?.licenseNumber ?? loadedDriver.licenseNumber),
+            isRegistrationCompleted: isReg,
+          );
+
+          if (isReg) {
+            await _driverRepo.updateDriver(_driver!);
+            await _saveDriverSession(_driver!);
+          }
           await _initCurrentLocation();
           notifyListeners();
         } else if (event == AuthChangeEvent.signedOut) {
           _driver = null;
+          await _clearDriverSession();
           notifyListeners();
         }
       });
+    }
+  }
+
+  // ─── Local SharedPreferences Driver Session Persistence ───
+  Future<void> _saveDriverSession(Driver driver) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('is_driver_registered_${driver.id}', true);
+      await prefs.setBool('is_driver_registered_${driver.userId}', true);
+      await prefs.setBool('is_driver_registered_global', true);
+      await prefs.setString('saved_driver_json', jsonEncode(driver.toJson()));
+      debugPrint('[AppState] Saved registration & profile locally for driver: ${driver.name} (${driver.id})');
+    } catch (e) {
+      debugPrint('[AppState] Notice: Error saving driver session to prefs: $e');
+    }
+  }
+
+  Future<Driver?> _loadDriverSession(String? userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final isGlobalReg = prefs.getBool('is_driver_registered_global') ?? false;
+      final isUserReg = userId != null ? (prefs.getBool('is_driver_registered_$userId') ?? false) : false;
+
+      final jsonStr = prefs.getString('saved_driver_json');
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final map = jsonDecode(jsonStr);
+        final driver = Driver.fromJson(map);
+        if (isGlobalReg || isUserReg || driver.isRegistrationCompleted || driver.isProfileCompleted) {
+          return driver.copyWith(isRegistrationCompleted: true);
+        }
+        return driver;
+      } else if (isGlobalReg || isUserReg) {
+        return Driver.mock().copyWith(
+          id: userId ?? 'driver_001',
+          userId: userId ?? 'user_001',
+          isRegistrationCompleted: true,
+        );
+      }
+    } catch (e) {
+      debugPrint('[AppState] Notice: Error loading driver session: $e');
+    }
+    return null;
+  }
+
+  Future<void> _clearDriverSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('is_driver_registered_global');
+      final userId = _driver?.id;
+      if (userId != null) {
+        await prefs.remove('is_driver_registered_$userId');
+      }
+      await prefs.remove('saved_driver_json');
+      debugPrint('[AppState] Cleared persisted driver session from prefs');
+    } catch (e) {
+      debugPrint('[AppState] Notice: Error clearing driver session: $e');
     }
   }
 
@@ -77,7 +163,7 @@ class AppState extends ChangeNotifier {
   String? get error => _error;
   int get countdownSeconds => _countdownSeconds;
   bool get isOnline => _driver?.isOnline ?? false;
-  bool get isAuthenticated => _authService.isAuthenticated;
+  bool get isAuthenticated => _authService.isAuthenticated || _driver?.isRegistrationCompleted == true;
   bool get hasActiveRide => _activeRide != null;
   bool get hasPendingRequest => _pendingRequest != null;
   MockRealtimeService? get realtimeService {
@@ -90,24 +176,71 @@ class AppState extends ChangeNotifier {
     return svc is MockLocationService ? svc : null;
   }
 
+  /// Fetch list of rides completed/history for current driver
+  Future<List<Ride>> getDriverRidesHistory() async {
+    if (_driver == null) return [];
+    try {
+      return await _rideRepo.getDriverRides(_driver!.id);
+    } catch (e) {
+      debugPrint('[AppState] Error fetching driver rides history: $e');
+      return [];
+    }
+  }
+
   // ─── Auth ───
   /// Initial authentication check on app launch.
-  /// If already authenticated (e.g., existing session in Supabase or mock service),
+  /// If already authenticated (e.g., existing session in Supabase, Mock, or SharedPreferences),
   /// loads driver profile and returns true so app can redirect directly to HomeScreen.
   Future<bool> initAuth() async {
     _setLoading(true);
     try {
-      if (_authService.isAuthenticated) {
-        final authService = _authService;
-        final userId = (authService is SupabaseAuthService)
-            ? authService.currentUser?.id
-            : null;
+      final authService = _authService;
+      String? userId;
+      if (authService is SupabaseAuthService) {
+        userId = authService.currentUser?.id;
+      }
 
+      final localDriver = await _loadDriverSession(userId);
+
+      if (authService.isAuthenticated || localDriver != null) {
         if (userId != null) {
-          _driver = await _driverRepo.getDriver(userId);
-          await _driverRepo.updateDriver(_driver!);
+          try {
+            final remoteDriver = await _driverRepo.getDriver(userId);
+            final isReg = (localDriver?.isRegistrationCompleted ?? false) ||
+                remoteDriver.isRegistrationCompleted ||
+                remoteDriver.isProfileCompleted;
+
+            _driver = remoteDriver.copyWith(
+              name: remoteDriver.name.isNotEmpty && remoteDriver.name != 'Rider'
+                  ? remoteDriver.name
+                  : (localDriver?.name ?? remoteDriver.name),
+              phone: remoteDriver.phone.isNotEmpty
+                  ? remoteDriver.phone
+                  : (localDriver?.phone ?? remoteDriver.phone),
+              vehicleNumber: remoteDriver.vehicleNumber.isNotEmpty
+                  ? remoteDriver.vehicleNumber
+                  : (localDriver?.vehicleNumber ?? remoteDriver.vehicleNumber),
+              vehicleModel: remoteDriver.vehicleModel.isNotEmpty
+                  ? remoteDriver.vehicleModel
+                  : (localDriver?.vehicleModel ?? remoteDriver.vehicleModel),
+              vehicleColor: remoteDriver.vehicleColor.isNotEmpty
+                  ? remoteDriver.vehicleColor
+                  : (localDriver?.vehicleColor ?? remoteDriver.vehicleColor),
+              licenseNumber: remoteDriver.licenseNumber.isNotEmpty
+                  ? remoteDriver.licenseNumber
+                  : (localDriver?.licenseNumber ?? remoteDriver.licenseNumber),
+              isRegistrationCompleted: isReg,
+            );
+          } catch (_) {
+            _driver = localDriver ?? authService.currentDriver ?? await _driverRepo.getDriver(userId);
+          }
         } else {
-          _driver = authService.currentDriver ?? await _driverRepo.getDriver('driver_001');
+          _driver = localDriver ?? authService.currentDriver ?? await _driverRepo.getDriver('driver_001');
+        }
+
+        if (_driver != null && ((localDriver?.isRegistrationCompleted == true) || _driver!.isProfileCompleted)) {
+          _driver = _driver!.copyWith(isRegistrationCompleted: true);
+          await _saveDriverSession(_driver!);
         }
 
         await _initCurrentLocation();
@@ -135,9 +268,28 @@ class AppState extends ChangeNotifier {
             : null;
         if (userId != null) {
           _driver = await _driverRepo.getDriver(userId);
-          await _driverRepo.updateDriver(_driver!);
         }
       }
+
+      final localDriver = await _loadDriverSession(_driver?.id ?? _driver?.userId);
+      if (localDriver != null) {
+        final isReg = localDriver.isRegistrationCompleted || (_driver?.isProfileCompleted ?? false);
+        _driver = (_driver ?? localDriver).copyWith(
+          name: (_driver?.name.isNotEmpty ?? false) && _driver?.name != 'Rider' ? _driver!.name : localDriver.name,
+          phone: (_driver?.phone.isNotEmpty ?? false) ? _driver!.phone : localDriver.phone,
+          vehicleNumber: (_driver?.vehicleNumber.isNotEmpty ?? false) ? _driver!.vehicleNumber : localDriver.vehicleNumber,
+          vehicleModel: (_driver?.vehicleModel.isNotEmpty ?? false) ? _driver!.vehicleModel : localDriver.vehicleModel,
+          licenseNumber: (_driver?.licenseNumber.isNotEmpty ?? false) ? _driver!.licenseNumber : localDriver.licenseNumber,
+          isRegistrationCompleted: isReg,
+        );
+      }
+
+      if (_driver != null && _driver!.isProfileCompleted) {
+        _driver = _driver!.copyWith(isRegistrationCompleted: true);
+        await _driverRepo.updateDriver(_driver!);
+        await _saveDriverSession(_driver!);
+      }
+
       await _initCurrentLocation();
       notifyListeners();
       return _driver != null || _authService.isAuthenticated;
@@ -162,29 +314,38 @@ class AppState extends ChangeNotifier {
       if (result != null && result is AuthResponse && result.user != null) {
         final user = result.user!;
         _driver = await _driverRepo.getDriver(user.id);
-        await _driverRepo.updateDriver(_driver!);
-        await _initCurrentLocation();
-        notifyListeners();
-        return true;
       } else if (_authService.currentDriver != null) {
         _driver = _authService.currentDriver;
-        await _driverRepo.updateDriver(_driver!);
-        await _initCurrentLocation();
-        notifyListeners();
-        return true;
       } else if (_authService.isAuthenticated) {
         final authService = _authService;
         final user = (authService is SupabaseAuthService) ? authService.currentUser : null;
         if (user != null) {
           _driver = await _driverRepo.getDriver(user.id);
-          await _driverRepo.updateDriver(_driver!);
         }
-        await _initCurrentLocation();
-        notifyListeners();
-        return true;
       }
 
-      return _authService.isAuthenticated;
+      final localDriver = await _loadDriverSession(_driver?.id ?? _driver?.userId);
+      if (localDriver != null) {
+        final isReg = localDriver.isRegistrationCompleted || (_driver?.isProfileCompleted ?? false);
+        _driver = (_driver ?? localDriver).copyWith(
+          name: (_driver?.name.isNotEmpty ?? false) && _driver?.name != 'Rider' ? _driver!.name : localDriver.name,
+          phone: (_driver?.phone.isNotEmpty ?? false) ? _driver!.phone : localDriver.phone,
+          vehicleNumber: (_driver?.vehicleNumber.isNotEmpty ?? false) ? _driver!.vehicleNumber : localDriver.vehicleNumber,
+          vehicleModel: (_driver?.vehicleModel.isNotEmpty ?? false) ? _driver!.vehicleModel : localDriver.vehicleModel,
+          licenseNumber: (_driver?.licenseNumber.isNotEmpty ?? false) ? _driver!.licenseNumber : localDriver.licenseNumber,
+          isRegistrationCompleted: isReg,
+        );
+      }
+
+      if (_driver != null && _driver!.isProfileCompleted) {
+        _driver = _driver!.copyWith(isRegistrationCompleted: true);
+        await _driverRepo.updateDriver(_driver!);
+        await _saveDriverSession(_driver!);
+      }
+
+      await _initCurrentLocation();
+      notifyListeners();
+      return _driver != null || _authService.isAuthenticated;
     } on AuthException catch (e) {
       _setError(e.message);
       return false;
@@ -196,13 +357,15 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  /// Complete 2-step onboarding and update Supabase `riders` table
+  /// Complete 2-step onboarding and update Supabase `riders` table + local SharedPreferences
   Future<void> completeDriverOnboarding(Driver updatedDriver) async {
     _setLoading(true);
     try {
-      _driver = updatedDriver;
-      await _driverRepo.updateDriver(_driver!);
-      debugPrint('[AppState] Onboarding completed for driver ${_driver?.name}');
+      final completedDriver = updatedDriver.copyWith(isRegistrationCompleted: true);
+      _driver = completedDriver;
+      await _driverRepo.updateDriver(completedDriver);
+      await _saveDriverSession(completedDriver);
+      debugPrint('[AppState] Onboarding completed & persisted for driver ${completedDriver.name}');
       notifyListeners();
     } catch (e) {
       _setError('Failed to update driver profile: $e');
@@ -225,12 +388,14 @@ class AppState extends ChangeNotifier {
 
   Future<void> logout() async {
     await goOffline();
+    await _clearDriverSession();
     await _authService.logout();
     _driver = null;
     _activeRide = null;
     _pendingRequest = null;
     notifyListeners();
   }
+
 
   // ─── Online/Offline ───
   Future<void> goOnline() async {
