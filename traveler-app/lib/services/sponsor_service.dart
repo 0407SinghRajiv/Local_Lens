@@ -30,8 +30,7 @@ class SponsorService {
             .lte('start_at', nowIso)
             .gt('end_at', nowIso);
 
-        if (data is List) {
-          for (final row in data) {
+        for (final row in data) {
             final map = Map<String, dynamic>.from(row as Map);
             
             // Query related experience if listing_id exists
@@ -57,8 +56,6 @@ class SponsorService {
 
             results.add(SponsoredExperience.fromJson(map));
           }
-        }
-
         if (results.isNotEmpty) {
           return results;
         }

@@ -231,7 +231,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 children: [
                                   Text(
                                     'Plan with Local AI',
-                                    style: LocalLensTypography.bodySmall.copyWith(
+                                    style: LocalLensTypography.caption.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
                                     ),
@@ -366,7 +366,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     },
                     child: Text(
                       'See all',
-                      style: LocalLensTypography.bodySmall.copyWith(
+                      style: LocalLensTypography.caption.copyWith(
                         color: LocalLensColors.primaryTeal,
                         fontWeight: FontWeight.w700,
                       ),
@@ -380,16 +380,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 height: 230,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
-                  itemCount: MockData.sampleExperiences.length,
+                  itemCount: LocalLensMockData.featuredExperiences.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 14),
                   itemBuilder: (context, index) {
-                    final exp = MockData.sampleExperiences[index];
+                    final exp = LocalLensMockData.featuredExperiences[index];
                     return GestureDetector(
                       onTap: () {
-                        context.push(
-                          AppRoutes.travelerExperienceDetails,
-                          extra: exp,
-                        );
+                        context.push(AppRoutes.experienceDetails);
                       },
                       child: Container(
                         width: 170,
@@ -405,7 +402,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ClipRRect(
                               borderRadius: const BorderRadius.vertical(top: Radius.circular(LocalLensDimensions.radiusMedium)),
                               child: Image.asset(
-                                exp.imagePath,
+                                exp.imageUrl,
                                 height: 110,
                                 width: double.infinity,
                                 fit: BoxFit.cover,
@@ -430,7 +427,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   const SizedBox(height: 4),
                                   Row(
                                     children: [
-                                      const Icon(Icons.star_rounded, size: 14, color: LocalLensColors.ratingStar),
+                                      const Icon(Icons.star_rounded, size: 14, color: LocalLensColors.accentOrange),
                                       const SizedBox(width: 2),
                                       Text(
                                         exp.rating.toString(),
@@ -452,7 +449,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   const SizedBox(height: 8),
                                   Text(
                                     '₹${exp.priceInr.toInt()}',
-                                    style: LocalLensTypography.bodySmall.copyWith(
+                                    style: LocalLensTypography.caption.copyWith(
                                       fontWeight: FontWeight.w800,
                                       color: LocalLensColors.primaryTeal,
                                     ),
@@ -561,7 +558,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             const SizedBox(width: 6),
             Text(
               label,
-              style: LocalLensTypography.bodySmall.copyWith(
+              style: LocalLensTypography.caption.copyWith(
                 color: isSelected ? Colors.white : LocalLensColors.textPrimary,
                 fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
               ),
