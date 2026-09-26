@@ -32,6 +32,39 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
     'Multiple days',
   ];
 
+  DateTime _selectedDate = DateTime(2025, 10, 12);
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: LocalLensColors.primaryTeal,
+              onPrimary: Colors.white,
+              onSurface: LocalLensColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        _selectedDate = picked;
+      });
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return '${date.day} ${months[date.month - 1]} ${date.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,7 +99,7 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
                 ),
                 child: TextField(
                   decoration: InputDecoration(
-                    hintText: 'Search destination',
+                    hintText: 'Search destination (e.g. Panvel, Goa)',
                     hintStyle: LocalLensTypography.bodyMedium,
                     prefixIcon: const Icon(Icons.search_rounded, color: LocalLensColors.textMuted),
                     border: InputBorder.none,
@@ -107,25 +140,28 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
               // When are you traveling? Date Picker
               Text('When are you traveling?', style: LocalLensTypography.titleMedium),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                  border: Border.all(color: LocalLensColors.border),
-                  boxShadow: LocalLensDimensions.softCardShadow,
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.calendar_month_rounded, color: LocalLensColors.primaryTeal),
-                    const SizedBox(width: 12),
-                    Text(
-                      '12 Oct 2025',
-                      style: LocalLensTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const Spacer(),
-                    const Icon(Icons.keyboard_arrow_down_rounded, color: LocalLensColors.textMuted),
-                  ],
+              GestureDetector(
+                onTap: _pickDate,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+                    border: Border.all(color: LocalLensColors.border),
+                    boxShadow: LocalLensDimensions.softCardShadow,
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_month_rounded, color: LocalLensColors.primaryTeal),
+                      const SizedBox(width: 12),
+                      Text(
+                        _formatDate(_selectedDate),
+                        style: LocalLensTypography.bodyLarge.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const Spacer(),
+                      const Icon(Icons.keyboard_arrow_down_rounded, color: LocalLensColors.textMuted),
+                    ],
+                  ),
                 ),
               ),
 

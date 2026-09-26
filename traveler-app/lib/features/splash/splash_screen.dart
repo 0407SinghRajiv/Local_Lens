@@ -1,13 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/theme/app_colors.dart';
+import '../../core/routes/app_routes.dart';
+import '../../core/theme/locallens_design_system.dart';
 import '../../providers/initialization_provider.dart';
-import 'splash_controller.dart';
-import 'widgets/animated_logo.dart';
-import 'widgets/loading_dots.dart';
-import 'widgets/travel_motif_painter.dart';
+import '../../widgets/common/locallens_components.dart';
 
+/// Screen 1: Splash Screen matching exact reference design
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -16,142 +16,191 @@ class SplashScreen extends ConsumerStatefulWidget {
 }
 
 class _SplashScreenState extends ConsumerState<SplashScreen>
-    with TickerProviderStateMixin {
-  late final AnimationController _entranceController;
-  late final AnimationController _motifController;
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+  late final Animation<double> _fadeAnim;
+  late final Animation<double> _scaleAnim;
   bool _hasNavigated = false;
+  Timer? _fallbackTimer;
 
   @override
   void initState() {
     super.initState();
-    _entranceController = AnimationController(
+    _animController = AnimationController(
       vsync: this,
-      duration: SplashAnimationConstants.entranceDuration,
+      duration: const Duration(milliseconds: 1400),
     )..forward();
 
-    _motifController = AnimationController(
-      vsync: this,
-      duration: SplashAnimationConstants.loopDuration,
-    )..repeat();
+    _fadeAnim = CurvedAnimation(
+      parent: _animController,
+      curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+    );
+
+    _scaleAnim = Tween<double>(begin: 0.92, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _animController,
+        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Fallback timer in case provider takes slightly longer (1.8s)
+    _fallbackTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (mounted && !_hasNavigated) {
+        _navigateToRoute(AppRoutes.welcome);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _entranceController.dispose();
-    _motifController.dispose();
+    _animController.dispose();
+    _fallbackTimer?.cancel();
     super.dispose();
   }
 
   void _navigateToRoute(String targetRoute) {
     if (_hasNavigated || !mounted) return;
     _hasNavigated = true;
+    _fallbackTimer?.cancel();
     context.go(targetRoute);
   }
 
   @override
   Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final gradient = AppColors.splashGradient(brightness);
     final initStateAsync = ref.watch(initializationProvider);
 
-    // If state is already initialized (e.g. cached or completed), navigate immediately
+    // If state is already initialized, navigate
     initStateAsync.whenData((state) {
       if (state.isInitialized && !_hasNavigated) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _navigateToRoute(state.targetRoute);
+        Timer(const Duration(milliseconds: 1400), () {
+          if (mounted && !_hasNavigated) {
+            _navigateToRoute(state.targetRoute == AppRoutes.onboarding ? AppRoutes.welcome : state.targetRoute);
+          }
         });
       }
     });
 
-    // Listen to future transitions
     ref.listen<AsyncValue<AppInitState>>(initializationProvider, (previous, next) {
       next.whenData((state) {
         if (state.isInitialized && !_hasNavigated) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _navigateToRoute(state.targetRoute);
+          Timer(const Duration(milliseconds: 1400), () {
+            if (mounted && !_hasNavigated) {
+              _navigateToRoute(state.targetRoute == AppRoutes.onboarding ? AppRoutes.welcome : state.targetRoute);
+            }
           });
         }
       });
     });
 
     return Scaffold(
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Background Travel Gradient
-          DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: gradient,
-              ),
-            ),
-          ),
-
-          // Animated Flight Path Travel Motif
-          AnimatedBuilder(
-            animation: _motifController,
-            builder: (context, _) => CustomPaint(
-              painter: TravelMotifPainter(
-                animationProgress: _motifController.value,
-                brightness: brightness,
-              ),
-            ),
-          ),
-
-          // Centered Animated Logo + App Title
-          Center(
-            child: AnimatedLogo(
-              controller: _entranceController,
-            ),
-          ),
-
-          // Bottom Loading Dots or Error Message
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: 48,
-            child: SafeArea(
-              child: Center(
-                child: initStateAsync.when(
-                  data: (state) => state.errorMessage != null
-                      ? _buildErrorView(state.errorMessage!)
-                      : const MinimalLoadingDots(),
-                  loading: () => const MinimalLoadingDots(),
-                  error: (error, _) => _buildErrorView(error.toString()),
+      body: GestureDetector(
+        onTap: () {
+          // Allow instant skip on tap
+          _navigateToRoute(AppRoutes.welcome);
+        },
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Full-bleed Mountain Landscape & Traveler Hero Image
+            Image.asset(
+              'assets/images/onboarding/splash_traveler.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                decoration: const BoxDecoration(
+                  gradient: LocalLensColors.splashGradient,
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  Widget _buildErrorView(String message) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white, fontSize: 13),
+            // Subtle gradient overlay for pristine brand logo contrast
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.white.withValues(alpha: 0.95),
+                    Colors.white.withValues(alpha: 0.65),
+                    Colors.transparent,
+                    Colors.black.withValues(alpha: 0.25),
+                  ],
+                  stops: const [0.0, 0.22, 0.55, 1.0],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+
+            // Top Animated Brand Header (LocalLens + "See More. Experience Local.")
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 28),
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: ScaleTransition(
+                      scale: _scaleAnim,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.08),
+                              blurRadius: 20,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const LocalLensLogo(
+                          size: 42,
+                          showTagline: true,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+            // Bottom subtle pulsing loading indicator
+            Positioned(
+              bottom: 36,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Center(
+                  child: FadeTransition(
+                    opacity: _fadeAnim,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: List.generate(3, (index) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: index == 1
+                                ? LocalLensColors.accentOrange
+                                : LocalLensColors.primaryTeal,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.2),
+                                blurRadius: 6,
+                              ),
+                            ],
+                          ),
+                        );
+                      }),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        ElevatedButton.icon(
-          onPressed: () {
-            ref.invalidate(initializationProvider);
-          },
-          icon: const Icon(Icons.refresh, size: 16),
-          label: const Text('Retry Connection'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.white,
-            foregroundColor: AppColors.primaryDark,
-            elevation: 2,
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

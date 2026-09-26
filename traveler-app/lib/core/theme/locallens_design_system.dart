@@ -94,6 +94,13 @@ class LocalLensTypography {
     height: 1.35,
   );
 
+  static const TextStyle titleSmall = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.w600,
+    color: LocalLensColors.textPrimary,
+    height: 1.35,
+  );
+
   static const TextStyle bodyLarge = TextStyle(
     fontSize: 15,
     fontWeight: FontWeight.w500,
