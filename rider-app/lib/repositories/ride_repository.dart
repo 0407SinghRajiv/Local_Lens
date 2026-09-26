@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/supabase_config.dart';
 import '../models/ride.dart';
 
-/// Abstract ride repository for future Supabase integration
+/// Abstract ride repository for Supabase integration
 abstract class RideRepository {
   Future<Ride> getRide(String id);
   Future<void> updateRide(Ride ride);
@@ -54,3 +56,124 @@ class MockRideRepository extends RideRepository {
         .toList();
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SupabaseRideRepository — Real Supabase implementation
+// ─────────────────────────────────────────────────────────────────────────────
+class SupabaseRideRepository extends RideRepository {
+  SupabaseClient? get _client => SupabaseConfig.client;
+
+  @override
+  Future<Ride> getRide(String id) async {
+    final client = _client;
+    if (client == null) throw Exception('Supabase not initialized');
+
+    final response = await client
+        .from('rides')
+        .select()
+        .eq('id', id)
+        .single();
+
+    return _mapRowToRide(response);
+  }
+
+  @override
+  Future<void> updateRide(Ride ride) async {
+    final client = _client;
+    if (client == null) return;
+
+    try {
+      await client.from('rides').upsert({
+        'id': ride.id,
+        'passenger_id': ride.passengerId.isNotEmpty ? ride.passengerId : null,
+        'rider_id': ride.driverId,
+        'passenger_name': ride.passengerName,
+        'passenger_rating': ride.passengerRating,
+        'pickup_lat': ride.pickupLat,
+        'pickup_lng': ride.pickupLng,
+        'pickup_address': ride.pickupAddress,
+        'destination_lat': ride.destinationLat,
+        'destination_lng': ride.destinationLng,
+        'destination_address': ride.destinationAddress,
+        'fare': ride.fare,
+        'pickup_distance': ride.pickupDistance,
+        'trip_distance': ride.tripDistance,
+        'eta_minutes': ride.etaMinutes,
+        'status': ride.status.name,
+        'duration_minutes': ride.durationMinutes ?? ride.etaMinutes,
+        'updated_at': DateTime.now().toIso8601String(),
+        if (ride.startedAt != null) 'started_at': ride.startedAt!.toIso8601String(),
+        if (ride.completedAt != null) 'completed_at': ride.completedAt!.toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('[SupabaseRideRepo] Error updating ride: $e');
+    }
+  }
+
+  @override
+  Future<void> updateRideStatus(String rideId, RideStatus status) async {
+    final client = _client;
+    if (client == null) return;
+
+    try {
+      await client.from('rides').update({
+        'status': status.name,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', rideId);
+    } catch (e) {
+      debugPrint('[SupabaseRideRepo] Error updating ride status: $e');
+    }
+  }
+
+  @override
+  Future<List<Ride>> getDriverRides(String driverId) async {
+    final client = _client;
+    if (client == null) return [];
+
+    try {
+      final response = await client
+          .from('rides')
+          .select()
+          .eq('rider_id', driverId)
+          .order('created_at', ascending: false);
+
+      return (response as List).map((row) => _mapRowToRide(row)).toList();
+    } catch (e) {
+      debugPrint('[SupabaseRideRepo] Error getting driver rides: $e');
+      return [];
+    }
+  }
+
+  Ride _mapRowToRide(Map<String, dynamic> row) {
+    RideStatus parseStatus(String? str) {
+      return RideStatus.values.firstWhere(
+        (s) => s.name == str,
+        orElse: () => RideStatus.searching,
+      );
+    }
+
+    return Ride(
+      id: row['id'],
+      passengerId: row['passenger_id'] ?? row['traveler_id'] ?? '',
+      passengerName: row['passenger_name'] ?? row['traveler_name'] ?? 'Passenger',
+      passengerRating: (row['passenger_rating'] as num?)?.toDouble() ?? 4.8,
+      driverId: row['rider_id'] ?? row['driver_id'],
+      pickupLat: (row['pickup_lat'] as num?)?.toDouble() ?? 0.0,
+      pickupLng: (row['pickup_lng'] as num?)?.toDouble() ?? 0.0,
+      destinationLat: (row['destination_lat'] as num?)?.toDouble() ?? 0.0,
+      destinationLng: (row['destination_lng'] as num?)?.toDouble() ?? 0.0,
+      pickupAddress: row['pickup_address'] ?? '',
+      destinationAddress: row['destination_address'] ?? '',
+      fare: (row['fare'] as num?)?.toDouble() ?? 0.0,
+      pickupDistance: (row['pickup_distance'] as num?)?.toDouble() ?? 1.5,
+      tripDistance: (row['trip_distance'] as num?)?.toDouble() ?? (row['distance_km'] as num?)?.toDouble() ?? 5.0,
+      etaMinutes: row['eta_minutes'] ?? row['duration_minutes'] ?? 10,
+      status: parseStatus(row['status']),
+      createdAt: DateTime.parse(row['created_at'] ?? DateTime.now().toIso8601String()),
+      updatedAt: row['updated_at'] != null ? DateTime.parse(row['updated_at']) : null,
+      startedAt: row['started_at'] != null ? DateTime.parse(row['started_at']) : null,
+      completedAt: row['completed_at'] != null ? DateTime.parse(row['completed_at']) : null,
+    );
+  }
+}
+

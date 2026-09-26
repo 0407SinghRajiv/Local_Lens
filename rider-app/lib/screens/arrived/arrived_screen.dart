@@ -64,12 +64,12 @@ class ArrivedScreen extends StatelessWidget {
                   ),
                 ),
 
-                // Map
+                // Map — Real Google Maps (driver snapped to pickup)
                 Expanded(
                   flex: 4,
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: MockMapWidget(
+                    child: GoogleMapWidget(
                       driverLat: ride.pickupLat,
                       driverLng: ride.pickupLng,
                       pickupLat: ride.pickupLat,

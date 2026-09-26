@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../config/supabase_config.dart';
 import '../models/driver.dart';
 
 /// Abstract driver repository for future Supabase integration
@@ -50,3 +52,223 @@ class MockDriverRepository extends DriverRepository {
     debugPrint('[MockDriverRepo] Online status: $isOnline');
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SupabaseDriverRepository — Real Supabase implementation
+// ─────────────────────────────────────────────────────────────────────────────
+class SupabaseDriverRepository extends DriverRepository {
+  SupabaseClient? get _client => SupabaseConfig.client;
+
+  bool _isValidUuid(String str) {
+    final uuidRegExp = RegExp(
+      r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
+    );
+    return uuidRegExp.hasMatch(str.trim());
+  }
+
+  @override
+  Future<Driver> getDriver(String id) async {
+    final client = _client;
+    if (client == null) return Driver.mock();
+
+    String targetId = id.trim();
+    final currentUser = client.auth.currentUser;
+
+    if (!_isValidUuid(targetId)) {
+      if (currentUser != null && _isValidUuid(currentUser.id)) {
+        targetId = currentUser.id;
+      } else {
+        debugPrint('[SupabaseDriverRepo] Provided id ($id) is not a valid UUID. Returning mock driver.');
+        return Driver.mock();
+      }
+    }
+
+    try {
+      final response = await client
+          .from('riders')
+          .select()
+          .eq('id', targetId)
+          .maybeSingle();
+
+      if (response == null) {
+        // Driver profile doesn't exist in Supabase DB yet.
+        // Construct clean profile from Supabase Auth user metadata & insert into DB.
+        final email = currentUser?.email ?? '';
+        final rawName = currentUser?.userMetadata?['full_name'] ??
+            currentUser?.userMetadata?['name'] ??
+            (email.contains('@') ? email.split('@').first : 'Rider');
+        final name = (rawName is String && rawName.trim().isNotEmpty) ? rawName.trim() : 'Rider';
+        final avatar = currentUser?.userMetadata?['avatar_url'] ??
+            currentUser?.userMetadata?['picture'] ??
+            '';
+
+        final newDriver = Driver(
+          id: targetId,
+          userId: targetId,
+          name: name,
+          phone: currentUser?.phone ?? '',
+          email: email,
+          vehicleType: 'Sedan',
+          vehicleNumber: '',
+          vehicleModel: '',
+          profileImageUrl: avatar is String ? avatar : '',
+          rating: 4.9,
+          totalRides: 0,
+          todayEarnings: 0.0,
+          todayRides: 0,
+          isOnline: false,
+          isAvailable: false,
+          latitude: 19.0760,
+          longitude: 72.8777,
+          updatedAt: DateTime.now(),
+        );
+
+        debugPrint('[SupabaseDriverRepo] No existing rider record found for $targetId. Creating new rider in riders table...');
+        await updateDriver(newDriver);
+        return newDriver;
+      }
+
+      return Driver(
+        id: response['id']?.toString() ?? targetId,
+        userId: response['user_id']?.toString() ?? targetId,
+        name: response['name']?.toString() ?? 'Rider',
+        phone: response['phone']?.toString() ?? '',
+        email: response['email']?.toString() ?? '',
+        vehicleType: response['vehicle_type']?.toString() ?? 'Sedan',
+        vehicleNumber: response['vehicle_number']?.toString() ?? response['vehicle_plate']?.toString() ?? '',
+        vehicleModel: response['vehicle_model']?.toString() ?? '',
+        vehicleColor: response['vehicle_color']?.toString() ?? 'White',
+        profileImageUrl: response['profile_image_url']?.toString() ?? '',
+        licenseNumber: response['license_number']?.toString() ?? '',
+        licenseVerificationStatus: response['license_verification_status']?.toString() ??
+            (response['license_number'] != null && response['license_number'].toString().isNotEmpty
+                ? 'verified_format'
+                : 'not_uploaded'),
+        licenseVerificationMethod: response['license_verification_method']?.toString() ?? 'ocr',
+        licenseVerifiedAt: response['license_verified_at'] != null
+            ? DateTime.tryParse(response['license_verified_at'].toString())
+            : null,
+        rating: (response['rating'] as num?)?.toDouble() ?? 4.9,
+        totalRides: response['total_rides'] ?? 0,
+        todayEarnings: (response['today_earnings'] as num?)?.toDouble() ?? 0.0,
+        todayRides: response['today_rides'] ?? 0,
+        isOnline: response['is_online'] ?? false,
+        isAvailable: response['is_available'] ?? false,
+        latitude: (response['latitude'] as num?)?.toDouble() ?? 19.0760,
+        longitude: (response['longitude'] as num?)?.toDouble() ?? 72.8777,
+      );
+    } catch (e) {
+      debugPrint('[SupabaseDriverRepo] Error fetching driver: $e');
+      return Driver.mock().copyWith(id: targetId, userId: targetId);
+    }
+  }
+
+  @override
+  Future<void> updateDriver(Driver driver) async {
+    final client = _client;
+    if (client == null) return;
+
+    final currentUser = client.auth.currentUser;
+    String targetId = driver.id.trim();
+    if (!_isValidUuid(targetId) && currentUser != null && _isValidUuid(currentUser.id)) {
+      targetId = currentUser.id;
+    }
+
+    if (!_isValidUuid(targetId)) {
+      debugPrint('[SupabaseDriverRepo] Cannot update driver: invalid UUID (${driver.id})');
+      return;
+    }
+
+    String userId = driver.userId.trim();
+    if (!_isValidUuid(userId)) {
+      userId = targetId;
+    }
+
+    final payload = <String, dynamic>{
+      'id': targetId,
+      'user_id': userId,
+      'name': driver.name,
+      'phone': driver.phone,
+      'email': driver.email,
+      'profile_image_url': driver.profileImageUrl,
+      'vehicle_type': driver.vehicleType,
+      'vehicle_number': driver.vehicleNumber,
+      'vehicle_model': driver.vehicleModel,
+      'rating': driver.rating,
+      'total_rides': driver.totalRides,
+      'today_earnings': driver.todayEarnings,
+      'today_rides': driver.todayRides,
+      'is_online': driver.isOnline,
+      'is_available': driver.isAvailable,
+      'latitude': driver.latitude,
+      'longitude': driver.longitude,
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    // Include extended fields if available
+    if (driver.licenseNumber.isNotEmpty) {
+      payload['license_number'] = driver.licenseNumber;
+    }
+
+    try {
+      await client.from('riders').upsert(payload);
+      debugPrint('[SupabaseDriverRepo] Successfully upserted rider row in Supabase: id=$targetId, name=${driver.name}, vehicle=${driver.vehicleNumber}, DL=${driver.licenseNumber}');
+    } catch (e) {
+      debugPrint('[SupabaseDriverRepo] Error updating driver in Supabase riders table: $e');
+    }
+  }
+
+  @override
+  Future<void> updateLocation(String driverId, double lat, double lng) async {
+    final client = _client;
+    if (client == null) return;
+
+    String targetId = driverId.trim();
+    if (!_isValidUuid(targetId)) {
+      final currentUser = client.auth.currentUser;
+      if (currentUser != null && _isValidUuid(currentUser.id)) {
+        targetId = currentUser.id;
+      } else {
+        return;
+      }
+    }
+
+    try {
+      await client.from('riders').update({
+        'latitude': lat,
+        'longitude': lng,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', targetId);
+    } catch (e) {
+      debugPrint('[SupabaseDriverRepo] Error updating location: $e');
+    }
+  }
+
+  @override
+  Future<void> setOnlineStatus(String driverId, bool isOnline) async {
+    final client = _client;
+    if (client == null) return;
+
+    String targetId = driverId.trim();
+    if (!_isValidUuid(targetId)) {
+      final currentUser = client.auth.currentUser;
+      if (currentUser != null && _isValidUuid(currentUser.id)) {
+        targetId = currentUser.id;
+      } else {
+        return;
+      }
+    }
+
+    try {
+      await client.from('riders').update({
+        'is_online': isOnline,
+        'is_available': isOnline,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('id', targetId);
+      debugPrint('[SupabaseDriverRepo] Set online status=$isOnline for driverId=$targetId');
+    } catch (e) {
+      debugPrint('[SupabaseDriverRepo] Error updating online status: $e');
+    }
+  }
+}
+

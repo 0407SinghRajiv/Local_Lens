@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 
+import 'config/supabase_config.dart';
 import 'core/app_state.dart';
 import 'core/theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -12,6 +14,7 @@ import 'repositories/ride_repository.dart';
 
 import 'screens/splash/splash_screen.dart';
 import 'screens/login/login_screen.dart';
+import 'screens/onboarding/driver_onboarding_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/ride_request/ride_request_screen.dart';
 import 'screens/pickup/pickup_screen.dart';
@@ -19,9 +22,20 @@ import 'screens/arrived/arrived_screen.dart';
 import 'screens/active_ride/active_ride_screen.dart';
 import 'screens/completed/completed_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'screens/car_details/car_details_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load environment variables (.env)
+  try {
+    await dotenv.load(fileName: ".env");
+  } catch (e) {
+    debugPrint('[Env] Notice: .env file not found or empty: $e');
+  }
+
+  // Initialize Supabase (loads credentials from .env)
+  await SupabaseConfig.initialize();
 
   // Set preferred orientations
   SystemChrome.setPreferredOrientations([
@@ -34,12 +48,19 @@ void main() {
     statusBarIconBrightness: Brightness.dark,
   ));
 
-  // Create services (swap these for real implementations later)
-  final authService = MockAuthService();
-  final locationService = MockLocationService();
+  // ── Real Services & Fallback ─────────────────────────────────────────────
+  final authService = SupabaseConfig.isInitialized
+      ? SupabaseAuthService()
+      : MockAuthService();
+  final locationService = GeolocatorLocationService(); // Real GPS location
   final realtimeService = MockRealtimeService();
-  final driverRepo = MockDriverRepository();
-  final rideRepo = MockRideRepository();
+  final driverRepo = SupabaseConfig.isInitialized
+      ? SupabaseDriverRepository()
+      : MockDriverRepository();
+  final rideRepo = SupabaseConfig.isInitialized
+      ? SupabaseRideRepository()
+      : MockRideRepository();
+  // ──────────────────────────────────────────────────────────────────────────
 
   runApp(
     ChangeNotifierProvider(
@@ -68,6 +89,7 @@ class NearbyRideDriverApp extends StatelessWidget {
       routes: {
         '/': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
+        '/onboarding': (context) => const DriverOnboardingScreen(),
         '/home': (context) => const HomeScreen(),
         '/ride-request': (context) => const RideRequestScreen(),
         '/pickup': (context) => const PickupScreen(),
@@ -75,6 +97,7 @@ class NearbyRideDriverApp extends StatelessWidget {
         '/active-ride': (context) => const ActiveRideScreen(),
         '/completed': (context) => const CompletedScreen(),
         '/profile': (context) => const ProfileScreen(),
+        '/car-details': (context) => const CarDetailsScreen(),
       },
     );
   }

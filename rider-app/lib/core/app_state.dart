@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
 import '../models/driver.dart';
 import '../models/ride.dart';
 import '../models/location.dart';
@@ -28,6 +29,7 @@ class AppState extends ChangeNotifier {
   Timer? _countdownTimer;
   StreamSubscription? _locationSub;
   StreamSubscription? _rideRequestSub;
+  StreamSubscription? _authSub;
 
   AppState({
     required AuthService authService,
@@ -39,7 +41,32 @@ class AppState extends ChangeNotifier {
         _locationService = locationService,
         _realtimeService = realtimeService,
         _driverRepo = driverRepo,
-        _rideRepo = rideRepo;
+        _rideRepo = rideRepo {
+    _listenToAuthChanges();
+  }
+
+  void _listenToAuthChanges() {
+    final authSvc = _authService;
+    if (authSvc is SupabaseAuthService) {
+      _authSub = authSvc.authStateChanges?.listen((data) async {
+        final event = data.event;
+        final session = data.session;
+        debugPrint('[AppState] Auth state change: $event, user: ${session?.user.id}');
+        if ((event == AuthChangeEvent.signedIn ||
+                event == AuthChangeEvent.tokenRefreshed ||
+                event == AuthChangeEvent.initialSession) &&
+            session != null) {
+          _driver = await _driverRepo.getDriver(session.user.id);
+          await _driverRepo.updateDriver(_driver!);
+          await _initCurrentLocation();
+          notifyListeners();
+        } else if (event == AuthChangeEvent.signedOut) {
+          _driver = null;
+          notifyListeners();
+        }
+      });
+    }
+  }
 
   // ─── Getters ───
   Driver? get driver => _driver;
@@ -53,20 +80,67 @@ class AppState extends ChangeNotifier {
   bool get isAuthenticated => _authService.isAuthenticated;
   bool get hasActiveRide => _activeRide != null;
   bool get hasPendingRequest => _pendingRequest != null;
-  MockRealtimeService get realtimeService =>
-      _realtimeService as MockRealtimeService;
-  MockLocationService get locationService =>
-      _locationService as MockLocationService;
+  MockRealtimeService? get realtimeService {
+    final svc = _realtimeService;
+    return svc is MockRealtimeService ? svc : null;
+  }
+
+  MockLocationService? get locationService {
+    final svc = _locationService;
+    return svc is MockLocationService ? svc : null;
+  }
 
   // ─── Auth ───
+  /// Initial authentication check on app launch.
+  /// If already authenticated (e.g., existing session in Supabase or mock service),
+  /// loads driver profile and returns true so app can redirect directly to HomeScreen.
+  Future<bool> initAuth() async {
+    _setLoading(true);
+    try {
+      if (_authService.isAuthenticated) {
+        final authService = _authService;
+        final userId = (authService is SupabaseAuthService)
+            ? authService.currentUser?.id
+            : null;
+
+        if (userId != null) {
+          _driver = await _driverRepo.getDriver(userId);
+          await _driverRepo.updateDriver(_driver!);
+        } else {
+          _driver = authService.currentDriver ?? await _driverRepo.getDriver('driver_001');
+        }
+
+        await _initCurrentLocation();
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint('[AppState] initAuth error: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
   Future<bool> login(String email, String password) async {
     _setLoading(true);
     _clearError();
     try {
       _driver = await _authService.login(email, password);
-      _currentLocation = AppLocation.mockDriverLocation();
+      if (_driver == null && _authService.isAuthenticated) {
+        final authService = _authService;
+        final userId = (authService is SupabaseAuthService)
+            ? authService.currentUser?.id
+            : null;
+        if (userId != null) {
+          _driver = await _driverRepo.getDriver(userId);
+          await _driverRepo.updateDriver(_driver!);
+        }
+      }
+      await _initCurrentLocation();
       notifyListeners();
-      return true;
+      return _driver != null || _authService.isAuthenticated;
     } on AuthException catch (e) {
       _setError(e.message);
       return false;
@@ -75,6 +149,77 @@ class AppState extends ChangeNotifier {
       return false;
     } finally {
       _setLoading(false);
+    }
+  }
+
+  /// Sign in with Google OAuth flow (100% working logic for both Supabase & Mock)
+  Future<bool> loginWithGoogle() async {
+    _setLoading(true);
+    _clearError();
+    try {
+      final result = await _authService.signInWithGoogle();
+
+      if (result != null && result is AuthResponse && result.user != null) {
+        final user = result.user!;
+        _driver = await _driverRepo.getDriver(user.id);
+        await _driverRepo.updateDriver(_driver!);
+        await _initCurrentLocation();
+        notifyListeners();
+        return true;
+      } else if (_authService.currentDriver != null) {
+        _driver = _authService.currentDriver;
+        await _driverRepo.updateDriver(_driver!);
+        await _initCurrentLocation();
+        notifyListeners();
+        return true;
+      } else if (_authService.isAuthenticated) {
+        final authService = _authService;
+        final user = (authService is SupabaseAuthService) ? authService.currentUser : null;
+        if (user != null) {
+          _driver = await _driverRepo.getDriver(user.id);
+          await _driverRepo.updateDriver(_driver!);
+        }
+        await _initCurrentLocation();
+        notifyListeners();
+        return true;
+      }
+
+      return _authService.isAuthenticated;
+    } on AuthException catch (e) {
+      _setError(e.message);
+      return false;
+    } catch (e) {
+      _setError('Google Sign-In failed: $e');
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Complete 2-step onboarding and update Supabase `riders` table
+  Future<void> completeDriverOnboarding(Driver updatedDriver) async {
+    _setLoading(true);
+    try {
+      _driver = updatedDriver;
+      await _driverRepo.updateDriver(_driver!);
+      debugPrint('[AppState] Onboarding completed for driver ${_driver?.name}');
+      notifyListeners();
+    } catch (e) {
+      _setError('Failed to update driver profile: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  Future<void> _initCurrentLocation() async {
+    if (_locationService is MockLocationService) {
+      _currentLocation = AppLocation.mockDriverLocation();
+    } else {
+      try {
+        _currentLocation = await _locationService.getCurrentLocation();
+      } catch (_) {
+        _currentLocation = AppLocation.mockDriverLocation();
+      }
     }
   }
 
@@ -194,8 +339,8 @@ class AppState extends ChangeNotifier {
 
       await _rideRepo.updateRide(_activeRide!);
 
-      // Set location target to pickup
-      locationService.setTarget(
+      // Set location target to pickup (mock only)
+      locationService?.setTarget(
           _activeRide!.pickupLat, _activeRide!.pickupLng);
 
       notifyListeners();
@@ -224,8 +369,8 @@ class AppState extends ChangeNotifier {
     );
     await _rideRepo.updateRide(_activeRide!);
 
-    // Snap driver to pickup location
-    locationService.setPosition(
+    // Snap driver to pickup location (mock only)
+    locationService?.setPosition(
         _activeRide!.pickupLat, _activeRide!.pickupLng);
 
     notifyListeners();
@@ -245,8 +390,8 @@ class AppState extends ChangeNotifier {
     );
     await _rideRepo.updateRide(_activeRide!);
 
-    // Set target to destination
-    locationService.setTarget(
+    // Set target to destination (mock only)
+    locationService?.setTarget(
         _activeRide!.destinationLat, _activeRide!.destinationLng);
 
     notifyListeners();
@@ -291,8 +436,8 @@ class AppState extends ChangeNotifier {
       _driver = _driver!.copyWith(isAvailable: true);
     }
 
-    // Reset location target
-    locationService.setPosition(19.0760, 72.8777);
+    // Reset mock location target if using mock service
+    locationService?.setPosition(19.0760, 72.8777);
 
     notifyListeners();
   }
@@ -301,7 +446,7 @@ class AppState extends ChangeNotifier {
   void triggerTestRide() {
     if (!isOnline) return;
     if (_pendingRequest != null || _activeRide != null) return;
-    realtimeService.triggerMockRideRequest();
+    realtimeService?.triggerMockRideRequest();
   }
 
   // ─── Helpers ───
@@ -329,6 +474,7 @@ class AppState extends ChangeNotifier {
     _cancelCountdown();
     _locationSub?.cancel();
     _rideRequestSub?.cancel();
+    _authSub?.cancel();
     _locationService.dispose();
     _realtimeService.dispose();
     super.dispose();

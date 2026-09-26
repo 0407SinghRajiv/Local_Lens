@@ -13,10 +13,13 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+  VoidCallback? _appStateListener;
+  String? _lastNavigatedRideId;
+  RideStatus? _lastNavigatedStatus;
+
   @override
   void initState() {
     super.initState();
-    // Listen for pending ride requests to navigate
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _listenForNavigation();
     });
@@ -24,36 +27,60 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _listenForNavigation() {
     final state = context.read<AppState>();
-    state.addListener(() {
+    _appStateListener = () {
       if (!mounted) return;
 
       // Navigate to ride request when pending
-      if (state.hasPendingRequest &&
-          state.pendingRequest!.status == RideStatus.searching) {
-        Navigator.pushNamed(context, '/ride-request');
-      }
-
-      // Navigate to pickup when ride accepted
-      if (state.hasActiveRide) {
-        final ride = state.activeRide!;
-        switch (ride.status) {
-          case RideStatus.accepted:
-            Navigator.pushNamed(context, '/pickup');
-            break;
-          case RideStatus.arrived:
-            Navigator.pushNamed(context, '/arrived');
-            break;
-          case RideStatus.started:
-            Navigator.pushNamed(context, '/active-ride');
-            break;
-          case RideStatus.completed:
-            Navigator.pushNamed(context, '/completed');
-            break;
-          default:
-            break;
+      if (state.hasPendingRequest) {
+        final request = state.pendingRequest!;
+        if (request.status == RideStatus.searching &&
+            (_lastNavigatedRideId != request.id || _lastNavigatedStatus != RideStatus.searching)) {
+          _lastNavigatedRideId = request.id;
+          _lastNavigatedStatus = RideStatus.searching;
+          Navigator.pushNamed(context, '/ride-request');
+          return;
         }
       }
-    });
+
+      // Navigate to active ride screens when ride state changes
+      if (state.hasActiveRide) {
+        final ride = state.activeRide!;
+        if (_lastNavigatedRideId != ride.id || _lastNavigatedStatus != ride.status) {
+          _lastNavigatedRideId = ride.id;
+          _lastNavigatedStatus = ride.status;
+
+          switch (ride.status) {
+            case RideStatus.accepted:
+              Navigator.pushNamed(context, '/pickup');
+              break;
+            case RideStatus.arrived:
+              Navigator.pushNamed(context, '/arrived');
+              break;
+            case RideStatus.started:
+              Navigator.pushNamed(context, '/active-ride');
+              break;
+            case RideStatus.completed:
+              Navigator.pushNamed(context, '/completed');
+              break;
+            default:
+              break;
+          }
+        }
+      } else if (!state.hasPendingRequest) {
+        _lastNavigatedRideId = null;
+        _lastNavigatedStatus = null;
+      }
+    };
+
+    state.addListener(_appStateListener!);
+  }
+
+  @override
+  void dispose() {
+    if (_appStateListener != null) {
+      context.read<AppState>().removeListener(_appStateListener!);
+    }
+    super.dispose();
   }
 
   @override
@@ -65,55 +92,46 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return Scaffold(
           body: SafeArea(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  // ─── Top Bar ───
-                  _buildTopBar(state),
-
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const SizedBox(height: 16),
-
-                        // ─── Map ───
-                        MockMapWidget(
-                          driverLat: state.currentLocation?.latitude ?? 19.076,
-                          driverLng: state.currentLocation?.longitude ?? 72.877,
-                          height: 220,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // ─── Status Card ───
-                        _buildStatusCard(state),
-                        const SizedBox(height: 16),
-
-                        // ─── Stats Row ───
-                        _buildStatsRow(state),
-                        const SizedBox(height: 16),
-
-                        // ─── Online/Offline Button ───
-                        _buildToggleButton(state),
-                        const SizedBox(height: 16),
-
-                        // ─── TEST RIDE REQUEST (Dev) ───
-                        if (state.isOnline) ...[
-                          _buildTestRideButton(state),
-                          const SizedBox(height: 16),
-                        ],
-
-                        // ─── Driver Info Card ───
-                        _buildDriverInfoCard(state),
-                        const SizedBox(height: 24),
-                      ],
-                    ),
+            child: Stack(
+              children: [
+                // ─── 1. BIG FULL-SCREEN GOOGLE MAP BACKDROP ───
+                Positioned.fill(
+                  child: GoogleMapWidget(
+                    driverLat: state.currentLocation?.latitude ?? 19.076,
+                    driverLng: state.currentLocation?.longitude ?? 72.877,
+                    height: double.infinity,
                   ),
-                ],
-              ),
+                ),
+
+                // ─── 2. FLOATING TOP HEADER BAR ───
+                Positioned(
+                  top: 12,
+                  left: 16,
+                  right: 16,
+                  child: _buildTopBar(state),
+                ),
+
+                // ─── 3. FLOATING GPS BADGE OVER MAP ───
+                if (state.isOnline && state.currentLocation != null)
+                  Positioned(
+                    top: 80,
+                    right: 20,
+                    child: _buildGpsBadge(state),
+                  ),
+
+                // ─── 4. FLOATING BOTTOM PANEL (STATS & CARDS) ───
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 12,
+                  child: _buildFloatingPanel(state),
+                ),
+              ],
             ),
           ),
+
+          // ─── 5. FIXED BOTTOM "GO ONLINE" BUTTON ───
+          bottomNavigationBar: _buildBottomButtonArea(state),
         );
       },
     );
@@ -121,42 +139,67 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildTopBar(AppState state) {
     final driver = state.driver!;
+
+    // Resolve clean display name from logged-in Google Account or email
+    String displayName = driver.name.trim();
+    if (displayName.isEmpty || displayName == 'Google Rider' || displayName == 'Google') {
+      if (driver.email.contains('@')) {
+        final emailUser = driver.email.split('@').first;
+        displayName = emailUser[0].toUpperCase() + emailUser.substring(1);
+      } else {
+        displayName = 'Rider';
+      }
+    } else if (displayName.contains(' ')) {
+      displayName = displayName.split(' ').first;
+    }
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: AppTheme.cardWhite,
+        color: Colors.white.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Row(
         children: [
-          // Avatar
+          // Google Profile Avatar
           GestureDetector(
             onTap: () => Navigator.pushNamed(context, '/profile'),
             child: CircleAvatar(
-              radius: 22,
+              radius: 20,
               backgroundColor: AppTheme.primary.withValues(alpha: 0.1),
-              child: Text(
-                driver.name.substring(0, 1),
-                style: AppTheme.headlineSmall.copyWith(
-                  color: AppTheme.primary,
-                ),
-              ),
+              backgroundImage: driver.profileImageUrl.isNotEmpty
+                  ? NetworkImage(driver.profileImageUrl)
+                  : null,
+              child: driver.profileImageUrl.isEmpty
+                  ? Text(
+                      displayName.substring(0, 1).toUpperCase(),
+                      style: AppTheme.titleMedium.copyWith(
+                        color: AppTheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'Hello, ${driver.name.split(' ').first}!',
-                  style: AppTheme.titleLarge,
+                  'Hello, $displayName!',
+                  style: AppTheme.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Row(
@@ -188,8 +231,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           // Rating badge
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: AppTheme.tertiary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
@@ -198,23 +240,213 @@ class _HomeScreenState extends State<HomeScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Icon(Icons.star_rounded,
-                    color: AppTheme.tertiary, size: 16),
-                const SizedBox(width: 4),
+                    color: AppTheme.tertiary, size: 14),
+                const SizedBox(width: 2),
                 Text(
                   driver.rating.toStringAsFixed(1),
                   style: AppTheme.titleMedium.copyWith(
                     color: AppTheme.tertiary,
+                    fontSize: 13,
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          // Notification bell
+          const SizedBox(width: 4),
+
+          // Small Logout Button
           IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () {},
-            color: AppTheme.onSurfaceVariant,
+            icon: const Icon(Icons.logout_rounded, color: AppTheme.error, size: 20),
+            tooltip: 'Logout',
+            onPressed: () => _confirmLogout(context, state),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGpsBadge(AppState state) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.my_location_rounded, size: 13, color: AppTheme.primary),
+          const SizedBox(width: 5),
+          Text(
+            '${state.currentLocation!.latitude.toStringAsFixed(4)}, '
+            '${state.currentLocation!.longitude.toStringAsFixed(4)}',
+            style: AppTheme.labelSmall.copyWith(
+              color: AppTheme.primary,
+              fontWeight: FontWeight.bold,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingPanel(AppState state) {
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 320),
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Status Card
+            _buildStatusCard(state),
+            const SizedBox(height: 10),
+
+            // Stats Row (Today's Earnings & Today's Rides)
+            _buildStatsRow(state),
+
+            // Test Ride Request Button (Dev)
+            if (state.isOnline) ...[
+              const SizedBox(height: 10),
+              _buildTestRideButton(state),
+            ],
+            const SizedBox(height: 10),
+
+            // Vehicle Information Card
+            _buildDriverInfoCard(state),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomButtonArea(AppState state) {
+    final isOnline = state.isOnline;
+    final primaryColor = isOnline ? AppTheme.error : AppTheme.primary;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: AppTheme.cardWhite,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, -4),
+          ),
+        ],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: state.isLoading
+                    ? null
+                    : () {
+                        if (isOnline) {
+                          state.goOffline();
+                        } else {
+                          state.goOnline();
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  elevation: 6,
+                  shadowColor: primaryColor.withValues(alpha: 0.4),
+                ),
+                child: state.isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isOnline
+                                ? Icons.power_settings_new_rounded
+                                : Icons.bolt_rounded,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            isOnline ? 'GO OFFLINE' : 'GO ONLINE',
+                            style: AppTheme.labelLarge.copyWith(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmLogout(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.logout_rounded, color: AppTheme.error),
+            SizedBox(width: 8),
+            Text('Logout Rider'),
+          ],
+        ),
+        content: const Text(
+          'Are you sure you want to log out of your rider driver account?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              await state.logout();
+              if (context.mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/login',
+                  (route) => false,
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.error,
+            ),
+            child: const Text('Logout', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -225,7 +457,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       width: double.infinity,
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: state.isOnline
             ? const LinearGradient(
@@ -265,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             state.isOnline
                 ? 'Searching for ride requests near you...'
@@ -275,7 +507,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           if (state.isOnline) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Row(
               children: [
                 _buildPulsingDot(),
@@ -343,11 +575,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppTheme.cardWhite,
-          borderRadius: BorderRadius.circular(12),
+          color: AppTheme.cardWhite.withValues(alpha: 0.95),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppTheme.outline.withValues(alpha: 0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,9 +604,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 const Spacer(),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(value, style: AppTheme.headlineMedium),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               label,
               style: AppTheme.bodySmall.copyWith(
@@ -376,57 +615,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildToggleButton(AppState state) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
-      child: ElevatedButton(
-        onPressed: state.isLoading
-            ? null
-            : () {
-                if (state.isOnline) {
-                  state.goOffline();
-                } else {
-                  state.goOnline();
-                }
-              },
-        style: ElevatedButton.styleFrom(
-          backgroundColor:
-              state.isOnline ? AppTheme.error : AppTheme.primary,
-          shape: const StadiumBorder(),
-        ),
-        child: state.isLoading
-            ? const SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: Colors.white,
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    state.isOnline
-                        ? Icons.power_settings_new_rounded
-                        : Icons.power_settings_new_rounded,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    state.isOnline ? 'GO OFFLINE' : 'GO ONLINE',
-                    style: AppTheme.labelLarge.copyWith(
-                      color: Colors.white,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
       ),
     );
   }
@@ -441,6 +629,7 @@ class _HomeScreenState extends State<HomeScreen> {
         label: const Text('TEST RIDE REQUEST'),
         style: OutlinedButton.styleFrom(
           foregroundColor: AppTheme.tertiary,
+          backgroundColor: Colors.white.withValues(alpha: 0.9),
           side: BorderSide(
             color: AppTheme.tertiary.withValues(alpha: 0.5),
             width: 1.5,
@@ -459,7 +648,7 @@ class _HomeScreenState extends State<HomeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppTheme.cardWhite,
+        color: AppTheme.cardWhite.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppTheme.outline.withValues(alpha: 0.3)),
       ),
