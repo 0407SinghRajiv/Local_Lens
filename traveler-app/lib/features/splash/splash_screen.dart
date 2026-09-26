@@ -54,10 +54,22 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     final gradient = AppColors.splashGradient(brightness);
     final initStateAsync = ref.watch(initializationProvider);
 
+    // If state is already initialized (e.g. cached or completed), navigate immediately
+    initStateAsync.whenData((state) {
+      if (state.isInitialized && !_hasNavigated) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _navigateToRoute(state.targetRoute);
+        });
+      }
+    });
+
+    // Listen to future transitions
     ref.listen<AsyncValue<AppInitState>>(initializationProvider, (previous, next) {
       next.whenData((state) {
-        if (state.isInitialized) {
-          _navigateToRoute(state.targetRoute);
+        if (state.isInitialized && !_hasNavigated) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _navigateToRoute(state.targetRoute);
+          });
         }
       });
     });

@@ -36,8 +36,8 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
   final storageService = ref.watch(storageServiceProvider);
   final configService = ref.watch(configServiceProvider);
 
-  // Minimum splash duration enforced: 5 seconds (5000 ms)
-  final minimumDurationFuture = Future<void>.delayed(const Duration(milliseconds: 5000));
+  // Minimum splash duration: 1200ms for smooth branding transition without sluggish waiting
+  final minimumDurationFuture = Future<void>.delayed(const Duration(milliseconds: 1200));
 
   final tasksFuture = Future.wait([
     authService.checkAuthToken(),
@@ -82,7 +82,13 @@ final initializationProvider = FutureProvider<AppInitState>((ref) async {
       isAuthenticated: isAuthenticated,
     );
   } catch (e) {
-    // Return error state without silent crashing
-    return AppInitState.error(e.toString());
+    // Return graceful fallback to login instead of stranding user on splash
+    return const AppInitState(
+      isInitialized: true,
+      targetRoute: AppRoutes.login,
+      isFirstLaunch: false,
+      isAuthenticated: false,
+      errorMessage: null,
+    );
   }
 });

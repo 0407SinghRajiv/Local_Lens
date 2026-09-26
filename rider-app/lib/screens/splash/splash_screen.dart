@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_state.dart';
 import '../../core/theme/app_theme.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -20,7 +22,7 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 1000),
     );
     _fadeIn = Tween<double>(begin: 0, end: 1).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeOut),
@@ -30,10 +32,12 @@ class _SplashScreenState extends State<SplashScreen>
     );
     _controller.forward();
 
-    // Navigate after 3 seconds
-    Timer(const Duration(seconds: 3), () {
+    // Fast, responsive splash routing
+    Timer(const Duration(milliseconds: 1200), () {
       if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
+        final appState = Provider.of<AppState>(context, listen: false);
+        final destination = appState.isAuthenticated ? '/home' : '/login';
+        Navigator.pushReplacementNamed(context, destination);
       }
     });
   }
