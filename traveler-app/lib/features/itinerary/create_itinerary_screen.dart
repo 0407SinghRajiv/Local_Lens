@@ -242,17 +242,27 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
 
                     const SizedBox(height: 24),
 
-                    // SECTION 4: TRAVEL GROUP
+                    // SECTION 4: TRAVELERS & NUMBER OF PERSONS
                     _buildSectionHeader(
                       icon: Icons.groups_rounded,
-                      title: 'Who\'s traveling?',
+                      title: 'Who\'s traveling & How many persons?',
                     ),
                     const SizedBox(height: 12),
                     _buildGroupSelector(state, notifier),
 
                     const SizedBox(height: 24),
 
-                    // SECTION 5: INTERESTS
+                    // SECTION 5: HOW MANY EXPERIENCES
+                    _buildSectionHeader(
+                      icon: Icons.auto_awesome_rounded,
+                      title: 'How many experiences do you want?',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildExperienceCountSelector(state, notifier),
+
+                    const SizedBox(height: 24),
+
+                    // SECTION 6: INTERESTS
                     _buildSectionHeader(
                       icon: Icons.interests_rounded,
                       title: 'What interests you?',
@@ -262,7 +272,7 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
 
                     const SizedBox(height: 24),
 
-                    // SECTION 6: OPTIONAL PREFERENCES
+                    // SECTION 7: OPTIONAL PREFERENCES
                     _buildSectionHeader(
                       icon: Icons.tune_rounded,
                       title: 'Anything else?',
@@ -736,47 +746,282 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
   }
 
   Widget _buildGroupSelector(CreateItineraryState state, ItineraryNotifier notifier) {
-    return Row(
-      children: _groupTypes.map((group) {
-        final isSelected = state.groupType.toLowerCase() == (group['title'] as String).toLowerCase();
-        return Expanded(
-          child: GestureDetector(
-            onTap: () {
-              notifier.setGroup(group['title'] as String, group['count'] as int);
-            },
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-              decoration: BoxDecoration(
-                color: isSelected ? LocalLensColors.primaryTealSoft : Colors.white,
-                borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                border: Border.all(
-                  color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.border,
-                  width: isSelected ? 1.8 : 1.0,
-                ),
-                boxShadow: LocalLensDimensions.softCardShadow,
-              ),
-              child: Column(
-                children: [
-                  Icon(
-                    group['icon'] as IconData,
-                    color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.textSecondary,
-                    size: 24,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    group['title'] as String,
-                    style: LocalLensTypography.caption.copyWith(
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                      color: isSelected ? LocalLensColors.primaryTealDark : LocalLensColors.textPrimary,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+        border: Border.all(color: LocalLensColors.border),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Row of Group Category Cards
+          Row(
+            children: _groupTypes.map((group) {
+              final isSelected = state.groupType.toLowerCase() == (group['title'] as String).toLowerCase();
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () {
+                    notifier.setGroup(group['title'] as String, group['count'] as int);
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                    decoration: BoxDecoration(
+                      color: isSelected ? LocalLensColors.primaryTealSoft : LocalLensColors.surfaceSecondary,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isSelected ? LocalLensColors.primaryTeal : Colors.transparent,
+                        width: 1.5,
+                      ),
                     ),
+                    child: Column(
+                      children: [
+                        Icon(
+                          group['icon'] as IconData,
+                          color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.textSecondary,
+                          size: 20,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          group['title'] as String,
+                          style: LocalLensTypography.caption.copyWith(
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                            color: isSelected ? LocalLensColors.primaryTealDark : LocalLensColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          // Stepper: How many persons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Total Persons',
+                    style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${state.travelerCount} ${state.travelerCount == 1 ? 'person' : 'people'} traveling',
+                    style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textSecondary),
                   ),
                 ],
               ),
+              Row(
+                children: [
+                  // Minus Button
+                  IconButton(
+                    onPressed: state.travelerCount > 1
+                        ? () => notifier.setTravelerCount(state.travelerCount - 1)
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline_rounded),
+                    color: LocalLensColors.primaryTeal,
+                    iconSize: 28,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.primaryTealSoft,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: LocalLensColors.primaryTeal.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '${state.travelerCount}',
+                      style: LocalLensTypography.titleMedium.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: LocalLensColors.primaryTealDark,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // Plus Button
+                  IconButton(
+                    onPressed: state.travelerCount < 20
+                        ? () => notifier.setTravelerCount(state.travelerCount + 1)
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    color: LocalLensColors.primaryTeal,
+                    iconSize: 28,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Quick Persons Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [1, 2, 3, 4, 5, 6, 8, 10].map((count) {
+                final isSelected = state.travelerCount == count;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ActionChip(
+                    label: Text('$count ${count == 1 ? 'person' : 'persons'}'),
+                    backgroundColor: isSelected ? LocalLensColors.primaryTealSoft : LocalLensColors.surfaceSecondary,
+                    side: BorderSide(
+                      color: isSelected ? LocalLensColors.primaryTeal : Colors.transparent,
+                    ),
+                    labelStyle: TextStyle(
+                      color: isSelected ? LocalLensColors.primaryTealDark : LocalLensColors.textSecondary,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                    onPressed: () {
+                      notifier.setTravelerCount(count);
+                    },
+                  ),
+                );
+              }).toList(),
             ),
           ),
-        );
-      }).toList(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildExperienceCountSelector(CreateItineraryState state, ItineraryNotifier notifier) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+        border: Border.all(color: LocalLensColors.border),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Experiences in Itinerary',
+                    style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${state.desiredExperienceCount} stops to visit',
+                    style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textSecondary),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  // Minus Button
+                  IconButton(
+                    onPressed: state.desiredExperienceCount > 1
+                        ? () => notifier.setDesiredExperienceCount(state.desiredExperienceCount - 1)
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline_rounded),
+                    color: LocalLensColors.accentOrange,
+                    iconSize: 28,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                  const SizedBox(width: 14),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.accentOrangeSoft,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: LocalLensColors.accentOrange.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(
+                      '${state.desiredExperienceCount}',
+                      style: LocalLensTypography.titleMedium.copyWith(
+                        fontWeight: FontWeight.w800,
+                        color: LocalLensColors.accentOrange,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // Plus Button
+                  IconButton(
+                    onPressed: state.desiredExperienceCount < 10
+                        ? () => notifier.setDesiredExperienceCount(state.desiredExperienceCount + 1)
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline_rounded),
+                    color: LocalLensColors.accentOrange,
+                    iconSize: 28,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Preset Experience Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                {'count': 2, 'label': '2 (Relaxed)'},
+                {'count': 3, 'label': '3 (Balanced)'},
+                {'count': 4, 'label': '4 (Full Day)'},
+                {'count': 5, 'label': '5 (Packed)'},
+                {'count': 6, 'label': '6+ (Active)'},
+              ].map((item) {
+                final count = item['count'] as int;
+                final label = item['label'] as String;
+                final isSelected = state.desiredExperienceCount == count;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: ActionChip(
+                    label: Text(label),
+                    backgroundColor: isSelected ? LocalLensColors.accentOrangeSoft : LocalLensColors.surfaceSecondary,
+                    side: BorderSide(
+                      color: isSelected ? LocalLensColors.accentOrange : Colors.transparent,
+                    ),
+                    labelStyle: TextStyle(
+                      color: isSelected ? LocalLensColors.accentOrange : LocalLensColors.textSecondary,
+                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                      fontSize: 11,
+                    ),
+                    onPressed: () {
+                      notifier.setDesiredExperienceCount(count);
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'ML model ranks and auto-selects top ${state.desiredExperienceCount} matching experiences for your day.',
+            style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textMuted, fontSize: 11),
+          ),
+        ],
+      ),
     );
   }
 

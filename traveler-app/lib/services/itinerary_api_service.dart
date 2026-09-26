@@ -102,6 +102,7 @@ class ItineraryApiService {
     required String travelerType,
     required List<String> interests,
     String? preferences,
+    int? topN,
   }) async {
     final activeBase = await resolveBaseUrl();
     final url = '$activeBase/api/recommendations';
@@ -122,7 +123,7 @@ class ItineraryApiService {
       'interests': interests,
       'radius_km': 25.0,
       'additional_preferences': preferences != null && preferences.isNotEmpty ? {'notes': preferences} : {},
-      'top_n': 10,
+      'top_n': topN ?? 10,
     };
 
     try {

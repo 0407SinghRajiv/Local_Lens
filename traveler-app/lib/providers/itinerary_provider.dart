@@ -27,6 +27,7 @@ class CreateItineraryState {
   final double totalBudgetInr; // e.g. 3000
   final int travelerCount; // e.g. 2
   final String groupType; // "Solo", "Couple", "Friends", "Family"
+  final int desiredExperienceCount; // e.g. 4 (Number of experiences wanted in itinerary)
   final List<String> interests;
   final String preferences;
 
@@ -52,6 +53,7 @@ class CreateItineraryState {
     this.totalBudgetInr = 3000,
     this.travelerCount = 2,
     this.groupType = 'Couple',
+    this.desiredExperienceCount = 4,
     this.interests = const ['Food', 'Culture', 'Local Experiences'],
     this.preferences = '',
     this.recommendations = const [],
@@ -71,7 +73,9 @@ class CreateItineraryState {
         : destination.trim().isNotEmpty;
     final hasTime = availableTimeMinutes > 0;
     final hasBudget = totalBudgetInr > 0;
-    return hasLocation && hasTime && hasBudget;
+    final hasTravelers = travelerCount > 0;
+    final hasExperiences = desiredExperienceCount > 0;
+    return hasLocation && hasTime && hasBudget && hasTravelers && hasExperiences;
   }
 
   /// Total duration in hours
@@ -89,6 +93,7 @@ class CreateItineraryState {
     double? totalBudgetInr,
     int? travelerCount,
     String? groupType,
+    int? desiredExperienceCount,
     List<String>? interests,
     String? preferences,
     List<RecommendationModel>? recommendations,
@@ -111,6 +116,7 @@ class CreateItineraryState {
       totalBudgetInr: totalBudgetInr ?? this.totalBudgetInr,
       travelerCount: travelerCount ?? this.travelerCount,
       groupType: groupType ?? this.groupType,
+      desiredExperienceCount: desiredExperienceCount ?? this.desiredExperienceCount,
       interests: interests ?? this.interests,
       preferences: preferences ?? this.preferences,
       recommendations: recommendations ?? this.recommendations,
@@ -166,6 +172,28 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       groupType: groupType,
       travelerCount: travelerCount,
     );
+  }
+
+  void setTravelerCount(int travelerCount) {
+    final clamped = travelerCount.clamp(1, 20);
+    String detectedGroup = state.groupType;
+    if (clamped == 1) {
+      detectedGroup = 'Solo';
+    } else if (clamped == 2) {
+      detectedGroup = 'Couple';
+    } else if (clamped <= 5) {
+      detectedGroup = 'Friends';
+    } else {
+      detectedGroup = 'Family';
+    }
+    state = state.copyWith(
+      travelerCount: clamped,
+      groupType: detectedGroup,
+    );
+  }
+
+  void setDesiredExperienceCount(int count) {
+    state = state.copyWith(desiredExperienceCount: count.clamp(1, 12));
   }
 
   void toggleInterest(String interest) {
@@ -228,10 +256,11 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         travelerType: state.groupType,
         interests: state.interests,
         preferences: state.preferences,
+        topN: (state.desiredExperienceCount + 4).clamp(10, 20),
       );
 
-      // By default, select top 3-4 recommendations
-      final initialSelected = recs.take(4).map((r) => r.experienceId).toSet();
+      // Pre-select exactly the desired experience count requested by traveler
+      final initialSelected = recs.take(state.desiredExperienceCount).map((r) => r.experienceId).toSet();
 
       state = state.copyWith(
         status: ItineraryFormStatus.recommendationsLoaded,
