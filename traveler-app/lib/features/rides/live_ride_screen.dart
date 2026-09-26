@@ -72,6 +72,12 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<RideState>(rideProvider, (previous, next) {
+      if (next.status == RideStatus.completed) {
+        context.pushReplacement(AppRoutes.travelerRideCompleted);
+      }
+    });
+
     final rideState = ref.watch(rideProvider);
     final rider = rideState.activeRider ?? Rider.defaultMockRider;
     final vehicle = rideState.selectedVehicle;
@@ -91,7 +97,7 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                     child: Image.asset(
                       'assets/images/54506.png',
                       fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(color: const Color(0xFFE2E8F0)),
+                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFFE2E8F0)),
                     ),
                   ),
 

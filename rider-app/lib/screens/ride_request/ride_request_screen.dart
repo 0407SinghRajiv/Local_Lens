@@ -265,9 +265,16 @@ class RideRequestScreen extends StatelessWidget {
                 child: SizedBox(
                   height: 52,
                   child: ElevatedButton(
-                    onPressed: () {
-                      state.acceptRide();
-                      Navigator.pop(context);
+                    onPressed: () async {
+                      final success = await state.acceptRide();
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        if (!success) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Ride request was already accepted by another driver.')),
+                          );
+                        }
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppTheme.primary,

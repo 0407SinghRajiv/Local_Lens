@@ -61,7 +61,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             Image.asset(
               'assets/images/onboarding/splash_traveler.png',
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
+              errorBuilder: (_, __, ___) => Container(
                 decoration: const BoxDecoration(
                   gradient: LocalLensColors.splashGradient,
                 ),

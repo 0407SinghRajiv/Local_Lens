@@ -221,7 +221,7 @@ class _ItineraryGeneratingScreenState extends ConsumerState<ItineraryGeneratingS
                         child: Image.asset(
                           'assets/images/illustrations/ai_robot_traveler.png',
                           fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => const Icon(
+                          errorBuilder: (_, __, ___) => const Icon(
                             Icons.explore_rounded,
                             size: 64,
                             color: LocalLensColors.primaryTeal,

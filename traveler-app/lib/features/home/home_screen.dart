@@ -326,7 +326,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 itemCount: LocalLensMockData.featuredExperiences.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 14),
+                separatorBuilder: (_, __) => const SizedBox(width: 14),
                 itemBuilder: (context, index) {
                   final exp = LocalLensMockData.featuredExperiences[index];
                   return GestureDetector(

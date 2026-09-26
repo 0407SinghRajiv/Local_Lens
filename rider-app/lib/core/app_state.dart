@@ -489,28 +489,43 @@ class AppState extends ChangeNotifier {
   }
 
   // ─── Accept Ride ───
-  Future<void> acceptRide() async {
-    if (_pendingRequest == null) return;
+  Future<bool> acceptRide() async {
+    if (_pendingRequest == null || _driver == null) return false;
     _cancelCountdown();
 
     try {
-      _activeRide = _pendingRequest!.copyWith(
-        status: RideStatus.accepted,
-        driverId: _driver!.id,
-        updatedAt: DateTime.now(),
-      );
-      _pendingRequest = null;
-      _driver = _driver!.copyWith(isAvailable: false);
+      final rideId = _pendingRequest!.id;
+      final result = await _rideRepo.acceptRide(rideId, _driver!.id);
 
-      await _rideRepo.updateRide(_activeRide!);
+      if (result['success'] == true) {
+        _activeRide = _pendingRequest!.copyWith(
+          status: RideStatus.accepted,
+          driverId: _driver!.id,
+          updatedAt: DateTime.now(),
+        );
+        _pendingRequest = null;
+        _driver = _driver!.copyWith(isAvailable: false);
 
-      // Set location target to pickup (mock only)
-      locationService?.setTarget(
-          _activeRide!.pickupLat, _activeRide!.pickupLng);
+        try {
+          _activeRide = await _rideRepo.getRide(rideId);
+        } catch (_) {}
 
-      notifyListeners();
+        locationService?.setTarget(
+            _activeRide!.pickupLat, _activeRide!.pickupLng);
+
+        notifyListeners();
+        return true;
+      } else {
+        final err = result['error'] ?? 'ALREADY_ACCEPTED';
+        debugPrint('[AppState] Accept ride failed: $err');
+        _pendingRequest = null;
+        _setError('Ride request was already accepted by another driver.');
+        notifyListeners();
+        return false;
+      }
     } catch (e) {
       _setError('Failed to accept ride: $e');
+      return false;
     }
   }
 

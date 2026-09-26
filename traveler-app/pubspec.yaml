@@ -4,7 +4,7 @@ publish_to: 'none'
 version: 0.1.0+1
 
 environment:
-  sdk: ^3.13.4
+  sdk: ^3.0.0
 
 dependencies:
   flutter:
@@ -24,7 +24,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^6.0.0
+  flutter_lints: ^5.0.0
 
 flutter:
   uses-material-design: true
@@ -37,6 +37,3 @@ flutter:
     - assets/images/illustrations/
     - assets/images/maps/
     - assets/images/rides/
-    - assets/images/logo/
-    - assets/animations/
-    - assets/icons/

@@ -507,7 +507,7 @@ class LocalLensNetworkImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
-      errorBuilder: (_, _, _) => Container(
+      errorBuilder: (_, __, ___) => Container(
         width: width,
         height: height,
         color: LocalLensColors.primaryTealSoft,

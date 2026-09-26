@@ -56,7 +56,9 @@ void main() async {
       ? SupabaseAuthService()
       : MockAuthService();
   final locationService = GeolocatorLocationService(); // Real GPS location
-  final realtimeService = MockRealtimeService();
+  final realtimeService = SupabaseConfig.isInitialized
+      ? SupabaseRealtimeService()
+      : MockRealtimeService();
   final driverRepo = SupabaseConfig.isInitialized
       ? SupabaseDriverRepository()
       : MockDriverRepository();

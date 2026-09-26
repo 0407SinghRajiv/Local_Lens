@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../models/ride_model.dart';
+import '../../providers/ride_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 22: Lens Ride Booking Screen
-class LensRideBookingScreen extends StatefulWidget {
+class LensRideBookingScreen extends ConsumerStatefulWidget {
   const LensRideBookingScreen({super.key});
 
   @override
-  State<LensRideBookingScreen> createState() => _LensRideBookingScreenState();
+  ConsumerState<LensRideBookingScreen> createState() => _LensRideBookingScreenState();
 }
 
-class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
+class _LensRideBookingScreenState extends ConsumerState<LensRideBookingScreen> {
   int _selectedVehicleIndex = 1;
 
   final List<Map<String, dynamic>> _vehicleOptions = [
@@ -22,6 +25,7 @@ class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
       'price': 60,
       'eta': '4 min',
       'icon': Icons.electric_rickshaw_rounded,
+      'type': VehicleType.auto,
     },
     {
       'title': 'Lens Sedan',
@@ -29,6 +33,7 @@ class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
       'price': 120,
       'eta': '8 min',
       'icon': Icons.directions_car_rounded,
+      'type': VehicleType.sedan,
     },
     {
       'title': 'Lens SUV XL',
@@ -36,6 +41,7 @@ class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
       'price': 220,
       'eta': '10 min',
       'icon': Icons.airport_shuttle_rounded,
+      'type': VehicleType.suv,
     },
     {
       'title': 'Lens Moto',
@@ -43,6 +49,7 @@ class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
       'price': 35,
       'eta': '3 min',
       'icon': Icons.two_wheeler_rounded,
+      'type': VehicleType.bike,
     },
   ];
 
@@ -164,7 +171,7 @@ class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
               Expanded(
                 child: ListView.separated(
                   itemCount: _vehicleOptions.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  separatorBuilder: (_, __) => const SizedBox(height: 8),
                   itemBuilder: (context, index) {
                     final option = _vehicleOptions[index];
                     final isSelected = _selectedVehicleIndex == index;
@@ -280,6 +287,20 @@ class _LensRideBookingScreenState extends State<LensRideBookingScreen> {
                 text: 'Book ${selectedOption['title']}',
                 isOrange: true,
                 onPressed: () {
+                  final vehicleType = selectedOption['type'] as VehicleType;
+                  final option = VehicleOption(
+                    type: vehicleType,
+                    name: selectedOption['title'] as String,
+                    estimatedFare: (selectedOption['price'] as num).toDouble(),
+                    etaMinutes: 5,
+                    capacity: '4 seats',
+                    icon: selectedOption['icon'] as IconData,
+                  );
+                  ref.read(rideProvider.notifier).selectVehicle(option);
+                  ref.read(rideProvider.notifier).requestRide(
+                    pickup: 'Panvel Station, Mumbai',
+                    drop: 'Local Food Experience, Bandra',
+                  );
                   context.push(AppRoutes.rideSearching);
                 },
               ),

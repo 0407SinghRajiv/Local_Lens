@@ -64,7 +64,7 @@ class SoldOutScreen extends StatelessWidget {
               Expanded(
                 child: ListView.separated(
                   itemCount: 2,
-                  separatorBuilder: (_, _) => const SizedBox(height: 10),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
                     final exp = LocalLensMockData.featuredExperiences[index + 1];
                     return Container(

@@ -1,9 +1,9 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../models/ride_model.dart';
 import '../../providers/ride_provider.dart';
 
 /// Screen: Ride Searching & Matching Radar Screen
@@ -17,7 +17,6 @@ class RideSearchingScreen extends ConsumerStatefulWidget {
 class _RideSearchingScreenState extends ConsumerState<RideSearchingScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _radarController;
-  Timer? _navigateTimer;
 
   @override
   void initState() {
@@ -26,25 +25,26 @@ class _RideSearchingScreenState extends ConsumerState<RideSearchingScreen>
       vsync: this,
       duration: const Duration(seconds: 2),
     )..repeat();
-
-    // Auto navigate to Driver/Rider Accepted after simulated 2.5s matching
-    _navigateTimer = Timer(const Duration(milliseconds: 2600), () {
-      if (mounted) {
-        ref.read(rideProvider.notifier).startDriverApproach();
-        context.pushReplacement(AppRoutes.travelerRideAccepted);
-      }
-    });
   }
 
   @override
   void dispose() {
     _radarController.dispose();
-    _navigateTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<RideState>(rideProvider, (previous, next) {
+      if (next.status == RideStatus.accepted || next.status == RideStatus.riderArriving) {
+        context.pushReplacement(AppRoutes.travelerRideAccepted);
+      } else if (next.status == RideStatus.cancelled || next.status == RideStatus.failed) {
+        if (mounted && context.canPop()) {
+          context.pop();
+        }
+      }
+    });
+
     final rideState = ref.watch(rideProvider);
     final vehicle = rideState.selectedVehicle;
 

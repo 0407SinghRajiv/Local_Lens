@@ -109,7 +109,7 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
                                 child: Image.asset(
                                   'assets/images/characters/${group.id}.png',
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Icon(
+                                  errorBuilder: (_, __, ___) => Icon(
                                     group.icon,
                                     color: isSelected
                                         ? LocalLensColors.accentOrange

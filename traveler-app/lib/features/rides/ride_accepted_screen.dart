@@ -13,6 +13,14 @@ class RideAcceptedScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<RideState>(rideProvider, (previous, next) {
+      if (next.status == RideStatus.started) {
+        context.pushReplacement(AppRoutes.travelerRideLive);
+      } else if (next.status == RideStatus.completed) {
+        context.pushReplacement(AppRoutes.travelerRideCompleted);
+      }
+    });
+
     final rideState = ref.watch(rideProvider);
     final rider = rideState.activeRider ?? Rider.defaultMockRider;
     final vehicle = rideState.selectedVehicle;

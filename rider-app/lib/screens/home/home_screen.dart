@@ -23,6 +23,10 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _listenForNavigation();
+      final state = context.read<AppState>();
+      if (state.driver != null && !state.isOnline) {
+        state.goOnline();
+      }
     });
   }
 

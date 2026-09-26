@@ -192,7 +192,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         vertical: 14,
                       ),
                       itemCount: filteredExperiences.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 16),
+                      separatorBuilder: (_, __) => const SizedBox(height: 16),
                       itemBuilder: (context, index) {
                         final exp = filteredExperiences[index];
                         final isSaved = _savedIds.contains(exp.id);
