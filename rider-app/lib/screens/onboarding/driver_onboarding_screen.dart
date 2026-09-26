@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../../core/app_state.dart';
 import '../../core/theme/app_theme.dart';
@@ -31,6 +33,7 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
   bool _isOcrProcessing = false;
   bool _isEditingLicense = false;
   bool _isLicenseConfirmed = false;
+  bool _isPickerActive = false;
   String _verificationStatus = 'not_uploaded';
   String _statusMessage = 'Upload or take a photo of your Driving Licence to auto-extract the number.';
 
@@ -114,7 +117,27 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
   }
 
   Future<void> _pickLicenseImage(ImageSource source) async {
+    if (_isPickerActive || _isOcrProcessing) return;
+    _isPickerActive = true;
+
     try {
+      if (source == ImageSource.camera) {
+        final cameraStatus = await Permission.camera.request();
+        if (cameraStatus.isPermanentlyDenied) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Camera permission is required. Please enable it in App Settings.'),
+              action: SnackBarAction(
+                label: 'Settings',
+                onPressed: () => openAppSettings(),
+              ),
+            ),
+          );
+          return;
+        }
+      }
+
       final XFile? pickedFile = await _picker.pickImage(
         source: source,
         maxWidth: 1600,
@@ -122,7 +145,7 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
         imageQuality: 88,
       );
 
-      if (pickedFile == null) return;
+      if (pickedFile == null) return; // User cancelled image selection
 
       setState(() {
         _licenseImagePath = pickedFile.path;
@@ -148,6 +171,20 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
           _statusMessage = result.message;
         }
       });
+    } on PlatformException catch (e) {
+      debugPrint('[DriverOnboardingScreen] PlatformException in image picker: ${e.code} - ${e.message}');
+      if (!mounted) return;
+      setState(() {
+        _isOcrProcessing = false;
+        _verificationStatus = 'extraction_failed';
+        _statusMessage = 'Native plugin initialising. You can also type your DL number manually.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Notice: App restart may be required for newly installed image picker plugin.'),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       debugPrint('[DriverOnboardingScreen] Image picker error: $e');
       if (!mounted) return;
@@ -156,6 +193,11 @@ class _DriverOnboardingScreenState extends State<DriverOnboardingScreen> {
         _verificationStatus = 'extraction_failed';
         _statusMessage = 'Could not access image or camera. Please try again or enter DL number manually.';
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not open ${source == ImageSource.camera ? "Camera" : "Photos"}: $e')),
+      );
+    } finally {
+      _isPickerActive = false;
     }
   }
 
