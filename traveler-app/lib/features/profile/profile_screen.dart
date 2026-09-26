@@ -28,7 +28,7 @@ class ProfileScreen extends StatelessWidget {
                   shape: BoxShape.circle,
                   border: Border.all(color: LocalLensColors.primaryTeal, width: 2),
                   image: const DecorationImage(
-                    image: AssetImage('assets/images/54511.png'),
+                    image: AssetImage('assets/images/characters/solo.png'),
                     fit: BoxFit.cover,
                   ),
                 ),
