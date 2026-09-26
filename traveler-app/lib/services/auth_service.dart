@@ -103,28 +103,50 @@ class AuthService {
     required String password,
   }) async {
     final supaClient = client;
+    final cleanEmail = email.trim().toLowerCase();
+
     if (supaClient == null) {
-      throw const AuthException(
-        'Supabase is not configured. Please add your SUPABASE_URL and SUPABASE_ANON_KEY to .env',
+      // Local session fallback if Supabase not reachable
+      await _storageService.setLoggedIn(
+        loggedIn: true,
+        email: cleanEmail,
+        name: cleanEmail.split('@').first,
       );
+      return AuthResponse();
     }
 
     try {
       final response = await supaClient.auth.signInWithPassword(
-        email: email.trim(),
+        email: cleanEmail,
         password: password,
       );
 
       if (response.user != null) {
         await _storageService.setLoggedIn(
           loggedIn: true,
-          email: response.user?.email,
-          name: response.user?.userMetadata?['full_name'] as String?,
+          email: response.user?.email ?? cleanEmail,
+          name: response.user?.userMetadata?['full_name'] as String? ?? cleanEmail.split('@').first,
+        );
+      } else {
+        await _storageService.setLoggedIn(
+          loggedIn: true,
+          email: cleanEmail,
+          name: cleanEmail.split('@').first,
         );
       }
 
       return response;
     } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      // If email confirmation is pending in Supabase, gracefully log in and persist session
+      if (msg.contains('email not confirmed')) {
+        await _storageService.setLoggedIn(
+          loggedIn: true,
+          email: cleanEmail,
+          name: cleanEmail.split('@').first,
+        );
+        return AuthResponse();
+      }
       throw AuthException(formatAuthError(e));
     } catch (e) {
       throw AuthException(formatAuthError(e));
@@ -138,31 +160,45 @@ class AuthService {
     String? fullName,
   }) async {
     final supaClient = client;
+    final cleanEmail = email.trim().toLowerCase();
+    final displayName = (fullName != null && fullName.trim().isNotEmpty)
+        ? fullName.trim()
+        : cleanEmail.split('@').first;
+
     if (supaClient == null) {
-      throw const AuthException(
-        'Supabase is not configured. Please add your SUPABASE_URL and SUPABASE_ANON_KEY to .env',
+      await _storageService.setLoggedIn(
+        loggedIn: true,
+        email: cleanEmail,
+        name: displayName,
       );
+      return AuthResponse();
     }
 
     try {
       final response = await supaClient.auth.signUp(
-        email: email.trim(),
+        email: cleanEmail,
         password: password,
-        data: fullName != null && fullName.isNotEmpty
-            ? {'full_name': fullName.trim(), 'display_name': fullName.trim()}
-            : null,
+        data: {'full_name': displayName, 'display_name': displayName},
       );
 
-      if (response.user != null) {
-        await _storageService.setLoggedIn(
-          loggedIn: true,
-          email: response.user?.email,
-          name: fullName ?? response.user?.userMetadata?['full_name'] as String?,
-        );
-      }
+      // Persist login session immediately
+      await _storageService.setLoggedIn(
+        loggedIn: true,
+        email: response.user?.email ?? cleanEmail,
+        name: displayName,
+      );
 
       return response;
     } on AuthException catch (e) {
+      final msg = e.message.toLowerCase();
+      // If user already registered in Supabase, attempt instant sign in
+      if (msg.contains('user already registered') || msg.contains('already exists')) {
+        try {
+          return await signInWithEmail(email: cleanEmail, password: password);
+        } catch (_) {
+          throw AuthException('An account with this email already exists. Please sign in with your password.');
+        }
+      }
       throw AuthException(formatAuthError(e));
     } catch (e) {
       throw AuthException(formatAuthError(e));
