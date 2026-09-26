@@ -53,7 +53,7 @@ class RecommendationEngine:
         dataset_dir: Optional[Union[str, Path]] = None,
         pipeline_filename: str = "preprocessing_pipeline.pkl",
         model_filename: str = "recommendation_model.pkl",
-        dataset_filename: str = "all_experiences_with_images.csv",
+        dataset_filename: str = "all_experiences_with_photos.csv",
     ):
         base_dir = Path(__file__).resolve().parent.parent
 
@@ -85,13 +85,23 @@ class RecommendationEngine:
         if not self.model_path.exists():
             raise FileNotFoundError(f"Recommendation model not found at {self.model_path}")
         
-        # Fallback to cleaned dataset if with_images file is missing
-        if not self.dataset_path.exists():
-            fallback_dataset = self.dataset_dir / "all_experiences_cleaned.csv"
-            if fallback_dataset.exists():
-                self.dataset_path = fallback_dataset
-            else:
-                raise FileNotFoundError(f"Experience dataset not found at {self.dataset_path}")
+        # Resolve dataset candidate in priority order
+        candidates_to_check = [
+            self.dataset_dir / "all_experiences_with_photos.csv",
+            self.dataset_dir / "all_experiences_with_images.csv",
+            self.dataset_dir / "all_experiences_cleaned.csv",
+        ]
+        chosen_path = None
+        if self.dataset_path.exists():
+            chosen_path = self.dataset_path
+        else:
+            for cand in candidates_to_check:
+                if cand.exists():
+                    chosen_path = cand
+                    break
+        if not chosen_path:
+            raise FileNotFoundError(f"Experience dataset not found at {self.dataset_path}")
+        self.dataset_path = chosen_path
 
         logger.info(f"Loading preprocessing pipeline from {self.pipeline_path}")
         self.preprocessor = joblib.load(self.pipeline_path)
@@ -278,20 +288,83 @@ class RecommendationEngine:
         if scored_df.empty:
             return []
 
-        # Optional soft pre-filters if explicit city or category requested without coords
-        if user_lat is None and user_lon is None and city:
+        # Location filter when explicit city or state requested
+        if city:
             loc = city.strip().lower()
             loc_mask = (
-                scored_df["city"].str.lower().str.contains(loc, na=False)
+                scored_df["city"].fillna("").str.lower().str.contains(loc, na=False)
                 | scored_df["district"].fillna("").str.lower().str.contains(loc, na=False)
+                | scored_df["state"].fillna("").str.lower().str.contains(loc, na=False)
             )
             if loc_mask.any():
                 scored_df = scored_df[loc_mask].copy()
 
         if category:
-            cat_mask = scored_df["category"].str.lower() == str(category).strip().lower()
+            cat_target = str(category).strip().lower()
+            def matches_cat(row):
+                cat = str(row.get("category", "")).lower()
+                sub_cat = str(row.get("sub_category", "")).lower()
+                if cat_target == cat:
+                    return True
+                if cat_target == "food":
+                    return cat in ["food", "street food", "local cuisine", "seafood"] or "food" in cat or "cuisine" in cat
+                if cat_target == "culture":
+                    return cat in ["culture", "heritage", "museum", "temple", "religious", "spiritual", "architecture", "art", "handicraft", "workshop"]
+                if cat_target == "adventure":
+                    return cat in ["adventure", "trekking", "water sports", "sports", "boat ride"] or "adventure" in cat
+                if cat_target == "nature":
+                    return cat in ["nature", "beach", "wildlife", "waterfall", "bird watching", "coastal"] or "nature" in cat
+                if cat_target == "heritage":
+                    return cat in ["heritage", "fort", "temple", "religious", "architecture", "museum"] or "heritage" in cat
+                if cat_target == "beach":
+                    return cat in ["beach", "coastal", "water sports"] or "beach" in cat
+                if cat_target == "shopping":
+                    return cat in ["shopping", "market", "markets", "handicraft"] or "shopping" in cat or "market" in cat
+                if cat_target == "nightlife":
+                    return cat in ["nightlife", "entertainment"] or "nightlife" in cat
+                if cat_target in ["local experiences", "local experience", "hidden gems", "hidden gem"]:
+                    return row.get("local_experience_bool") == 1 or row.get("hidden_gem_bool") == 1 or cat in ["local experience", "local_experience", "homestay", "agritourism"]
+                return cat_target in cat or cat_target in sub_cat
+
+            cat_mask = scored_df.apply(matches_cat, axis=1)
             if cat_mask.any():
                 scored_df = scored_df[cat_mask].copy()
+
+        if interests:
+            interest_list = [i.strip().lower() for i in (interests if isinstance(interests, list) else str(interests).split("|")) if i.strip()]
+            if interest_list:
+                def matches_interests(row):
+                    cat = str(row.get("category", "")).lower()
+                    sub_cat = str(row.get("sub_category", "")).lower()
+                    for intr in interest_list:
+                        if intr == cat:
+                            return True
+                        if intr == "food" and (cat in ["food", "street food", "local cuisine", "seafood"] or "food" in cat or "cuisine" in cat):
+                            return True
+                        if intr == "culture" and (cat in ["culture", "heritage", "museum", "temple", "religious", "spiritual", "architecture", "art", "handicraft", "workshop"]):
+                            return True
+                        if intr == "adventure" and (cat in ["adventure", "trekking", "water sports", "sports", "boat ride"] or "adventure" in cat):
+                            return True
+                        if intr == "nature" and (cat in ["nature", "beach", "wildlife", "waterfall", "bird watching", "coastal"] or "nature" in cat):
+                            return True
+                        if intr == "heritage" and (cat in ["heritage", "fort", "temple", "religious", "architecture", "museum"] or "heritage" in cat):
+                            return True
+                        if intr == "beach" and (cat in ["beach", "coastal", "water sports"] or "beach" in cat):
+                            return True
+                        if intr == "shopping" and (cat in ["shopping", "market", "markets", "handicraft"] or "shopping" in cat or "market" in cat):
+                            return True
+                        if intr == "nightlife" and (cat in ["nightlife", "entertainment"] or "nightlife" in cat):
+                            return True
+                        if intr in ["local experiences", "local experience", "hidden gems", "hidden gem"]:
+                            if row.get("local_experience_bool") == 1 or row.get("hidden_gem_bool") == 1 or cat in ["local experience", "local_experience", "homestay", "agritourism"]:
+                                return True
+                        if intr in cat or intr in sub_cat:
+                            return True
+                    return False
+
+                interest_mask = scored_df.apply(matches_interests, axis=1)
+                if interest_mask.any():
+                    scored_df = scored_df[interest_mask].copy()
 
         if apply_hard_filters:
             hard_mask = (scored_df["affordable"] == 1) & (scored_df["fits_time"] == 1)

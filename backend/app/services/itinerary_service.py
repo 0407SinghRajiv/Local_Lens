@@ -53,8 +53,39 @@ class ItineraryService:
         selected_ids = [str(eid).strip() for eid in request.selected_experience_ids if str(eid).strip()]
 
         if selected_ids:
+            # Match IDs with flexible prefix handling ('EXP-' or standard)
+            clean_ids = set(selected_ids)
+            for sid in selected_ids:
+                if sid.startswith("EXP-"):
+                    clean_ids.add(sid[4:])
+                else:
+                    clean_ids.add(f"EXP-{sid}")
+
             id_series = experiences_df["experience_id"].astype(str)
-            matched_df = experiences_df[id_series.isin(selected_ids)].copy()
+            matched_df = experiences_df[id_series.isin(clean_ids)].copy()
+
+            # If any selected_ids are not in the database catalog (e.g. dynamic or fallback), synthesize rows
+            found_ids = set(matched_df["experience_id"].astype(str)) if not matched_df.empty else set()
+            missing = []
+            for sid in selected_ids:
+                raw_id = sid.replace("EXP-", "")
+                if sid not in found_ids and raw_id not in found_ids:
+                    missing.append({
+                        "experience_id": sid,
+                        "experience_name": sid.replace("EXP-", "").replace("-", " ").title(),
+                        "category": "Local Experience",
+                        "city": request.destination or "Local Explorer",
+                        "location": request.destination or "Local Area",
+                        "price_inr_clean": 250.0,
+                        "price_inr": 250.0,
+                        "duration_hours_clean": 1.0,
+                        "duration_hours": 1.0,
+                        "rating": 4.8,
+                        "image_url": "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80",
+                    })
+            if missing:
+                missing_df = pd.DataFrame(missing)
+                matched_df = pd.concat([matched_df, missing_df], ignore_index=True) if not matched_df.empty else missing_df
         else:
             # If no IDs selected, use notebook candidate scoring to pick top experiences
             scored = engine.get_scored_candidates(
@@ -155,9 +186,9 @@ class ItineraryService:
             activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 
             # Check 1: Total Trip Duration Constraint
-            # Only enforce hard drop if available_time_hours is strictly constrained (e.g. <= 2.5 hours)
-            # or if auto-generating without user selection
-            if (not selected_ids or (request.available_time_hours and request.available_time_hours <= 2.5)) and activity_end_dt > trip_end_limit_dt:
+            # Only enforce hard skip if auto-generating without user selected_ids
+            # When user explicitly selects places, ALL selected places are scheduled into the itinerary!
+            if not selected_ids and request.available_time_hours and request.available_time_hours <= 2.5 and activity_end_dt > trip_end_limit_dt:
                 skipped.append(SkippedExperience(
                     experience_id=exp_id,
                     name=exp_name,

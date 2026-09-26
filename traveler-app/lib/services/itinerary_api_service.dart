@@ -24,10 +24,14 @@ class ItineraryApiService {
   /// Candidate URLs in priority order for physical devices, emulators, and localhost
   static List<String> get candidateUrls {
     final list = <String>[];
-    final envUrl = dotenv.env['API_BASE_URL']?.trim();
-    if (envUrl != null && envUrl.isNotEmpty) {
-      list.add(envUrl.replaceAll(RegExp(r'/+$'), ''));
-    }
+    try {
+      if (dotenv.isInitialized) {
+        final envUrl = dotenv.env['API_BASE_URL']?.trim();
+        if (envUrl != null && envUrl.isNotEmpty) {
+          list.add(envUrl.replaceAll(RegExp(r'/+$'), ''));
+        }
+      }
+    } catch (_) {}
 
     // Wi-Fi LAN & Hotspot host IPs for physical devices
     list.add('http://192.168.137.210:8000');
@@ -155,6 +159,7 @@ class ItineraryApiService {
     double? startLat,
     double? startLon,
     required List<String> selectedExperienceIds,
+    List<RecommendationModel>? selectedPlacesModels,
     required int travelerCount,
     required String travelerType,
   }) async {
@@ -225,6 +230,7 @@ class ItineraryApiService {
       startLat: startLat,
       startLon: startLon,
       selectedIds: selectedExperienceIds,
+      selectedPlacesModels: selectedPlacesModels,
     );
   }
 
@@ -311,6 +317,82 @@ class ItineraryApiService {
         localExperience: true,
         hiddenGem: false,
       ),
+      RecommendationModel(
+        experienceId: 'EXP-DELHI-005',
+        name: 'Historic Temple & Architecture Walk',
+        category: 'Heritage',
+        location: '$dest Temple Town',
+        city: dest,
+        durationMinutes: 60,
+        durationHours: 1.0,
+        price: 150.0,
+        rating: 4.7,
+        reviewCount: 320,
+        reason: 'Ancient architectural marvel with rich heritage',
+        score: 0.85,
+        image: 'assets/images/destinations/heritage_walk.png',
+        latitude: 19.0150,
+        longitude: 73.1350,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-DELHI-006',
+        name: 'Coastal Seafood Tasting Masterclass',
+        category: 'Food',
+        location: '$dest Harbor',
+        city: dest,
+        durationMinutes: 90,
+        durationHours: 1.5,
+        price: 500.0,
+        rating: 4.9,
+        reviewCount: 410,
+        reason: 'Delicious coastal delicacies prepared by local home chefs',
+        score: 0.91,
+        image: 'assets/images/destinations/food_trail.png',
+        latitude: 18.9900,
+        longitude: 73.1150,
+        localExperience: true,
+        hiddenGem: true,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-DELHI-007',
+        name: 'Cliffside Rock Climbing & Rappelling',
+        category: 'Adventure',
+        location: '$dest Valley',
+        city: dest,
+        durationMinutes: 120,
+        durationHours: 2.0,
+        price: 800.0,
+        rating: 4.8,
+        reviewCount: 290,
+        reason: 'Thrilling outdoor adventure with certified guides',
+        score: 0.89,
+        image: 'assets/images/destinations/waterfall.png',
+        latitude: 19.0200,
+        longitude: 73.1400,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-DELHI-008',
+        name: 'Traditional Pottery & Clay Workshop',
+        category: 'Culture',
+        location: '$dest Heritage Lane',
+        city: dest,
+        durationMinutes: 60,
+        durationHours: 1.0,
+        price: 300.0,
+        rating: 4.6,
+        reviewCount: 180,
+        reason: 'Hands-on artisanal pottery making with local masters',
+        score: 0.84,
+        image: 'assets/images/destinations/beach_cafe.png',
+        latitude: 18.9980,
+        longitude: 73.1220,
+        localExperience: true,
+        hiddenGem: true,
+      ),
     ];
   }
 
@@ -323,10 +405,46 @@ class ItineraryApiService {
     double? startLat,
     double? startLon,
     required List<String> selectedIds,
+    List<RecommendationModel>? selectedPlacesModels,
   }) {
-    final recs = _buildFallbackRecommendations(destination, [], budget);
-    final chosen = recs.where((r) => selectedIds.contains(r.experienceId) || selectedIds.isEmpty).toList();
-    final itemsToUse = chosen.isNotEmpty ? chosen : recs.take(3).toList();
+    List<RecommendationModel> itemsToUse = [];
+
+    if (selectedPlacesModels != null && selectedPlacesModels.isNotEmpty) {
+      itemsToUse = selectedPlacesModels;
+    } else {
+      final recs = _buildFallbackRecommendations(destination, [], budget);
+      final chosen = recs.where((r) => selectedIds.contains(r.experienceId) || selectedIds.contains(r.experienceId.replaceAll('EXP-', ''))).toList();
+      if (chosen.length >= selectedIds.length && selectedIds.isNotEmpty) {
+        itemsToUse = chosen;
+      } else if (selectedIds.isNotEmpty) {
+        // Build items for each selected ID
+        for (int i = 0; i < selectedIds.length; i++) {
+          final id = selectedIds[i];
+          final match = recs.firstWhere(
+            (r) => r.experienceId == id || r.experienceId.replaceAll('EXP-', '') == id.replaceAll('EXP-', ''),
+            orElse: () => RecommendationModel(
+              experienceId: id,
+              name: 'Experience ${i + 1}',
+              category: 'Local Experience',
+              location: destination.isNotEmpty ? destination : 'Local Center',
+              city: destination.isNotEmpty ? destination : 'Local',
+              durationMinutes: 60,
+              durationHours: 1.0,
+              price: 250.0,
+              rating: 4.8,
+              reason: 'Selected local experience',
+              score: 0.9,
+              image: 'assets/images/destinations/food_trail.png',
+              latitude: 18.9894 + (i * 0.005),
+              longitude: 73.1175 + (i * 0.005),
+            ),
+          );
+          itemsToUse.add(match);
+        }
+      } else {
+        itemsToUse = recs.take(4).toList();
+      }
+    }
 
     // Parse start time (e.g. 10:30 AM)
     int curHour = 10;
@@ -371,8 +489,8 @@ class ItineraryApiService {
         distanceKm: 2.5,
         image: r.image,
         rating: r.rating ?? 4.8,
-        latitude: r.latitude,
-        longitude: r.longitude,
+        latitude: r.latitude ?? 18.9894,
+        longitude: r.longitude ?? 73.1175,
         travelToNextMinutes: i < itemsToUse.length - 1 ? 15 : 0,
         travelToNextDistanceKm: i < itemsToUse.length - 1 ? 2.5 : 0.0,
       ));

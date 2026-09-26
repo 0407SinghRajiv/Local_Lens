@@ -5,7 +5,7 @@ import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
 import '../../widgets/common/locallens_components.dart';
 
-/// Screen 11: Explore Screen with Real-Time Search, Filters, and Interactive Cards
+/// Screen 11: Explore Screen with Real-Time Search, Filters, and Interactive Cards (Stitch UI)
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
 
@@ -64,7 +64,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       decoration: InputDecoration(
                         hintText: 'What do you want to experience?',
                         hintStyle: LocalLensTypography.bodyMedium,
-                        prefixIcon: const Icon(Icons.search_rounded, color: LocalLensColors.primaryTeal),
+                        prefixIcon: const Icon(Icons.search_rounded, color: LocalLensColors.terracottaPrimary),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.clear_rounded, color: LocalLensColors.textMuted),
@@ -107,10 +107,10 @@ class _ExploreScreenState extends State<ExploreScreen> {
                                     duration: const Duration(milliseconds: 200),
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? LocalLensColors.primaryTeal : Colors.white,
+                                      color: isSelected ? LocalLensColors.deepInk : Colors.white,
                                       borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
                                       border: Border.all(
-                                        color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.border,
+                                        color: isSelected ? LocalLensColors.deepInk : LocalLensColors.borderSubtle,
                                       ),
                                       boxShadow: isSelected ? LocalLensDimensions.softCardShadow : null,
                                     ),
@@ -137,11 +137,11 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
                           decoration: BoxDecoration(
-                            color: LocalLensColors.accentOrange,
+                            color: LocalLensColors.terracottaPrimary,
                             borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
                             boxShadow: [
                               BoxShadow(
-                                color: LocalLensColors.accentOrange.withValues(alpha: 0.3),
+                                color: LocalLensColors.terracottaPrimary.withOpacity(0.3),
                                 blurRadius: 8,
                                 offset: const Offset(0, 3),
                               ),
@@ -170,7 +170,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
               ),
             ),
 
-            const Divider(height: 1, color: LocalLensColors.border),
+            const Divider(height: 1, color: LocalLensColors.borderSubtle),
 
             // Experience Vertical Card List
             Expanded(
@@ -257,7 +257,7 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 return ChoiceChip(
                   label: Text(f),
                   selected: isSelected,
-                  selectedColor: LocalLensColors.primaryTeal,
+                  selectedColor: LocalLensColors.terracottaPrimary,
                   onSelected: (_) {
                     setState(() => _selectedFilter = f);
                     Navigator.pop(ctx);

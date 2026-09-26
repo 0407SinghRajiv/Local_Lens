@@ -114,7 +114,7 @@ void main() {
       expect(notifier.state.selectedVehicle.name, 'SUV');
       expect(notifier.state.status, RideStatus.vehicleSelected);
 
-      notifier.requestRide(
+      await notifier.requestRide(
         pickup: 'Current Location',
         drop: 'Heritage Walk',
       );

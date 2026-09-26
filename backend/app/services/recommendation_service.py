@@ -44,11 +44,11 @@ class RecommendationService:
             model_dir = Path(os.getenv("MODEL_DIR", ml_dir / "models"))
             dataset_dir = Path(os.getenv("DATASET_DIR", ml_dir / "datasets"))
 
-            logger.info(f"Initializing RecommendationEngine with all_experiences_with_images.csv: model_dir={model_dir}, dataset_dir={dataset_dir}")
+            logger.info(f"Initializing RecommendationEngine with all_experiences_with_photos.csv: model_dir={model_dir}, dataset_dir={dataset_dir}")
             cls._engine_instance = RecommendationEngine(
                 model_dir=model_dir,
                 dataset_dir=dataset_dir,
-                dataset_filename="all_experiences_with_images.csv",
+                dataset_filename="all_experiences_with_photos.csv",
             )
 
         return cls._engine_instance

@@ -61,6 +61,12 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
     }
   }
 
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
+
   /// Synchronous map element construction guarantees markers and polylines are instantly present
   void _buildMapElementsSync() {
     final validItems = widget.items.where((i) => i.latitude != null && i.longitude != null).toList();
@@ -300,15 +306,9 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
                 if (!_controllerCompleter.isCompleted) {
                   _controllerCompleter.complete(controller);
                 }
-                setState(() {
-                  _buildMapElementsSync();
-                });
                 _loadCustomMarkersAsync();
-                Future.delayed(const Duration(milliseconds: 300), () {
-                  if (mounted) fitAllBounds();
-                });
-                Future.delayed(const Duration(milliseconds: 800), () {
-                  if (mounted) fitAllBounds();
+                Future.delayed(const Duration(milliseconds: 350), () {
+                  if (mounted && _mapController != null) fitAllBounds();
                 });
               },
               onTap: (_) {

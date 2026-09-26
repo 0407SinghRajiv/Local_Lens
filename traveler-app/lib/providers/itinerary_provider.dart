@@ -34,6 +34,7 @@ class CreateItineraryState {
   // ML Recommendations & Selection Stage
   final List<RecommendationModel> recommendations;
   final Set<String> selectedExperienceIds;
+  final List<RecommendationModel> selectedPlaces;
   final String tripDate; // "2026-09-26"
   final String tripStartTime; // "10:30 AM"
 
@@ -58,6 +59,7 @@ class CreateItineraryState {
     this.preferences = '',
     this.recommendations = const [],
     this.selectedExperienceIds = const {},
+    this.selectedPlaces = const [],
     this.tripDate = '2026-09-26',
     this.tripStartTime = '10:30 AM',
     this.status = ItineraryFormStatus.initial,
@@ -98,6 +100,7 @@ class CreateItineraryState {
     String? preferences,
     List<RecommendationModel>? recommendations,
     Set<String>? selectedExperienceIds,
+    List<RecommendationModel>? selectedPlaces,
     String? tripDate,
     String? tripStartTime,
     ItineraryFormStatus? status,
@@ -121,6 +124,7 @@ class CreateItineraryState {
       preferences: preferences ?? this.preferences,
       recommendations: recommendations ?? this.recommendations,
       selectedExperienceIds: selectedExperienceIds ?? this.selectedExperienceIds,
+      selectedPlaces: selectedPlaces ?? this.selectedPlaces,
       tripDate: tripDate ?? this.tripDate,
       tripStartTime: tripStartTime ?? this.tripStartTime,
       status: status ?? this.status,
@@ -232,9 +236,20 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     state = state.copyWith(selectedExperienceIds: ids);
   }
 
+  void setSelectedPlaces(List<RecommendationModel> places) {
+    final ids = places.map((p) => p.experienceId).toSet();
+    state = state.copyWith(
+      selectedPlaces: places,
+      selectedExperienceIds: ids,
+    );
+  }
+
   void selectAllRecommendations() {
     final allIds = state.recommendations.map((r) => r.experienceId).toSet();
-    state = state.copyWith(selectedExperienceIds: allIds);
+    state = state.copyWith(
+      selectedExperienceIds: allIds,
+      selectedPlaces: state.recommendations,
+    );
   }
 
   /// STAGE 1: Fetch ML Recommendations based on traveler preferences
@@ -264,11 +279,13 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       );
 
       // Pre-select exactly the desired experience count requested by traveler
-      final initialSelected = recs.take(state.desiredExperienceCount).map((r) => r.experienceId).toSet();
+      final initialSelectedPlaces = recs.take(state.desiredExperienceCount).toList();
+      final initialSelected = initialSelectedPlaces.map((r) => r.experienceId).toSet();
 
       state = state.copyWith(
         status: ItineraryFormStatus.recommendationsLoaded,
         recommendations: recs,
+        selectedPlaces: initialSelectedPlaces,
         selectedExperienceIds: initialSelected,
       );
 
@@ -294,11 +311,19 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
           ? state.displayAddress
           : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
 
-      final selectedList = state.selectedExperienceIds.isNotEmpty
-          ? state.selectedExperienceIds.toList()
+      final selectedPlacesList = state.selectedPlaces.isNotEmpty
+          ? state.selectedPlaces
           : (state.recommendations.isNotEmpty
-              ? state.recommendations.take(3).map((r) => r.experienceId).toList()
-              : ['EXP-DELHI-001', 'EXP-DELHI-002']);
+              ? state.recommendations.where((r) => state.selectedExperienceIds.contains(r.experienceId)).toList()
+              : <RecommendationModel>[]);
+
+      final selectedList = selectedPlacesList.isNotEmpty
+          ? selectedPlacesList.map((p) => p.experienceId).toList()
+          : (state.selectedExperienceIds.isNotEmpty
+              ? state.selectedExperienceIds.toList()
+              : (state.recommendations.isNotEmpty
+                  ? state.recommendations.take(state.desiredExperienceCount).map((r) => r.experienceId).toList()
+                  : ['EXP-DELHI-001', 'EXP-DELHI-002', 'EXP-DELHI-003', 'EXP-DELHI-004']));
 
       final itinerary = await ItineraryApiService.generateItinerary(
         destination: dest,
@@ -310,6 +335,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         startLat: state.latitude,
         startLon: state.longitude,
         selectedExperienceIds: selectedList,
+        selectedPlacesModels: selectedPlacesList,
         travelerCount: state.travelerCount,
         travelerType: state.groupType,
       );
@@ -330,7 +356,10 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         startTime: state.tripStartTime,
         durationHours: state.durationHours,
         budget: state.totalBudgetInr,
-        selectedExperienceIds: state.selectedExperienceIds.toList(),
+        selectedExperienceIds: state.selectedPlaces.isNotEmpty
+            ? state.selectedPlaces.map((p) => p.experienceId).toList()
+            : state.selectedExperienceIds.toList(),
+        selectedPlacesModels: state.selectedPlaces,
         travelerCount: state.travelerCount,
         travelerType: state.groupType,
       );

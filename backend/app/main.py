@@ -39,3 +39,11 @@ async def health_check():
     Health check endpoint for container probes and service verification.
     """
     return {"status": "ok"}
+
+
+# Include API Routers
+app.include_router(recommendation_router, prefix="/api/recommendations")
+app.include_router(recommendation_router, prefix=f"{settings.API_V1_STR}/recommendations")
+app.include_router(itinerary_router, prefix="/api/itinerary")
+app.include_router(itinerary_router, prefix=f"{settings.API_V1_STR}/itinerary")
+

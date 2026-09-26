@@ -10,7 +10,8 @@ import '../../services/itinerary_api_service.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/recommendation_swipe_stack.dart';
 
-/// Screen for Google Photos style swipeable recommendation selection
+/// Screen for Multi-Stack Swipeable Recommendation Selection
+/// Creates N separate stacks (N = placesToVisit), where each stack corresponds to 1 final selection.
 class RecommendationSwipeScreen extends ConsumerStatefulWidget {
   const RecommendationSwipeScreen({super.key});
 
@@ -23,54 +24,234 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
   final Set<String> _selectedPlaceIds = {};
   final Set<String> _rejectedPlaceIds = {};
   final Set<String> _shownPlaceIds = {};
-  final List<RecommendationModel> _candidatePool = [];
 
-  bool _isLoadingMore = false;
+  int _currentStackIndex = 0;
+  List<String> _stackThemes = [];
+  List<bool> _stackIsMixed = [];
+  List<List<RecommendationModel>> _stackCandidates = [];
+
+  bool _isLoading = false;
   bool _isGeneratingItinerary = false;
-  String? _errorMessage;
 
   final List<String> _timePresets = ['09:00 AM', '10:00 AM', '10:30 AM', '11:00 AM', '02:00 PM', '04:00 PM'];
 
   @override
   void initState() {
     super.initState();
-    _initializeCandidatePool();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeStacks();
+    });
   }
 
-  void _initializeCandidatePool() {
-    final state = ref.read(itineraryProvider);
-    final initialRecs = state.recommendations;
+  /// Categorization & Interest matcher helper
+  static bool _matchesInterest(RecommendationModel rec, String interest) {
+    final cat = rec.category.trim().toLowerCase();
+    final subCat = (rec.subCategory ?? '').trim().toLowerCase();
+    final intr = interest.trim().toLowerCase();
 
-    // Filter duplicates
-    for (final rec in initialRecs) {
-      final id = rec.experienceId.trim();
-      if (id.isNotEmpty &&
-          !_selectedPlaceIds.contains(id) &&
-          !_rejectedPlaceIds.contains(id) &&
-          !_shownPlaceIds.contains(id)) {
-        _candidatePool.add(rec);
+    if (intr == cat) return true;
+    if (intr == 'food') {
+      return cat == 'food' ||
+          cat.contains('food') ||
+          cat.contains('cuisine') ||
+          cat == 'street food' ||
+          cat == 'local cuisine' ||
+          cat == 'seafood';
+    }
+    if (intr == 'culture') {
+      return cat == 'culture' ||
+          cat == 'heritage' ||
+          cat == 'museum' ||
+          cat == 'temple' ||
+          cat == 'religious' ||
+          cat == 'spiritual' ||
+          cat == 'architecture' ||
+          cat == 'art' ||
+          cat == 'handicraft' ||
+          cat == 'workshop' ||
+          cat == 'workshops';
+    }
+    if (intr == 'adventure') {
+      return cat == 'adventure' ||
+          cat.contains('adventure') ||
+          cat == 'trekking' ||
+          cat == 'water sports' ||
+          cat == 'sports' ||
+          cat == 'boat ride';
+    }
+    if (intr == 'nature') {
+      return cat == 'nature' ||
+          cat.contains('nature') ||
+          cat == 'beach' ||
+          cat == 'wildlife' ||
+          cat == 'waterfall' ||
+          cat == 'bird watching' ||
+          cat == 'coastal';
+    }
+    if (intr == 'heritage') {
+      return cat == 'heritage' ||
+          cat.contains('heritage') ||
+          cat == 'fort' ||
+          cat == 'temple' ||
+          cat == 'religious' ||
+          cat == 'architecture' ||
+          cat == 'museum';
+    }
+    if (intr == 'beach') {
+      return cat == 'beach' || cat.contains('beach') || cat == 'coastal' || cat == 'water sports';
+    }
+    if (intr == 'shopping') {
+      return cat == 'shopping' || cat.contains('shopping') || cat == 'market' || cat == 'markets' || cat == 'handicraft';
+    }
+    if (intr == 'nightlife') {
+      return cat == 'nightlife' || cat.contains('nightlife') || cat == 'entertainment';
+    }
+    if (intr == 'local experiences' || intr == 'hidden gems') {
+      return rec.localExperience || rec.hiddenGem || cat.contains('local') || cat.contains('homestay');
+    }
+    return cat.contains(intr) || subCat.contains(intr);
+  }
+
+  /// Validates if a recommendation belongs to any of the user's selected interests
+  static bool _matchesAnySelectedInterest(RecommendationModel rec, List<String> selectedInterests) {
+    if (selectedInterests.isEmpty) return true;
+    for (final interest in selectedInterests) {
+      if (_matchesInterest(rec, interest)) return true;
+    }
+    return false;
+  }
+
+  /// Initialize N separate stacks for placesToVisit
+  Future<void> _initializeStacks() async {
+    final state = ref.read(itineraryProvider);
+    final int placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
+    final List<String> selectedInterests = state.interests.isNotEmpty
+        ? state.interests
+        : ['Food', 'Culture', 'Local Experiences'];
+    final int interestCount = selectedInterests.length;
+
+    _stackThemes = List.generate(placesToVisit, (index) {
+      if (index < interestCount) {
+        return selectedInterests[index];
+      } else {
+        return 'Mixed (${selectedInterests.take(3).join(' • ')})';
+      }
+    });
+
+    _stackIsMixed = List.generate(placesToVisit, (index) => index >= interestCount);
+    _stackCandidates = List.generate(placesToVisit, (_) => <RecommendationModel>[]);
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    // 1. Distribute available pool from initial provider recommendations
+    final initialRecs = state.recommendations;
+    for (int stackIdx = 0; stackIdx < placesToVisit; stackIdx++) {
+      final isMixed = _stackIsMixed[stackIdx];
+      final theme = _stackThemes[stackIdx];
+
+      for (final rec in initialRecs) {
+        final id = rec.experienceId.trim();
+        if (id.isEmpty ||
+            _selectedPlaceIds.contains(id) ||
+            _rejectedPlaceIds.contains(id) ||
+            _shownPlaceIds.contains(id)) {
+          continue;
+        }
+
+        final bool matches = isMixed
+            ? _matchesAnySelectedInterest(rec, selectedInterests)
+            : _matchesInterest(rec, theme);
+
+        if (matches && _stackCandidates[stackIdx].length < 6) {
+          _stackCandidates[stackIdx].add(rec);
+          _shownPlaceIds.add(id);
+        }
       }
     }
 
-    if (_candidatePool.isEmpty) {
-      _fetchMoreCandidates();
+    // 2. Replenish any stack that has fewer than 5 candidates
+    await _replenishAllStacksIfNeeded(selectedInterests);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
-  /// Replenish candidate pool dynamically from backend
-  Future<void> _fetchMoreCandidates() async {
-    if (_isLoadingMore) return;
+  /// Fetch additional candidates per stack to ensure 5-6 candidates per stack
+  Future<void> _replenishAllStacksIfNeeded(List<String> selectedInterests) async {
+    final state = ref.read(itineraryProvider);
+    final dest = state.locationMode == LocationMode.exact
+        ? state.displayAddress
+        : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
+
+    for (int stackIdx = 0; stackIdx < _stackThemes.length; stackIdx++) {
+      if (_stackCandidates[stackIdx].length >= 5) continue;
+
+      final isMixed = _stackIsMixed[stackIdx];
+      final theme = _stackThemes[stackIdx];
+
+      try {
+        final freshRecs = await ItineraryApiService.fetchRecommendations(
+          destination: dest,
+          startLocation: state.displayAddress,
+          startLat: state.latitude,
+          startLon: state.longitude,
+          budget: state.totalBudgetInr > 0 ? state.totalBudgetInr : 5000.0,
+          durationHours: state.durationHours > 0 ? state.durationHours : 6.0,
+          travelerCount: state.travelerCount,
+          travelerType: state.groupType,
+          interests: isMixed ? selectedInterests : [theme],
+          preferences: state.preferences,
+          topN: 15,
+        );
+
+        for (final rec in freshRecs) {
+          final id = rec.experienceId.trim();
+          if (id.isEmpty ||
+              _selectedPlaceIds.contains(id) ||
+              _rejectedPlaceIds.contains(id) ||
+              _shownPlaceIds.contains(id)) {
+            continue;
+          }
+
+          final bool matches = isMixed
+              ? _matchesAnySelectedInterest(rec, selectedInterests)
+              : _matchesInterest(rec, theme);
+
+          if (matches && _stackCandidates[stackIdx].length < 6) {
+            _stackCandidates[stackIdx].add(rec);
+            _shownPlaceIds.add(id);
+          }
+        }
+      } catch (e) {
+        debugPrint('[RecommendationSwipeScreen] Error replenishing stack $stackIdx: $e');
+      }
+    }
+  }
+
+  /// Fetch more candidates for the currently active stack
+  Future<void> _fetchMoreForActiveStack() async {
+    if (_isLoading || _currentStackIndex >= _stackThemes.length) return;
+
     setState(() {
-      _isLoadingMore = true;
-      _errorMessage = null;
+      _isLoading = true;
     });
 
-    try {
-      final state = ref.read(itineraryProvider);
-      final dest = state.locationMode == LocationMode.exact
-          ? state.displayAddress
-          : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
+    final state = ref.read(itineraryProvider);
+    final List<String> selectedInterests = state.interests.isNotEmpty
+        ? state.interests
+        : ['Food', 'Culture', 'Local Experiences'];
+    final dest = state.locationMode == LocationMode.exact
+        ? state.displayAddress
+        : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
+    final isMixed = _stackIsMixed[_currentStackIndex];
+    final theme = _stackThemes[_currentStackIndex];
 
+    try {
       final freshRecs = await ItineraryApiService.fetchRecommendations(
         destination: dest,
         startLocation: state.displayAddress,
@@ -80,7 +261,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         durationHours: state.durationHours > 0 ? state.durationHours : 6.0,
         travelerCount: state.travelerCount,
         travelerType: state.groupType,
-        interests: state.interests,
+        interests: isMixed ? selectedInterests : [theme],
         preferences: state.preferences,
         topN: 20,
       );
@@ -88,76 +269,87 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
       final newUnique = <RecommendationModel>[];
       for (final rec in freshRecs) {
         final id = rec.experienceId.trim();
-        if (id.isNotEmpty &&
-            !_selectedPlaceIds.contains(id) &&
-            !_rejectedPlaceIds.contains(id) &&
-            !_shownPlaceIds.contains(id) &&
-            !_candidatePool.any((c) => c.experienceId == id)) {
+        if (id.isEmpty ||
+            _selectedPlaceIds.contains(id) ||
+            _rejectedPlaceIds.contains(id) ||
+            _shownPlaceIds.contains(id)) {
+          continue;
+        }
+
+        final bool matches = isMixed
+            ? _matchesAnySelectedInterest(rec, selectedInterests)
+            : _matchesInterest(rec, theme);
+
+        if (matches) {
           newUnique.add(rec);
+          _shownPlaceIds.add(id);
         }
       }
 
       if (mounted) {
         setState(() {
-          _candidatePool.addAll(newUnique);
-          _isLoadingMore = false;
-          if (_candidatePool.isEmpty && _selectedPlaces.isEmpty) {
-            _errorMessage = "We couldn't find enough unique recommendations for these filters.";
-          }
+          _stackCandidates[_currentStackIndex].addAll(newUnique);
+          _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _isLoadingMore = false;
-          _errorMessage = "Failed to load more recommendations.";
+          _isLoading = false;
         });
       }
     }
   }
 
   void _onSwipeRight(RecommendationModel candidate) {
-    final state = ref.read(itineraryProvider);
-    final placesToVisit = state.desiredExperienceCount;
-
     setState(() {
       final id = candidate.experienceId;
       _selectedPlaceIds.add(id);
       _shownPlaceIds.add(id);
       _selectedPlaces.add(candidate);
-      _candidatePool.removeWhere((c) => c.experienceId == id);
-    });
 
-    // Check replenishment
-    if (_candidatePool.length < 3 && _selectedPlaces.length < placesToVisit) {
-      _fetchMoreCandidates();
-    }
+      // Remove from all remaining stacks to prevent cross-stack duplicates
+      for (int i = _currentStackIndex; i < _stackCandidates.length; i++) {
+        _stackCandidates[i].removeWhere((c) => c.experienceId == id);
+      }
+
+      // CURRENT STACK TERMINATES IMMEDIATELY
+      _currentStackIndex++;
+    });
   }
 
   void _onSwipeLeft(RecommendationModel candidate) {
-    final state = ref.read(itineraryProvider);
-    final placesToVisit = state.desiredExperienceCount;
-
     setState(() {
       final id = candidate.experienceId;
       _rejectedPlaceIds.add(id);
       _shownPlaceIds.add(id);
-      _candidatePool.removeWhere((c) => c.experienceId == id);
+
+      // Candidate is rejected from current stack
+      if (_currentStackIndex < _stackCandidates.length) {
+        _stackCandidates[_currentStackIndex].removeWhere((c) => c.experienceId == id);
+      }
     });
 
-    // Check replenishment
-    if (_candidatePool.length < 3 && _selectedPlaces.length < placesToVisit) {
-      _fetchMoreCandidates();
+    // If current stack ran out of candidates without a selection, fetch more
+    if (_currentStackIndex < _stackCandidates.length && _stackCandidates[_currentStackIndex].isEmpty) {
+      _fetchMoreForActiveStack();
     }
   }
 
   void _removeSelectedPlace(String experienceId) {
     setState(() {
       _selectedPlaceIds.remove(experienceId);
-      _selectedPlaces.removeWhere((p) => p.experienceId == experienceId);
+      final removedIndex = _selectedPlaces.indexWhere((p) => p.experienceId == experienceId);
+      if (removedIndex != -1) {
+        _selectedPlaces.removeAt(removedIndex);
+        if (_currentStackIndex > _selectedPlaces.length) {
+          _currentStackIndex = _selectedPlaces.length;
+        }
+      }
     });
-    if (_candidatePool.length < 3) {
-      _fetchMoreCandidates();
+
+    if (_currentStackIndex < _stackCandidates.length && _stackCandidates[_currentStackIndex].isEmpty) {
+      _fetchMoreForActiveStack();
     }
   }
 
@@ -167,6 +359,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
     });
 
     final notifier = ref.read(itineraryProvider.notifier);
+    notifier.setSelectedPlaces(_selectedPlaces);
     notifier.setSelectedExperienceIds(_selectedPlaceIds);
 
     // Navigate to Generating Screen
@@ -176,8 +369,8 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(itineraryProvider);
-    final placesToVisit = state.desiredExperienceCount;
-    final isComplete = _selectedPlaces.length >= placesToVisit;
+    final placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
+    final isComplete = _selectedPlaces.length >= placesToVisit || _currentStackIndex >= placesToVisit;
     final remainingCount = max(0, placesToVisit - _selectedPlaces.length);
 
     return Scaffold(
@@ -206,13 +399,13 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         ),
         centerTitle: true,
         actions: [
-          if (!isComplete && _candidatePool.isNotEmpty)
+          if (!isComplete)
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: IconButton(
                 icon: const Icon(Icons.refresh_rounded, color: LocalLensColors.textSecondary),
-                tooltip: 'Fetch more recommendations',
-                onPressed: _fetchMoreCandidates,
+                tooltip: 'Fetch more recommendations for this stack',
+                onPressed: _fetchMoreForActiveStack,
               ),
             ),
         ],
@@ -231,7 +424,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
             Expanded(
               child: isComplete
                   ? _buildCompletionConfirmationView(state)
-                  : _buildSwipeDeckView(placesToVisit, remainingCount),
+                  : _buildActiveStackView(placesToVisit, remainingCount),
             ),
           ],
         ),
@@ -239,8 +432,8 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
     );
   }
 
-  Widget _buildSwipeDeckView(int placesToVisit, int remainingCount) {
-    if (_candidatePool.isEmpty && _isLoadingMore) {
+  Widget _buildActiveStackView(int placesToVisit, int remainingCount) {
+    if (_isLoading && (_currentStackIndex >= _stackCandidates.length || _stackCandidates[_currentStackIndex].isEmpty)) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -250,7 +443,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
             ),
             SizedBox(height: 16),
             Text(
-              'Finding matching local experiences...',
+              'Finding matching local experiences for your itinerary...',
               style: TextStyle(fontWeight: FontWeight.w600, color: LocalLensColors.textSecondary),
             ),
           ],
@@ -258,7 +451,10 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
       );
     }
 
-    if (_candidatePool.isEmpty && !_isLoadingMore) {
+    final activeCandidates = _currentStackIndex < _stackCandidates.length ? _stackCandidates[_currentStackIndex] : <RecommendationModel>[];
+    final currentTheme = _currentStackIndex < _stackThemes.length ? _stackThemes[_currentStackIndex] : 'Experience';
+
+    if (activeCandidates.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -268,15 +464,13 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
               const Icon(Icons.travel_explore_rounded, size: 64, color: LocalLensColors.textMuted),
               const SizedBox(height: 16),
               Text(
-                _errorMessage ?? 'No more candidates in pool',
+                'No more candidates in $currentTheme stack',
                 style: LocalLensTypography.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                _selectedPlaces.isNotEmpty
-                    ? 'You have selected ${_selectedPlaces.length} places. You can continue with your selected places or load more.'
-                    : 'Try refreshing or changing your filters to find more recommendations.',
+                'Tap Load More to find more local options matching your preferences.',
                 textAlign: TextAlign.center,
                 style: LocalLensTypography.bodyMedium.copyWith(color: LocalLensColors.textSecondary),
               ),
@@ -285,7 +479,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: _fetchMoreCandidates,
+                    onPressed: _fetchMoreForActiveStack,
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Load More'),
                   ),
@@ -297,9 +491,6 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
                         foregroundColor: Colors.white,
                       ),
                       onPressed: () {
-                        setState(() {
-                          // Allow continuing with current count
-                        });
                         _generateItineraryFromSelection();
                       },
                       child: Text('Continue with ${_selectedPlaces.length}'),
@@ -317,63 +508,86 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
       children: [
         const SizedBox(height: 12),
 
-        // INSTRUCTION HEADER
+        // PROFESSIONAL STACK STEP & THEME INDICATOR
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: LocalLensColors.primaryTealSoft,
-                      borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                    ),
-                    child: Text(
-                      '${_selectedPlaces.length} / $placesToVisit SELECTED',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: LocalLensColors.primaryTealDark,
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: LocalLensColors.primaryTeal,
+                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
+                        ),
+                        child: Text(
+                          'STEP ${_currentStackIndex + 1} OF $placesToVisit',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
                       ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: LocalLensColors.accentOrangeSoft,
+                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
+                        ),
+                        child: Text(
+                          currentTheme.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: LocalLensColors.accentOrange,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    remainingCount == 1 ? '1 place remaining' : '$remainingCount places remaining',
+                    style: LocalLensTypography.caption.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: LocalLensColors.textSecondary,
                     ),
                   ),
-                  if (_isLoadingMore) ...[
-                    const SizedBox(width: 8),
-                    const SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  ],
                 ],
               ),
+              const SizedBox(height: 6),
               Text(
-                remainingCount == 1 ? '1 place remaining' : '$remainingCount places remaining',
+                'Select 1 place for this stack • Swipe right to choose',
                 style: LocalLensTypography.caption.copyWith(
-                  fontWeight: FontWeight.w700,
                   color: LocalLensColors.textSecondary,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
-        // CARD STACK
+        // CARD STACK FOR CURRENT THEME
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: RecommendationSwipeStack(
-              candidates: _candidatePool,
+              key: ValueKey('stack_$_currentStackIndex'),
+              candidates: activeCandidates,
               placesToVisit: placesToVisit,
               selectedCount: _selectedPlaces.length,
               onSwipeRight: _onSwipeRight,
               onSwipeLeft: _onSwipeLeft,
-              onStackEmpty: _fetchMoreCandidates,
+              onStackEmpty: _fetchMoreForActiveStack,
             ),
           ),
         ),
@@ -438,7 +652,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'We will generate a time-optimized chronological route with connected maps for your day.',
+                  'All ${_selectedPlaces.length} selected experiences will be synthesized into a chronological route with connected maps.',
                   style: LocalLensTypography.bodyMedium.copyWith(color: Colors.white70, fontSize: 13),
                 ),
               ],
@@ -647,7 +861,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
                           children: [
                             Text(
                               place.category,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w700,
                                 color: LocalLensColors.accentOrange,
@@ -688,7 +902,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
 
           // FINAL ACTION BUTTON: GENERATE MY ITINERARY
           LocalLensPrimaryButton(
-            text: 'Generate My Itinerary',
+            text: 'Generate My Itinerary (${_selectedPlaces.length} Places)',
             isLoading: _isGeneratingItinerary,
             icon: Icons.route_rounded,
             onPressed: _generateItineraryFromSelection,
