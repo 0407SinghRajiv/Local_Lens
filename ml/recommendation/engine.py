@@ -543,11 +543,39 @@ class RecommendationEngine:
         df_["score_per_hour"] = df_["recommendation_score"] / df_["duration_hours_clean"].replace(0, 0.25)
         option_b = greedy("score_per_hour", ascending=False)
 
-        best = (
-            option_a
-            if sum(r["recommendation_score"] for r in option_a)
-            >= sum(r["recommendation_score"] for r in option_b)
-            else option_b
+        # Heuristic C: Adaptive Multi-Stop Express Heuristic
+        # For short time limits (e.g. <= 3.5 hrs), allows highlights durations (30-45 mins per stop)
+        # so traveler gets a rich 2-3 stop itinerary rather than only 1 isolated stop!
+        option_c = []
+        target_multi_stops = min(max_stops, 3 if available_time_hours <= 3.0 else 4)
+        if len(df_) >= 2 and target_multi_stops >= 2:
+            time_per_stop = max(0.4, min(available_time_hours / float(target_multi_stops), 1.0))
+            rem_b = float(budget_inr)
+            rem_t = float(available_time_hours)
+            for _, row in df_.sort_values("recommendation_score", ascending=False).iterrows():
+                if len(option_c) >= target_multi_stops:
+                    break
+                stop_d = min(float(row["duration_hours_clean"]), time_per_stop)
+                if stop_d <= rem_t + 1e-4 and float(row["price_inr_clean"]) <= rem_b + 1e-4:
+                    if any(p["experience_id"] == row["experience_id"] for p in option_c):
+                        continue
+                    row_copy = row.copy()
+                    row_copy["duration_hours_clean"] = round(stop_d, 2)
+                    option_c.append(row_copy)
+                    rem_t -= stop_d
+                    rem_b -= float(row["price_inr_clean"])
+
+        # Pick best option: if option_a/b only found 1 stop but option_c found multiple stops, prioritize multi-stop itinerary
+        options_to_compare = [option_a, option_b]
+        if len(option_c) >= 2:
+            options_to_compare.append(option_c)
+
+        best = max(
+            options_to_compare,
+            key=lambda opt: (
+                1 if (len(opt) >= 2 and max(len(option_a), len(option_b)) <= 1) else 0,
+                sum(r["recommendation_score"] for r in opt)
+            )
         )
 
         if not best:

@@ -135,12 +135,51 @@ class RecommendationService:
         group_type = str(request.group_type or "Solo")
         interests = request.interests if request.interests else []
 
-        # If coordinates provided, filter by radius around user location (default 25 km)
+        # Resolve target city and coordinates
+        city_filter = request.city if request.city else (request.destination if request.destination else None)
         user_lat = request.user_lat
         user_lon = request.user_lon
-        radius_km = request.radius_km or 25.0
 
-        city_filter = request.city if request.city else None
+        # If user did not provide GPS coordinates, anchor to known city coordinates
+        if (user_lat is None or user_lon is None) and city_filter:
+            clean_city = str(city_filter).strip().lower()
+            city_anchors = {
+                "mumbai": (18.9894, 73.1175),
+                "navi mumbai": (19.0330, 73.0297),
+                "delhi": (28.6139, 77.2090),
+                "new delhi": (28.6139, 77.2090),
+                "bangalore": (12.9716, 77.5946),
+                "bengaluru": (12.9716, 77.5946),
+                "goa": (15.2993, 74.1240),
+                "jaipur": (26.9124, 75.7873),
+                "hyderabad": (17.3850, 78.4867),
+                "kolkata": (22.5726, 88.3639),
+                "chennai": (13.0827, 80.2707),
+                "pune": (18.5204, 73.8567),
+                "agra": (27.1767, 78.0081),
+                "varanasi": (25.3176, 82.9739),
+            }
+            for c_name, coords in city_anchors.items():
+                if c_name in clean_city or clean_city in c_name:
+                    user_lat, user_lon = coords
+                    break
+
+        # Map KM Area within which recommendations will be done based on time limit
+        # For short time limits (e.g. 1-2 hours), restrict search to a tight reachable radius (6-10 km)
+        # so traveler spends time experiencing instead of being stuck in transit!
+        if request.radius_km is not None and request.radius_km > 0 and request.radius_km != 25.0:
+            radius_km = float(request.radius_km)
+        else:
+            if available_time_hours <= 1.5:
+                radius_km = 6.0
+            elif available_time_hours <= 2.5:
+                radius_km = 10.0
+            elif available_time_hours <= 4.0:
+                radius_km = 18.0
+            elif available_time_hours <= 6.0:
+                radius_km = 25.0
+            else:
+                radius_km = 35.0
 
         excluded_categories = request.excluded_categories
 
@@ -159,6 +198,25 @@ class RecommendationService:
             top_n=request.top_n,
             apply_hard_filters=request.apply_hard_filters,
         )
+
+        # Fallback 1: If tight time-bounded radius yielded fewer than 3 candidates, expand radius
+        if len(results) < 3 and user_lat is not None and user_lon is not None:
+            expanded_radius = min(radius_km * 2.0, 40.0)
+            results = engine.recommend(
+                budget_inr=budget_inr,
+                available_time_hours=available_time_hours,
+                traveler_count=traveler_count,
+                group_type=group_type,
+                interests=interests,
+                user_lat=user_lat,
+                user_lon=user_lon,
+                radius_km=expanded_radius,
+                city=city_filter,
+                category=request.category,
+                excluded_categories=excluded_categories,
+                top_n=request.top_n,
+                apply_hard_filters=False,
+            )
 
         # Fallback if hard constraints eliminated all candidates
         if not results and request.apply_hard_filters:
