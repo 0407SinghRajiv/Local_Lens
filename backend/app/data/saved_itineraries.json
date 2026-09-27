@@ -27,7 +27,7 @@
         "price": 350.0,
         "distanceKm": 8.62,
         "image": "https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800&q=80",
-        "isCompleted": false,
+        "isCompleted": true,
         "isSelected": true,
         "requiresBooking": false,
         "rating": 4.8,
@@ -36,12 +36,12 @@
         "travelToNextDistanceKm": 0.25,
         "latitude": 19.037,
         "longitude": 73.0625,
-        "actualExpense": null,
-        "travelerRating": null,
+        "actualExpense": 350.0,
+        "travelerRating": 5.0,
         "travelerReview": null,
-        "completedAt": null,
-        "dwellDurationMinutes": 0,
-        "arrivedWithinProximity": false
+        "completedAt": "2026-09-27T09:49:00.919916",
+        "dwellDurationMinutes": 5,
+        "arrivedWithinProximity": true
       },
       {
         "id": "NAVI-014",
@@ -73,7 +73,7 @@
       }
     ],
     "total_stops": 2,
-    "saved_at": "2026-09-27T09:39:51.171197",
+    "saved_at": "2026-09-27T09:49:00.818038",
     "notes": ""
   },
   {

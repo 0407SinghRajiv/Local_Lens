@@ -65,3 +65,4 @@ class NugenEnhancementResponse(BaseModel):
     personalized_tips: List[NugenPersonalizedTip] = Field(default_factory=list)
     final_recommendations: List[NugenRecommendation] = Field(default_factory=list)
     metadata: Optional[Dict[str, Any]] = None
+    weather: Optional[Dict[str, Any]] = None

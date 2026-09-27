@@ -110,6 +110,7 @@ class NugenService:
                             raw_data=parsed_data,
                             original_itinerary=generated_itinerary,
                             user_constraints=user_constraints,
+                            weather=weather,
                         )
                         logger.info("[NUGEN] Response validated")
                         logger.info("[NUGEN] Enhancement completed")

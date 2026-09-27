@@ -12,6 +12,7 @@ try:
     )
     from app.services.itinerary_service import ItineraryService
     from app.services.nugen_service import NugenService
+    from app.services.weather_service import WeatherService
     from app.core.config import settings
 except ImportError:
     from backend.app.schemas.itinerary_schemas import (
@@ -22,6 +23,7 @@ except ImportError:
     )
     from backend.app.services.itinerary_service import ItineraryService
     from backend.app.services.nugen_service import NugenService
+    from backend.app.services.weather_service import WeatherService
     from backend.app.core.config import settings
 import json
 import httpx
@@ -46,6 +48,17 @@ async def generate_itinerary(request: ItineraryGenerateRequest):
         # Nugen AI Enhancement + Validation Layer (Runs strictly AFTER generation)
         if getattr(settings, "NUGEN_ENABLED", False):
             try:
+                # Environmental & Weather Context Ingestion (Section 20 Digital-Twin compatibility)
+                weather_context = None
+                try:
+                    weather_context = await WeatherService.get_weather_forecast(
+                        lat=request.user_lat or request.start_lat,
+                        lon=request.user_lon or request.start_lon,
+                        destination=request.destination,
+                    )
+                except Exception as w_err:
+                    logger.debug(f"[NUGEN] Weather context fetch skipped: {w_err}")
+
                 user_constraints = {
                     "budget": request.budget_inr or request.budget,
                     "available_time_hours": request.available_time_hours or request.duration_hours,
@@ -58,6 +71,7 @@ async def generate_itinerary(request: ItineraryGenerateRequest):
                 nugen_insights = await NugenService.enhance_itinerary(
                     user_constraints=user_constraints,
                     generated_itinerary=response.model_dump(),
+                    weather=weather_context,
                 )
                 if nugen_insights:
                     response.nugen = nugen_insights

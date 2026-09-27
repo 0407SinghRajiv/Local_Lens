@@ -40,6 +40,7 @@ class NugenValidator:
         raw_data: Dict[str, Any],
         original_itinerary: Dict[str, Any],
         user_constraints: Dict[str, Any],
+        weather: Optional[Dict[str, Any]] = None,
     ) -> NugenEnhancementResponse:
         """
         Validate that Nugen AI response adheres to required schema and doesn't fabricate facts.
@@ -49,6 +50,8 @@ class NugenValidator:
             response = NugenEnhancementResponse.model_validate(raw_data)
             response.enabled = True
             response.status = "success"
+            if weather and not response.weather:
+                response.weather = weather
 
             # Enforce that all recommendations are tagged with source='nugen'
             for rec in response.final_recommendations:
@@ -57,7 +60,7 @@ class NugenValidator:
             return response
         except Exception as e:
             logger.warning(f"[NUGEN] Response validation error: {e}. Falling back to deterministic evaluation.")
-            return cls.generate_deterministic_evaluation(original_itinerary, user_constraints)
+            return cls.generate_deterministic_evaluation(original_itinerary, user_constraints, weather=weather)
 
     @classmethod
     def generate_deterministic_evaluation(
@@ -299,6 +302,7 @@ class NugenValidator:
             enhancements=enhancements,
             personalized_tips=personalized_tips,
             final_recommendations=final_recommendations,
+            weather=weather,
             metadata={
                 "validation_engine": "nugen_hybrid_evaluator",
                 "rules_verified": [1, 2, 3, 4, 5, 6],

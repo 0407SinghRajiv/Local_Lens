@@ -398,6 +398,7 @@ class NugenEnhancementData {
   final List<Map<String, dynamic>> enhancements;
   final List<Map<String, dynamic>> personalizedTips;
   final List<Map<String, dynamic>> finalRecommendations;
+  final Map<String, dynamic>? weather;
 
   const NugenEnhancementData({
     this.enabled = true,
@@ -407,6 +408,7 @@ class NugenEnhancementData {
     this.enhancements = const [],
     this.personalizedTips = const [],
     this.finalRecommendations = const [],
+    this.weather,
   });
 
   factory NugenEnhancementData.fromJson(Map<String, dynamic> json) {
@@ -418,6 +420,7 @@ class NugenEnhancementData {
       enhancements: (json['enhancements'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
       personalizedTips: (json['personalized_tips'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
       finalRecommendations: (json['final_recommendations'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      weather: (json['weather'] as Map<String, dynamic>?),
     );
   }
 
@@ -429,5 +432,6 @@ class NugenEnhancementData {
     'enhancements': enhancements,
     'personalized_tips': personalizedTips,
     'final_recommendations': finalRecommendations,
+    if (weather != null) 'weather': weather,
   };
 }

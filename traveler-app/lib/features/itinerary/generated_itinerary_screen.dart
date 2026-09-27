@@ -1979,6 +1979,35 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
           const Divider(height: 1, color: LocalLensColors.border),
           const SizedBox(height: 12),
 
+          // Weather Forecast Context (if provided by Nugen)
+          if (nugen.weather != null && nugen.weather!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wb_sunny_rounded, size: 16, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Nugen Weather Forecast: ${nugen.weather!['condition'] ?? 'Clear'} • ${nugen.weather!['temperature'] ?? '28°C'} • Wind ${nugen.weather!['wind_speed_kmh'] ?? '10 km/h'}',
+                      style: LocalLensTypography.caption.copyWith(
+                        color: LocalLensColors.textPrimary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // 1. Validation Grid/Rows
           Text(
             'Constraint & Plan Validation',
