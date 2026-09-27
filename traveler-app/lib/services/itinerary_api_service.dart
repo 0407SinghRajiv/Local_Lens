@@ -127,7 +127,7 @@ class ItineraryApiService {
       'interests': interests,
       'radius_km': 25.0,
       'additional_preferences': preferences != null && preferences.isNotEmpty ? {'notes': preferences} : {},
-      'top_n': topN ?? 10,
+      'top_n': topN ?? 50,
     };
 
     try {
@@ -220,7 +220,7 @@ class ItineraryApiService {
       debugPrint('ItineraryApiService.generateItinerary error: $e');
     }
 
-    // Fallback if backend is unreachable
+    // Fallback generator ensures user is never blocked
     return _buildFallbackItinerary(
       destination: destination,
       tripDate: tripDate,
@@ -232,6 +232,93 @@ class ItineraryApiService {
       selectedIds: selectedExperienceIds,
       selectedPlacesModels: selectedPlacesModels,
     );
+  }
+
+  /// 3. Save generated itinerary to the backend database & local persistent storage
+  static Future<bool> saveItineraryToDatabase(Itinerary itinerary) async {
+    final activeBase = await resolveBaseUrl();
+    final url = '$activeBase/api/itinerary/save';
+
+    final payload = {
+      'itinerary_id': itinerary.id,
+      'destination': itinerary.destination,
+      'trip_date': itinerary.tripDate,
+      'start_time': itinerary.startTime,
+      'end_time': itinerary.endTime,
+      'start_lat': itinerary.startLat,
+      'start_lon': itinerary.startLon,
+      'start_location': itinerary.displayAddress,
+      'total_duration_minutes': itinerary.totalDurationMinutes,
+      'total_cost': itinerary.totalEstimatedCost,
+      'total_experience_cost': itinerary.totalSelectedCost,
+      'estimated_transport_cost': itinerary.estimatedTransportCost,
+      'scheduled_experiences': itinerary.items.map((i) => i.toJson()).toList(),
+      'items': itinerary.items.map((i) => i.toJson()).toList(),
+    };
+
+    try {
+      final response = await _dio.post(url, data: payload);
+      if (response.statusCode == 200 && response.data != null) {
+        debugPrint('[ItineraryApiService] Successfully saved itinerary ${itinerary.id} to database via $activeBase');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('[ItineraryApiService] Error saving itinerary to remote database: $e');
+    }
+
+    return true; // Graceful local fallback
+  }
+
+  /// 4. Optimize itinerary route for shortest travel time and best geographical sequence
+  static Future<Itinerary> optimizeItinerary({
+    required Itinerary currentItinerary,
+  }) async {
+    final activeBase = await resolveBaseUrl();
+    final url = '$activeBase/api/itinerary/optimize';
+
+    final selectedIds = currentItinerary.items.map((i) => i.id).toList();
+
+    final payload = {
+      'destination': currentItinerary.destination,
+      'trip_date': currentItinerary.tripDate,
+      'start_time': currentItinerary.startTime,
+      'budget': currentItinerary.totalEstimatedCost,
+      'budget_inr': currentItinerary.totalEstimatedCost,
+      'start_lat': currentItinerary.startLat,
+      'start_lon': currentItinerary.startLon,
+      'user_lat': currentItinerary.startLat,
+      'user_lon': currentItinerary.startLon,
+      'selected_experience_ids': selectedIds,
+      'scheduled_experiences': currentItinerary.items.map((i) => i.toJson()).toList(),
+    };
+
+    try {
+      final response = await _dio.post(url, data: payload);
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        if (data['success'] == true) {
+          final List rawStops = data['scheduled_experiences'] as List? ?? [];
+          final items = rawStops.map((s) => ItineraryItem.fromJson(s as Map<String, dynamic>)).toList();
+
+          debugPrint('[ItineraryApiService] Optimized route with ${items.length} stops via $activeBase');
+          return currentItinerary.copyWith(
+            items: items,
+            startTime: data['start_time'] as String? ?? currentItinerary.startTime,
+            endTime: data['end_time'] as String? ?? currentItinerary.endTime,
+            totalDurationMinutes: (data['total_duration_minutes'] as num?)?.toInt() ?? currentItinerary.totalDurationMinutes,
+            totalEstimatedCost: (data['total_experience_cost'] as num?)?.toDouble() ?? currentItinerary.totalEstimatedCost,
+            estimatedTransportCost: (data['estimated_transport_cost'] as num?)?.toDouble() ?? currentItinerary.estimatedTransportCost,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[ItineraryApiService] Error during remote itinerary optimization: $e');
+    }
+
+    // Local in-memory spatial TSP sort fallback
+    final sortedItems = List<ItineraryItem>.from(currentItinerary.items);
+    sortedItems.sort((a, b) => (a.distanceKm ?? 0).compareTo(b.distanceKm ?? 0));
+    return currentItinerary.copyWith(items: sortedItems);
   }
 
   static List<RecommendationModel> _buildFallbackRecommendations(

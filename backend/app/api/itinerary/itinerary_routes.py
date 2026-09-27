@@ -50,3 +50,67 @@ async def generate_itinerary(request: ItineraryGenerateRequest):
                 "message": f"Failed to synthesize itinerary: {str(e)}",
             },
         )
+
+
+@router.post("/save")
+@router.post("/save/", include_in_schema=False)
+async def save_itinerary(request: dict):
+    """
+    Save a generated itinerary to the database.
+    """
+    try:
+        res = ItineraryService.save_itinerary(request)
+        return res
+    except Exception as e:
+        logger.error(f"Error saving itinerary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "ITINERARY_SAVE_FAILED",
+                "message": f"Failed to save itinerary to database: {str(e)}",
+            },
+        )
+
+
+@router.get("/list")
+@router.get("/list/", include_in_schema=False)
+async def list_saved_itineraries():
+    """
+    List all saved itineraries from the database.
+    """
+    try:
+        items = ItineraryService.get_saved_itineraries()
+        return {
+            "success": True,
+            "count": len(items),
+            "itineraries": items,
+        }
+    except Exception as e:
+        logger.error(f"Error listing saved itineraries: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "ITINERARY_LIST_FAILED",
+                "message": f"Failed to list saved itineraries: {str(e)}",
+            },
+        )
+
+
+@router.post("/optimize", response_model=ItineraryGenerateResponse)
+@router.post("/optimize/", response_model=ItineraryGenerateResponse, include_in_schema=False)
+async def optimize_itinerary(request: ItineraryGenerateRequest):
+    """
+    Re-optimize an itinerary route for minimum transit duration and optimal sequence.
+    """
+    try:
+        response = ItineraryService.optimize_itinerary(request)
+        return response
+    except Exception as e:
+        logger.error(f"Error optimizing itinerary: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "ITINERARY_OPTIMIZATION_FAILED",
+                "message": f"Failed to optimize itinerary: {str(e)}",
+            },
+        )

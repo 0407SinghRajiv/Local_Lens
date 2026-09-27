@@ -8,6 +8,7 @@ import '../../models/itinerary_model.dart';
 import '../../models/ride_model.dart';
 import '../../providers/itinerary_provider.dart';
 import '../../providers/ride_provider.dart';
+import '../../services/itinerary_pdf_service.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/itinerary_map.dart';
 
@@ -24,6 +25,11 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
   int _selectedVehicleIndex = 0;
   int? _selectedExperienceIndex;
   final GlobalKey<ItineraryMapWidgetState> _mapKey = GlobalKey<ItineraryMapWidgetState>();
+
+  bool _isDownloadingPdf = false;
+  bool _isOptimizing = false;
+  bool _isSaving = false;
+  bool _isSaved = false;
 
   final List<VehicleOption> _vehicles = VehicleOption.defaultOptions;
 
@@ -309,7 +315,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               const SizedBox(height: 24),
 
               // BOTTOM ACTION BUTTONS
-              _buildBottomActions(context, itineraryNotifier),
+              _buildBottomActions(context, itineraryNotifier, itinerary),
 
               const SizedBox(height: 32),
             ],
@@ -956,9 +962,238 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
     );
   }
 
-  Widget _buildBottomActions(BuildContext context, ItineraryNotifier notifier) {
+  Future<void> _downloadPdf(Itinerary itinerary) async {
+    setState(() => _isDownloadingPdf = true);
+    try {
+      await ItineraryPdfService.downloadOrPrintPdf(context, itinerary);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating PDF: $e'),
+            backgroundColor: LocalLensColors.errorRed,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isDownloadingPdf = false);
+    }
+  }
+
+  Future<void> _optimizeItinerary(ItineraryNotifier notifier) async {
+    setState(() => _isOptimizing = true);
+    try {
+      final optimized = await notifier.optimizeCurrentItinerary();
+      if (mounted && optimized != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Itinerary route optimized for fastest travel time & sequence!',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: LocalLensColors.primaryTeal,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to optimize itinerary: $e'),
+            backgroundColor: LocalLensColors.errorRed,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isOptimizing = false);
+    }
+  }
+
+  Future<void> _saveItinerary(ItineraryNotifier notifier, Itinerary itinerary) async {
+    setState(() => _isSaving = true);
+    try {
+      final success = await notifier.saveCurrentItinerary();
+      if (mounted) {
+        setState(() => _isSaved = true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: const [
+                Icon(Icons.bookmark_added_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Itinerary saved to database successfully!',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: LocalLensColors.primaryTeal,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to save to database: $e'),
+            backgroundColor: LocalLensColors.errorRed,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _optForRide(Itinerary itinerary) {
+    final nextExp = itinerary.items.isNotEmpty ? itinerary.items.first.name : itinerary.destination;
+    final selectedVehicle = _vehicles[_selectedVehicleIndex];
+    ref.read(rideProvider.notifier).selectVehicle(selectedVehicle);
+    ref.read(rideProvider.notifier).requestRide(
+          pickup: itinerary.displayAddress.isNotEmpty ? itinerary.displayAddress : 'Current Location (Panvel)',
+          drop: nextExp,
+        );
+    context.push(AppRoutes.rideSearching);
+  }
+
+  Widget _buildBottomActions(BuildContext context, ItineraryNotifier notifier, Itinerary itinerary) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 1. DOWNLOAD AS PDF BUTTON
+        OutlinedButton.icon(
+          onPressed: _isDownloadingPdf ? null : () => _downloadPdf(itinerary),
+          icon: _isDownloadingPdf
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: LocalLensColors.primaryTeal),
+                )
+              : const Icon(Icons.picture_as_pdf_rounded, size: 20, color: LocalLensColors.primaryTeal),
+          label: Text(
+            _isDownloadingPdf ? 'Generating PDF...' : 'Download as PDF',
+            style: LocalLensTypography.bodyMedium.copyWith(
+              color: LocalLensColors.primaryTeal,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(50),
+            side: const BorderSide(color: LocalLensColors.primaryTeal, width: 1.6),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            backgroundColor: LocalLensColors.primaryTealSoft.withValues(alpha: 0.3),
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // 2. THREE BUTTONS ROW (Optimize Itinerary, Opt for Ride, Save Itinerary)
+        Row(
+          children: [
+            // Optimize Itinerary Button
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isOptimizing ? null : () => _optimizeItinerary(notifier),
+                icon: _isOptimizing
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: LocalLensColors.textPrimary),
+                      )
+                    : const Icon(Icons.auto_awesome_rounded, size: 16, color: LocalLensColors.primaryTeal),
+                label: Text(
+                  'Optimize',
+                  style: LocalLensTypography.caption.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: LocalLensColors.textPrimary,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                  minimumSize: const Size.fromHeight(48),
+                  side: const BorderSide(color: LocalLensColors.border),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Opt for Ride Button
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => _optForRide(itinerary),
+                icon: const Icon(Icons.local_taxi_rounded, size: 16, color: LocalLensColors.accentOrange),
+                label: Text(
+                  'Opt for Ride',
+                  style: LocalLensTypography.caption.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: LocalLensColors.accentOrange,
+                  ),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                  minimumSize: const Size.fromHeight(48),
+                  side: BorderSide(color: LocalLensColors.accentOrange.withValues(alpha: 0.5)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  backgroundColor: LocalLensColors.accentOrangeSoft.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+
+            // Save Itinerary Button
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isSaving ? null : () => _saveItinerary(notifier, itinerary),
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Icon(
+                        _isSaved ? Icons.bookmark_added_rounded : Icons.bookmark_add_rounded,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                label: Text(
+                  _isSaved ? 'Saved' : 'Save',
+                  style: LocalLensTypography.caption.copyWith(
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+                  minimumSize: const Size.fromHeight(48),
+                  backgroundColor: _isSaved ? const Color(0xFF0F766E) : LocalLensColors.primaryTeal,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+
+        // 3. START TRIP ACTION
         LocalLensPrimaryButton(
           text: 'Start Trip',
           isOrange: false,
@@ -967,7 +1202,10 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
             context.push(AppRoutes.liveTrip);
           },
         ),
+
         const SizedBox(height: 10),
+
+        // 4. SECONDARY CONTROLS
         Row(
           children: [
             Expanded(
@@ -978,7 +1216,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                 icon: const Icon(Icons.edit_note_rounded, size: 18, color: LocalLensColors.textPrimary),
                 label: const Text('Edit Itinerary', style: TextStyle(color: LocalLensColors.textPrimary, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
+                  minimumSize: const Size.fromHeight(46),
                   side: const BorderSide(color: LocalLensColors.border),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 ),
@@ -990,11 +1228,11 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                 onPressed: () async {
                   context.push(AppRoutes.aiItineraryGenerating);
                 },
-                icon: const Icon(Icons.auto_awesome_rounded, size: 18, color: LocalLensColors.primaryTeal),
-                label: const Text('Regenerate', style: TextStyle(color: LocalLensColors.primaryTeal, fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.refresh_rounded, size: 18, color: LocalLensColors.textSecondary),
+                label: const Text('Regenerate', style: TextStyle(color: LocalLensColors.textSecondary, fontWeight: FontWeight.bold)),
                 style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(48),
-                  side: const BorderSide(color: LocalLensColors.primaryTeal),
+                  minimumSize: const Size.fromHeight(46),
+                  side: const BorderSide(color: LocalLensColors.border),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
                 ),
               ),

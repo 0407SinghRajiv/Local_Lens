@@ -4,6 +4,7 @@ import 'package:traveler_app/models/ride_model.dart';
 import 'package:traveler_app/providers/itinerary_provider.dart';
 import 'package:traveler_app/providers/ride_provider.dart';
 import 'package:traveler_app/services/dummy_itinerary_service.dart';
+import 'package:traveler_app/services/itinerary_pdf_service.dart';
 
 void main() {
   group('Itinerary Domain & DummyItineraryService Tests', () {
@@ -138,4 +139,61 @@ void main() {
       expect(notifier.state.status, RideStatus.idle);
     });
   });
+
+  group('Itinerary PDF & Database Save Tests', () {
+    test('ItineraryPdfService generates non-empty PDF document bytes', () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      final item1 = ItineraryItem(
+        id: '1',
+        experienceName: 'Breakfast at Cafe',
+        category: 'Food',
+        location: 'Panvel Old City',
+        description: 'Chai and breakfast snacks',
+        startTime: '09:00 AM',
+        endTime: '10:00 AM',
+        durationMinutes: 60,
+        price: 200,
+        distanceKm: 1.5,
+        image: 'assets/images/destinations/food_trail.png',
+        isSelected: true,
+      );
+
+      final itinerary = Itinerary(
+        id: 'itin-pdf-test',
+        destination: 'Panvel, Maharashtra',
+        tripDate: '2026-09-27',
+        startTime: '09:00 AM',
+        endTime: '10:00 AM',
+        totalDurationMinutes: 60,
+        totalEstimatedCost: 320,
+        estimatedTransportCost: 120,
+        items: [item1],
+        createdAt: DateTime.now(),
+      );
+
+      final pdfBytes = await ItineraryPdfService.generateItineraryPdf(itinerary);
+      expect(pdfBytes, isNotNull);
+      expect(pdfBytes.isNotEmpty, isTrue);
+      expect(pdfBytes.length, greaterThan(100));
+    });
+
+    test('ItineraryNotifier saveCurrentItinerary returns true and handles state', () async {
+      final notifier = ItineraryNotifier();
+      final itinerary = await DummyItineraryService.generateItinerary(
+        destination: 'Panvel, Maharashtra',
+        availableTimeMinutes: 180,
+        totalBudgetInr: 2500,
+        groupType: 'Solo',
+        travelerCount: 1,
+        interests: ['Food', 'Culture'],
+      );
+
+      notifier.state = notifier.state.copyWith(generatedItinerary: itinerary);
+      expect(notifier.state.generatedItinerary, isNotNull);
+
+      final saveResult = await notifier.saveCurrentItinerary();
+      expect(saveResult, isTrue);
+    });
+  });
 }
+

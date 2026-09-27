@@ -292,6 +292,30 @@ export function validateExperienceLocations(
   };
 }
 
+export const MIN_PUBLISH_AI_SCORE = 50;
+export const MIN_PUBLISH_QUALITY_SCORE = 50;
+
+/**
+ * Compute the unified AI Quality Check score (0 - 100)
+ * Penalizes profanity (caps at 20), missing compulsory image (caps at 40), and missing/invalid location pin (caps at 45).
+ */
+export function calculateOverallQualityScore(
+  clarityScore: number,
+  hasBadWords: boolean,
+  isLocationValid: boolean,
+  hasMultiShow: boolean = false,
+  hasImage: boolean = true
+): number {
+  let score = clarityScore;
+  if (hasBadWords) score = Math.min(score, 20);
+  if (!hasImage) score = Math.min(score, 40); // Image is compulsory! Caps score at 40 so listing cannot be published
+  if (!isLocationValid) score = Math.min(score, 45);
+  if (hasMultiShow && isLocationValid && hasImage && !hasBadWords) {
+    score = Math.min(100, score + 5);
+  }
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 /**
  * 4. Combined Full Validator
  */
@@ -299,25 +323,47 @@ export function validateFullListing(
   title: string,
   description: string,
   show1: ShowLocationData,
-  show2?: ShowLocationData | null
+  show2?: ShowLocationData | null,
+  hasImage: boolean = true
 ) {
   const profanity = checkProfanity(`${title} ${description}`);
   const clarity = checkClarity(title, description);
   const location = validateExperienceLocations(show1, show2);
 
-  // Overall AI score
-  let overallScore = clarity.score;
-  if (profanity.hasBadWords) overallScore = Math.min(overallScore, 20);
-  if (!location.isValid) overallScore = Math.min(overallScore, 40);
-  if (location.hasMultiShow && location.isValid) overallScore = Math.min(100, overallScore + 5); // bonus for multi-location shows
+  // If compulsory image is missing, add issue message
+  if (!hasImage) {
+    clarity.issues.unshift("Compulsory: An image of the shop or experience listing is required.");
+    clarity.suggestions.unshift("Upload at least one high-quality photo of your shop or experience venue.");
+  }
 
-  const canPublish = !profanity.hasBadWords && clarity.score >= 50 && location.isValid;
+  // Overall AI score
+  const overallScore = calculateOverallQualityScore(
+    clarity.score,
+    profanity.hasBadWords,
+    location.isValid,
+    location.hasMultiShow,
+    hasImage
+  );
+
+  // Experience listing can only be published if:
+  // 1. AI quality check score >= 50
+  // 2. Compulsory image is provided
+  // 3. No profanity
+  // 4. Location is valid
+  const canPublish =
+    overallScore >= MIN_PUBLISH_AI_SCORE &&
+    hasImage &&
+    !profanity.hasBadWords &&
+    location.isValid;
 
   return {
     canPublish,
+    hasImage,
     overallScore,
+    minPublishScore: MIN_PUBLISH_AI_SCORE,
     profanity,
     clarity,
     location,
   };
 }
+

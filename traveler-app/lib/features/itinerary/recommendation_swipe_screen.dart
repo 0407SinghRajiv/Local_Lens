@@ -10,8 +10,12 @@ import '../../services/itinerary_api_service.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/recommendation_swipe_stack.dart';
 
-/// Screen for Multi-Stack Swipeable Recommendation Selection
-/// Creates N separate stacks (N = placesToVisit), where each stack corresponds to 1 final selection.
+/// Screen for Swipeable Recommendation Selection & Automatic Itinerary Generation.
+/// Presents the FULL recommendation candidate pool from the ML model.
+/// User swipes:
+///   RIGHT -> Select / Keep
+///   LEFT  -> Skip / Reject
+/// When selectedPlaces.length === placesToVisit -> AUTOMATICALLY triggers itinerary generation!
 class RecommendationSwipeScreen extends ConsumerStatefulWidget {
   const RecommendationSwipeScreen({super.key});
 
@@ -23,179 +27,39 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
   final List<RecommendationModel> _selectedPlaces = [];
   final Set<String> _selectedPlaceIds = {};
   final Set<String> _rejectedPlaceIds = {};
-  final Set<String> _shownPlaceIds = {};
-
-  int _currentStackIndex = 0;
-  List<String> _stackThemes = [];
-  List<bool> _stackIsMixed = [];
-  List<List<RecommendationModel>> _stackCandidates = [];
+  final List<RecommendationModel> _candidatePool = [];
 
   bool _isLoading = false;
   bool _isGeneratingItinerary = false;
-
-  final List<String> _timePresets = ['09:00 AM', '10:00 AM', '10:30 AM', '11:00 AM', '02:00 PM', '04:00 PM'];
+  bool _hasTriggeredAutoGeneration = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeStacks();
+      _initializeCandidates();
     });
   }
 
-  /// Categorization & Interest matcher helper
-  static bool _matchesInterest(RecommendationModel rec, String interest) {
-    final cat = rec.category.trim().toLowerCase();
-    final subCat = (rec.subCategory ?? '').trim().toLowerCase();
-    final intr = interest.trim().toLowerCase();
-
-    if (intr == cat) return true;
-    if (intr == 'food') {
-      return cat == 'food' ||
-          cat.contains('food') ||
-          cat.contains('cuisine') ||
-          cat == 'street food' ||
-          cat == 'local cuisine' ||
-          cat == 'seafood';
-    }
-    if (intr == 'culture') {
-      return cat == 'culture' ||
-          cat == 'heritage' ||
-          cat == 'museum' ||
-          cat == 'temple' ||
-          cat == 'religious' ||
-          cat == 'spiritual' ||
-          cat == 'architecture' ||
-          cat == 'art' ||
-          cat == 'handicraft' ||
-          cat == 'workshop' ||
-          cat == 'workshops';
-    }
-    if (intr == 'adventure') {
-      return cat == 'adventure' ||
-          cat.contains('adventure') ||
-          cat == 'trekking' ||
-          cat == 'water sports' ||
-          cat == 'sports' ||
-          cat == 'boat ride';
-    }
-    if (intr == 'nature') {
-      return cat == 'nature' ||
-          cat.contains('nature') ||
-          cat == 'beach' ||
-          cat == 'wildlife' ||
-          cat == 'waterfall' ||
-          cat == 'bird watching' ||
-          cat == 'coastal';
-    }
-    if (intr == 'heritage') {
-      return cat == 'heritage' ||
-          cat.contains('heritage') ||
-          cat == 'fort' ||
-          cat == 'temple' ||
-          cat == 'religious' ||
-          cat == 'architecture' ||
-          cat == 'museum';
-    }
-    if (intr == 'beach') {
-      return cat == 'beach' || cat.contains('beach') || cat == 'coastal' || cat == 'water sports';
-    }
-    if (intr == 'shopping') {
-      return cat == 'shopping' || cat.contains('shopping') || cat == 'market' || cat == 'markets' || cat == 'handicraft';
-    }
-    if (intr == 'nightlife') {
-      return cat == 'nightlife' || cat.contains('nightlife') || cat == 'entertainment';
-    }
-    if (intr == 'local experiences' || intr == 'hidden gems') {
-      return rec.localExperience || rec.hiddenGem || cat.contains('local') || cat.contains('homestay');
-    }
-    return cat.contains(intr) || subCat.contains(intr);
-  }
-
-  /// Validates if a recommendation belongs to any of the user's selected interests
-  static bool _matchesAnySelectedInterest(RecommendationModel rec, List<String> selectedInterests) {
-    if (selectedInterests.isEmpty) return true;
-    for (final interest in selectedInterests) {
-      if (_matchesInterest(rec, interest)) return true;
-    }
-    return false;
-  }
-
-  /// Initialize N separate stacks for placesToVisit
-  Future<void> _initializeStacks() async {
+  /// Initializes the full candidate pool from provider recommendations or backend
+  Future<void> _initializeCandidates() async {
     final state = ref.read(itineraryProvider);
     final int placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
-    final List<String> selectedInterests = state.interests.isNotEmpty
-        ? state.interests
-        : ['Food', 'Culture', 'Local Experiences'];
-    final int interestCount = selectedInterests.length;
-
-    _stackThemes = List.generate(placesToVisit, (index) {
-      if (index < interestCount) {
-        return selectedInterests[index];
-      } else {
-        return 'Mixed (${selectedInterests.take(3).join(' • ')})';
-      }
-    });
-
-    _stackIsMixed = List.generate(placesToVisit, (index) => index >= interestCount);
-    _stackCandidates = List.generate(placesToVisit, (_) => <RecommendationModel>[]);
 
     setState(() {
       _isLoading = true;
     });
 
-    // 1. Distribute available pool from initial provider recommendations
-    final initialRecs = state.recommendations;
-    for (int stackIdx = 0; stackIdx < placesToVisit; stackIdx++) {
-      final isMixed = _stackIsMixed[stackIdx];
-      final theme = _stackThemes[stackIdx];
+    List<RecommendationModel> initialRecs = List.from(state.recommendations);
 
-      for (final rec in initialRecs) {
-        final id = rec.experienceId.trim();
-        if (id.isEmpty ||
-            _selectedPlaceIds.contains(id) ||
-            _rejectedPlaceIds.contains(id) ||
-            _shownPlaceIds.contains(id)) {
-          continue;
-        }
-
-        final bool matches = isMixed
-            ? _matchesAnySelectedInterest(rec, selectedInterests)
-            : _matchesInterest(rec, theme);
-
-        if (matches && _stackCandidates[stackIdx].length < 6) {
-          _stackCandidates[stackIdx].add(rec);
-          _shownPlaceIds.add(id);
-        }
-      }
-    }
-
-    // 2. Replenish any stack that has fewer than 5 candidates
-    await _replenishAllStacksIfNeeded(selectedInterests);
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
-  }
-
-  /// Fetch additional candidates per stack to ensure 5-6 candidates per stack
-  Future<void> _replenishAllStacksIfNeeded(List<String> selectedInterests) async {
-    final state = ref.read(itineraryProvider);
-    final dest = state.locationMode == LocationMode.exact
-        ? state.displayAddress
-        : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
-
-    for (int stackIdx = 0; stackIdx < _stackThemes.length; stackIdx++) {
-      if (_stackCandidates[stackIdx].length >= 5) continue;
-
-      final isMixed = _stackIsMixed[stackIdx];
-      final theme = _stackThemes[stackIdx];
-
+    // If initial recommendations are empty or fewer than target, fetch a rich pool of 50 candidates
+    if (initialRecs.isEmpty || initialRecs.length < placesToVisit) {
       try {
-        final freshRecs = await ItineraryApiService.fetchRecommendations(
+        final dest = state.locationMode == LocationMode.exact
+            ? state.displayAddress
+            : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
+
+        initialRecs = await ItineraryApiService.fetchRecommendations(
           destination: dest,
           startLocation: state.displayAddress,
           startLat: state.latitude,
@@ -204,52 +68,41 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
           durationHours: state.durationHours > 0 ? state.durationHours : 6.0,
           travelerCount: state.travelerCount,
           travelerType: state.groupType,
-          interests: isMixed ? selectedInterests : [theme],
+          interests: state.interests,
           preferences: state.preferences,
-          topN: 15,
+          topN: 50,
         );
+      } catch (e) {
+        debugPrint('[RecommendationSwipeScreen] Error fetching recommendations: $e');
+      }
+    }
 
-        for (final rec in freshRecs) {
+    if (mounted) {
+      setState(() {
+        _candidatePool.clear();
+        for (final rec in initialRecs) {
           final id = rec.experienceId.trim();
-          if (id.isEmpty ||
-              _selectedPlaceIds.contains(id) ||
-              _rejectedPlaceIds.contains(id) ||
-              _shownPlaceIds.contains(id)) {
-            continue;
-          }
-
-          final bool matches = isMixed
-              ? _matchesAnySelectedInterest(rec, selectedInterests)
-              : _matchesInterest(rec, theme);
-
-          if (matches && _stackCandidates[stackIdx].length < 6) {
-            _stackCandidates[stackIdx].add(rec);
-            _shownPlaceIds.add(id);
+          if (id.isNotEmpty && !_selectedPlaceIds.contains(id) && !_rejectedPlaceIds.contains(id)) {
+            _candidatePool.add(rec);
           }
         }
-      } catch (e) {
-        debugPrint('[RecommendationSwipeScreen] Error replenishing stack $stackIdx: $e');
-      }
+        _isLoading = false;
+      });
+
+      debugPrint(
+        '[RecommendationSwipeScreen] Initialized pool with ${_candidatePool.length} candidates. Selection target: $placesToVisit places.',
+      );
     }
   }
 
-  /// Fetch more candidates for the currently active stack
-  Future<void> _fetchMoreForActiveStack() async {
-    if (_isLoading || _currentStackIndex >= _stackThemes.length) return;
-
-    setState(() {
-      _isLoading = true;
-    });
+  /// Asynchronously replenishes candidate pool when running low (< 3 remaining)
+  Future<void> _fetchMoreCandidates() async {
+    if (_isLoading || _isGeneratingItinerary || _hasTriggeredAutoGeneration) return;
 
     final state = ref.read(itineraryProvider);
-    final List<String> selectedInterests = state.interests.isNotEmpty
-        ? state.interests
-        : ['Food', 'Culture', 'Local Experiences'];
     final dest = state.locationMode == LocationMode.exact
         ? state.displayAddress
         : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
-    final isMixed = _stackIsMixed[_currentStackIndex];
-    final theme = _stackThemes[_currentStackIndex];
 
     try {
       final freshRecs = await ItineraryApiService.fetchRecommendations(
@@ -261,116 +114,135 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         durationHours: state.durationHours > 0 ? state.durationHours : 6.0,
         travelerCount: state.travelerCount,
         travelerType: state.groupType,
-        interests: isMixed ? selectedInterests : [theme],
+        interests: state.interests,
         preferences: state.preferences,
-        topN: 20,
+        topN: 50,
       );
 
       final newUnique = <RecommendationModel>[];
+      final existingPoolIds = _candidatePool.map((c) => c.experienceId.trim()).toSet();
+
       for (final rec in freshRecs) {
         final id = rec.experienceId.trim();
-        if (id.isEmpty ||
-            _selectedPlaceIds.contains(id) ||
-            _rejectedPlaceIds.contains(id) ||
-            _shownPlaceIds.contains(id)) {
-          continue;
-        }
-
-        final bool matches = isMixed
-            ? _matchesAnySelectedInterest(rec, selectedInterests)
-            : _matchesInterest(rec, theme);
-
-        if (matches) {
+        if (id.isNotEmpty &&
+            !_selectedPlaceIds.contains(id) &&
+            !_rejectedPlaceIds.contains(id) &&
+            !existingPoolIds.contains(id)) {
           newUnique.add(rec);
-          _shownPlaceIds.add(id);
+          existingPoolIds.add(id);
         }
       }
 
-      if (mounted) {
+      if (mounted && newUnique.isNotEmpty) {
         setState(() {
-          _stackCandidates[_currentStackIndex].addAll(newUnique);
-          _isLoading = false;
+          _candidatePool.addAll(newUnique);
         });
+        debugPrint('[RecommendationSwipeScreen] Replenished candidate pool with +${newUnique.length} places.');
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      debugPrint('[RecommendationSwipeScreen] Error fetching more candidates: $e');
     }
   }
 
+  /// RIGHT SWIPE: User selects / keeps the candidate
   void _onSwipeRight(RecommendationModel candidate) {
+    if (_isGeneratingItinerary || _hasTriggeredAutoGeneration) return;
+
+    final id = candidate.experienceId.trim();
+    if (_selectedPlaceIds.contains(id)) return;
+
     setState(() {
-      final id = candidate.experienceId;
       _selectedPlaceIds.add(id);
-      _shownPlaceIds.add(id);
       _selectedPlaces.add(candidate);
-
-      // Remove from all remaining stacks to prevent cross-stack duplicates
-      for (int i = _currentStackIndex; i < _stackCandidates.length; i++) {
-        _stackCandidates[i].removeWhere((c) => c.experienceId == id);
-      }
-
-      // CURRENT STACK TERMINATES IMMEDIATELY
-      _currentStackIndex++;
-    });
-  }
-
-  void _onSwipeLeft(RecommendationModel candidate) {
-    setState(() {
-      final id = candidate.experienceId;
-      _rejectedPlaceIds.add(id);
-      _shownPlaceIds.add(id);
-
-      // Candidate is rejected from current stack
-      if (_currentStackIndex < _stackCandidates.length) {
-        _stackCandidates[_currentStackIndex].removeWhere((c) => c.experienceId == id);
-      }
+      _candidatePool.removeWhere((c) => c.experienceId.trim() == id);
     });
 
-    // If current stack ran out of candidates without a selection, fetch more
-    if (_currentStackIndex < _stackCandidates.length && _stackCandidates[_currentStackIndex].isEmpty) {
-      _fetchMoreForActiveStack();
+    final state = ref.read(itineraryProvider);
+    final int placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
+
+    debugPrint(
+      '[RecommendationSwipeScreen] SELECT -> "${candidate.name}" (${_selectedPlaces.length}/$placesToVisit selected)',
+    );
+
+    // CRITICAL REQUIREMENT: When selectedPlaces.length === placesToVisit -> AUTOMATICALLY GENERATE ITINERARY
+    if (_selectedPlaces.length >= placesToVisit) {
+      _triggerAutoItineraryGeneration();
+    } else if (_candidatePool.length < 3) {
+      _fetchMoreCandidates();
     }
   }
 
+  /// LEFT SWIPE: User skips / rejects the candidate
+  void _onSwipeLeft(RecommendationModel candidate) {
+    if (_isGeneratingItinerary || _hasTriggeredAutoGeneration) return;
+
+    final id = candidate.experienceId.trim();
+    setState(() {
+      _rejectedPlaceIds.add(id);
+      _candidatePool.removeWhere((c) => c.experienceId.trim() == id);
+    });
+
+    final state = ref.read(itineraryProvider);
+    final int placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
+
+    debugPrint(
+      '[RecommendationSwipeScreen] SKIP -> "${candidate.name}" (Selected: ${_selectedPlaces.length}/$placesToVisit, Pool remaining: ${_candidatePool.length})',
+    );
+
+    if (_candidatePool.length < 3 && _selectedPlaces.length < placesToVisit) {
+      _fetchMoreCandidates();
+    }
+  }
+
+  /// Removes an already-selected place from the tray if user wants to swap
   void _removeSelectedPlace(String experienceId) {
+    if (_isGeneratingItinerary || _hasTriggeredAutoGeneration) return;
+
     setState(() {
       _selectedPlaceIds.remove(experienceId);
       final removedIndex = _selectedPlaces.indexWhere((p) => p.experienceId == experienceId);
       if (removedIndex != -1) {
-        _selectedPlaces.removeAt(removedIndex);
-        if (_currentStackIndex > _selectedPlaces.length) {
-          _currentStackIndex = _selectedPlaces.length;
-        }
+        final removed = _selectedPlaces.removeAt(removedIndex);
+        // Put back at the beginning of candidate pool
+        _candidatePool.insert(0, removed);
       }
     });
-
-    if (_currentStackIndex < _stackCandidates.length && _stackCandidates[_currentStackIndex].isEmpty) {
-      _fetchMoreForActiveStack();
-    }
   }
 
-  Future<void> _generateItineraryFromSelection() async {
+  /// AUTOMATIC ITINERARY GENERATION TRIGGER
+  /// Protected against duplicate execution / race conditions
+  void _triggerAutoItineraryGeneration() {
+    if (_isGeneratingItinerary || _hasTriggeredAutoGeneration) return;
+
+    final state = ref.read(itineraryProvider);
+    final int placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
+
+    if (_selectedPlaces.length < placesToVisit) return;
+
     setState(() {
       _isGeneratingItinerary = true;
+      _hasTriggeredAutoGeneration = true;
     });
 
     final notifier = ref.read(itineraryProvider.notifier);
-    notifier.setSelectedPlaces(_selectedPlaces);
-    notifier.setSelectedExperienceIds(_selectedPlaceIds);
+    notifier.setSelectedPlaces(List.from(_selectedPlaces));
+    notifier.setSelectedExperienceIds(Set.from(_selectedPlaceIds));
 
-    // Navigate to Generating Screen
-    context.push(AppRoutes.aiItineraryGenerating);
+    debugPrint(
+      '[RecommendationSwipeScreen] >>> AUTOMATIC ITINERARY GENERATION TRIGGERED with ${_selectedPlaces.length} places! Target: $placesToVisit',
+    );
+
+    // Smooth immediate transition to Generating screen
+    if (mounted) {
+      context.push(AppRoutes.aiItineraryGenerating);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(itineraryProvider);
     final placesToVisit = state.desiredExperienceCount > 0 ? state.desiredExperienceCount : 4;
-    final isComplete = _selectedPlaces.length >= placesToVisit || _currentStackIndex >= placesToVisit;
+    final progress = placesToVisit > 0 ? (_selectedPlaces.length / placesToVisit).clamp(0.0, 1.0) : 0.0;
     final remainingCount = max(0, placesToVisit - _selectedPlaces.length);
 
     return Scaffold(
@@ -399,15 +271,14 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         ),
         centerTitle: true,
         actions: [
-          if (!isComplete)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: LocalLensColors.textSecondary),
-                tooltip: 'Fetch more recommendations for this stack',
-                onPressed: _fetchMoreForActiveStack,
-              ),
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: LocalLensColors.textSecondary),
+              tooltip: 'Fetch more recommendations',
+              onPressed: _fetchMoreCandidates,
             ),
+          ),
         ],
       ),
       body: SafeArea(
@@ -415,25 +286,65 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
           children: [
             // TOP PROGRESS BAR
             LinearProgressIndicator(
-              value: placesToVisit > 0 ? (_selectedPlaces.length / placesToVisit).clamp(0.0, 1.0) : 0.0,
+              value: progress,
               backgroundColor: LocalLensColors.surfaceSecondary,
               valueColor: const AlwaysStoppedAnimation<Color>(LocalLensColors.primaryTeal),
               minHeight: 4,
             ),
 
-            Expanded(
-              child: isComplete
-                  ? _buildCompletionConfirmationView(state)
-                  : _buildActiveStackView(placesToVisit, remainingCount),
+            // SELECTION STATUS BADGES
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.primaryTeal,
+                      borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
+                    ),
+                    child: Text(
+                      '${_selectedPlaces.length}/$placesToVisit SELECTED',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    remainingCount == 0
+                        ? 'Target reached! Generating...'
+                        : (remainingCount == 1 ? '1 place needed' : '$remainingCount places needed'),
+                    style: LocalLensTypography.caption.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: remainingCount == 0 ? LocalLensColors.primaryTeal : LocalLensColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
+
+            // MAIN SWIPE CARD STACK
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: _buildMainStackContent(placesToVisit),
+              ),
+            ),
+
+            // BOTTOM SELECTED PLACES TRAY
+            if (_selectedPlaces.isNotEmpty) _buildSelectedPlacesTray(placesToVisit),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActiveStackView(int placesToVisit, int remainingCount) {
-    if (_isLoading && (_currentStackIndex >= _stackCandidates.length || _stackCandidates[_currentStackIndex].isEmpty)) {
+  Widget _buildMainStackContent(int placesToVisit) {
+    if (_isLoading && _candidatePool.isEmpty) {
       return const Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -451,10 +362,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
       );
     }
 
-    final activeCandidates = _currentStackIndex < _stackCandidates.length ? _stackCandidates[_currentStackIndex] : <RecommendationModel>[];
-    final currentTheme = _currentStackIndex < _stackThemes.length ? _stackThemes[_currentStackIndex] : 'Experience';
-
-    if (activeCandidates.isEmpty) {
+    if (_candidatePool.isEmpty) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -464,13 +372,13 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
               const Icon(Icons.travel_explore_rounded, size: 64, color: LocalLensColors.textMuted),
               const SizedBox(height: 16),
               Text(
-                'No more candidates in $currentTheme stack',
+                'All recommendations reviewed',
                 style: LocalLensTypography.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                'Tap Load More to find more local options matching your preferences.',
+                'You have selected ${_selectedPlaces.length} of $placesToVisit places. Load more to discover additional local experiences.',
                 textAlign: TextAlign.center,
                 style: LocalLensTypography.bodyMedium.copyWith(color: LocalLensColors.textSecondary),
               ),
@@ -479,7 +387,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: _fetchMoreForActiveStack,
+                    onPressed: _fetchMoreCandidates,
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Load More'),
                   ),
@@ -491,7 +399,15 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
                         foregroundColor: Colors.white,
                       ),
                       onPressed: () {
-                        _generateItineraryFromSelection();
+                        // Allow proceeding with current selection if user chooses
+                        setState(() {
+                          _isGeneratingItinerary = true;
+                          _hasTriggeredAutoGeneration = true;
+                        });
+                        final notifier = ref.read(itineraryProvider.notifier);
+                        notifier.setSelectedPlaces(List.from(_selectedPlaces));
+                        notifier.setSelectedExperienceIds(Set.from(_selectedPlaceIds));
+                        context.push(AppRoutes.aiItineraryGenerating);
                       },
                       child: Text('Continue with ${_selectedPlaces.length}'),
                     ),
@@ -504,411 +420,112 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
       );
     }
 
-    return Column(
-      children: [
-        const SizedBox(height: 12),
-
-        // PROFESSIONAL STACK STEP & THEME INDICATOR
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: LocalLensColors.primaryTeal,
-                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                        ),
-                        child: Text(
-                          'STEP ${_currentStackIndex + 1} OF $placesToVisit',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: LocalLensColors.accentOrangeSoft,
-                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                        ),
-                        child: Text(
-                          currentTheme.toUpperCase(),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: LocalLensColors.accentOrange,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    remainingCount == 1 ? '1 place remaining' : '$remainingCount places remaining',
-                    style: LocalLensTypography.caption.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: LocalLensColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Select 1 place for this stack • Swipe right to choose',
-                style: LocalLensTypography.caption.copyWith(
-                  color: LocalLensColors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 10),
-
-        // CARD STACK FOR CURRENT THEME
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: RecommendationSwipeStack(
-              key: ValueKey('stack_$_currentStackIndex'),
-              candidates: activeCandidates,
-              placesToVisit: placesToVisit,
-              selectedCount: _selectedPlaces.length,
-              onSwipeRight: _onSwipeRight,
-              onSwipeLeft: _onSwipeLeft,
-              onStackEmpty: _fetchMoreForActiveStack,
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 12),
-      ],
+    return RecommendationSwipeStack(
+      key: const ValueKey('active_recommendation_pool'),
+      candidates: _candidatePool,
+      placesToVisit: placesToVisit,
+      selectedCount: _selectedPlaces.length,
+      onSwipeRight: _onSwipeRight,
+      onSwipeLeft: _onSwipeLeft,
+      onStackEmpty: _fetchMoreCandidates,
     );
   }
 
-  /// Confirmation view when exact required number of places is selected
-  Widget _buildCompletionConfirmationView(CreateItineraryState state) {
-    final notifier = ref.read(itineraryProvider.notifier);
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
+  Widget _buildSelectedPlacesTray(int placesToVisit) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: const Border(top: BorderSide(color: LocalLensColors.borderLight)),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // SUCCESS HERO CARD
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LocalLensColors.heroCardGradient,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: LocalLensDimensions.floatingShadow,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: Colors.white24,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.check_rounded, color: Colors.white, size: 24),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${_selectedPlaces.length} Places Selected',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  'Your Places Are Ready!',
-                  style: LocalLensTypography.titleLarge.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'All ${_selectedPlaces.length} selected experiences will be synthesized into a chronological route with connected maps.',
-                  style: LocalLensTypography.bodyMedium.copyWith(color: Colors.white70, fontSize: 13),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // TRIP TIMING SETUP
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: LocalLensColors.border),
-              boxShadow: LocalLensDimensions.softCardShadow,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.schedule_rounded, color: LocalLensColors.primaryTeal, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Trip Date & Start Time',
-                      style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    // Date Button
-                    Expanded(
-                      child: InkWell(
-                        onTap: () async {
-                          final now = DateTime.now();
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: now,
-                            firstDate: now,
-                            lastDate: now.add(const Duration(days: 365)),
-                          );
-                          if (picked != null) {
-                            final str =
-                                "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
-                            notifier.setTripDate(str);
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: LocalLensColors.surfaceSecondary,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: LocalLensColors.borderLight),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.calendar_today_rounded, size: 16, color: LocalLensColors.primaryTeal),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  state.tripDate,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    // Time Button
-                    Expanded(
-                      child: InkWell(
-                        onTap: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: const TimeOfDay(hour: 10, minute: 30),
-                          );
-                          if (time != null) {
-                            final period = time.period == DayPeriod.pm ? 'PM' : 'AM';
-                            final hour = time.hourOfPeriod == 0 ? 12 : time.hourOfPeriod;
-                            final min = time.minute.toString().padLeft(2, '0');
-                            notifier.setTripStartTime('$hour:$min $period');
-                          }
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: LocalLensColors.surfaceSecondary,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: LocalLensColors.borderLight),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.access_time_rounded, size: 16, color: LocalLensColors.primaryTeal),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  state.tripStartTime,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                // Quick Time Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _timePresets.map((preset) {
-                      final isSel = state.tripStartTime == preset;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: ChoiceChip(
-                          label: Text(preset),
-                          selected: isSel,
-                          onSelected: (sel) {
-                            if (sel) notifier.setTripStartTime(preset);
-                          },
-                          selectedColor: LocalLensColors.primaryTeal,
-                          labelStyle: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isSel ? Colors.white : LocalLensColors.textPrimary,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // SELECTED PLACES LIST
-          Text(
-            'Your Selected Places (${_selectedPlaces.length})',
-            style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 10),
-
-          ..._selectedPlaces.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final place = entry.value;
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: LocalLensColors.borderLight),
-                boxShadow: LocalLensDimensions.softCardShadow,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Selected Places (${_selectedPlaces.length}/$placesToVisit)',
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: LocalLensColors.textPrimary),
               ),
-              child: Row(
-                children: [
-                  // Order Index Number
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: const BoxDecoration(
-                      color: LocalLensColors.primaryTeal,
-                      shape: BoxShape.circle,
+              if (_selectedPlaces.length >= placesToVisit)
+                const Row(
+                  children: [
+                    Icon(Icons.check_circle_rounded, color: LocalLensColors.successGreen, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'Ready!',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: LocalLensColors.successGreen),
                     ),
-                    child: Center(
-                      child: Text(
-                        '${idx + 1}',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                  ],
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _selectedPlaces.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final place = entry.value;
+
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
+                  decoration: BoxDecoration(
+                    color: LocalLensColors.surfaceSecondary,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: LocalLensColors.primaryTeal.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Number badge
+                      Container(
+                        width: 20,
+                        height: 20,
+                        decoration: const BoxDecoration(
+                          color: LocalLensColors.primaryTeal,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${idx + 1}',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Image Thumbnail
-                  LocalLensNetworkImage(
-                    imageUrl: place.image,
-                    width: 48,
-                    height: 48,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // Details
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
+                      const SizedBox(width: 6),
+                      // Thumbnail
+                      LocalLensNetworkImage(
+                        imageUrl: place.image,
+                        width: 24,
+                        height: 24,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(width: 6),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 110),
+                        child: Text(
                           place.name,
-                          style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.bold, fontSize: 13),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Text(
-                              place.category,
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: LocalLensColors.accentOrange,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text('•', style: TextStyle(color: LocalLensColors.textMuted, fontSize: 10)),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${place.durationMinutes}m',
-                              style: const TextStyle(fontSize: 11, color: LocalLensColors.textSecondary),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text('•', style: TextStyle(color: LocalLensColors.textMuted, fontSize: 10)),
-                            const SizedBox(width: 6),
-                            Text(
-                              place.price > 0 ? '₹${place.price.toInt()}' : 'Free',
-                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: LocalLensColors.primaryTeal),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 4),
+                      InkWell(
+                        onTap: () => _removeSelectedPlace(place.experienceId),
+                        child: const Icon(Icons.close_rounded, size: 14, color: LocalLensColors.textMuted),
+                      ),
+                    ],
                   ),
-
-                  // Remove / Swap Button
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle_outline_rounded, color: LocalLensColors.errorRed, size: 20),
-                    tooltip: 'Remove place and pick another',
-                    onPressed: () => _removeSelectedPlace(place.experienceId),
-                  ),
-                ],
-              ),
-            );
-          }),
-
-          const SizedBox(height: 24),
-
-          // FINAL ACTION BUTTON: GENERATE MY ITINERARY
-          LocalLensPrimaryButton(
-            text: 'Generate My Itinerary (${_selectedPlaces.length} Places)',
-            isLoading: _isGeneratingItinerary,
-            icon: Icons.route_rounded,
-            onPressed: _generateItineraryFromSelection,
+                );
+              }).toList(),
+            ),
           ),
-
-          const SizedBox(height: 32),
         ],
       ),
     );

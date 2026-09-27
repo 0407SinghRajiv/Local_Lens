@@ -10,7 +10,14 @@ export interface ProviderProfile {
   providerCategory?: string;
   avatar?: string;
   authProvider?: "google" | "apple" | "email" | "demo";
-  verified?: boolean;
+  verified?: boolean; // false until Aadhaar OCR verification is completed!
+  aadhaarVerified?: boolean;
+  aadhaarNumber?: string;
+  aadhaarName?: string;
+  aadhaarDob?: string;
+  aadhaarGender?: string;
+  aadhaarAddress?: string;
+  aadhaarScanDate?: string;
   rating?: number;
   totalExperiences?: number;
   totalGuests?: number;
@@ -30,7 +37,8 @@ const DEFAULT_PROFILE: ProviderProfile = {
   providerCategory: "Tour Guide / Storyteller",
   avatar: "",
   authProvider: "google",
-  verified: true,
+  verified: false,
+  aadhaarVerified: false,
   rating: 4.9,
   totalExperiences: 4,
   totalGuests: 328,
@@ -39,6 +47,7 @@ const DEFAULT_PROFILE: ProviderProfile = {
 
 /**
  * Builds profile synchronously from Supabase auth user metadata (0ms execution)
+ * Preserves verified / Aadhaar OCR state if previously completed
  */
 export function buildProfileFromAuthUser(user: any): ProviderProfile {
   if (!user) return DEFAULT_PROFILE;
@@ -59,6 +68,42 @@ export function buildProfileFromAuthUser(user: any): ProviderProfile {
 
   const userEmail = user.email || meta.email || "provider@locallens.in";
 
+  // Check saved session in localStorage to preserve completed Aadhaar verification
+  let savedVerified = false;
+  let savedAadhaarVerified = false;
+  let savedAadhaarDetails: Partial<ProviderProfile> = {};
+
+  if (typeof window !== "undefined") {
+    try {
+      const savedStr = localStorage.getItem("locallens_provider_session");
+      if (savedStr) {
+        const saved = JSON.parse(savedStr);
+        if (
+          saved.id === user.id ||
+          saved.email?.toLowerCase() === userEmail.toLowerCase()
+        ) {
+          savedVerified = Boolean(saved.verified);
+          savedAadhaarVerified = Boolean(saved.aadhaarVerified);
+          savedAadhaarDetails = {
+            aadhaarNumber: saved.aadhaarNumber,
+            aadhaarName: saved.aadhaarName,
+            aadhaarDob: saved.aadhaarDob,
+            aadhaarGender: saved.aadhaarGender,
+            aadhaarAddress: saved.aadhaarAddress,
+            aadhaarScanDate: saved.aadhaarScanDate,
+          };
+        }
+      }
+    } catch {}
+  }
+
+  const isAadhaarVerified = Boolean(
+    meta.aadhaar_verified || meta.aadhaarVerified || savedAadhaarVerified
+  );
+  const isVerified = Boolean(
+    (meta.verified || savedVerified || isAadhaarVerified) && isAadhaarVerified
+  );
+
   return {
     id: user.id,
     name: displayName,
@@ -69,7 +114,14 @@ export function buildProfileFromAuthUser(user: any): ProviderProfile {
     providerCategory: meta.provider_category || meta.role || "Tour Guide / Storyteller",
     avatar: avatarUrl,
     authProvider: isGoogle ? "google" : "email",
-    verified: true,
+    verified: isVerified,
+    aadhaarVerified: isAadhaarVerified,
+    aadhaarNumber: meta.aadhaar_number || savedAadhaarDetails.aadhaarNumber,
+    aadhaarName: meta.aadhaar_name || savedAadhaarDetails.aadhaarName,
+    aadhaarDob: meta.aadhaar_dob || savedAadhaarDetails.aadhaarDob,
+    aadhaarGender: meta.aadhaar_gender || savedAadhaarDetails.aadhaarGender,
+    aadhaarAddress: meta.aadhaar_address || savedAadhaarDetails.aadhaarAddress,
+    aadhaarScanDate: meta.aadhaar_scan_date || savedAadhaarDetails.aadhaarScanDate,
     rating: 4.9,
     totalExperiences: 4,
     totalGuests: 328,
@@ -101,6 +153,15 @@ export async function getOrCreateProviderProfile(user: any): Promise<ProviderPro
         profile.fullName = dbProfile.full_name || profile.fullName;
         profile.name = dbProfile.full_name || profile.name;
         profile.avatar = dbProfile.avatar_url || profile.avatar;
+        if (dbProfile.verified !== undefined || dbProfile.aadhaar_verified !== undefined) {
+          profile.aadhaarVerified = Boolean(dbProfile.aadhaar_verified);
+          profile.verified = Boolean(dbProfile.verified && dbProfile.aadhaar_verified);
+          profile.aadhaarNumber = dbProfile.aadhaar_number || profile.aadhaarNumber;
+          profile.aadhaarName = dbProfile.aadhaar_name || profile.aadhaarName;
+          profile.aadhaarDob = dbProfile.aadhaar_dob || profile.aadhaarDob;
+          profile.aadhaarGender = dbProfile.aadhaar_gender || profile.aadhaarGender;
+          profile.aadhaarAddress = dbProfile.aadhaar_address || profile.aadhaarAddress;
+        }
         if (dbProfile.language) {
           profile.language = dbProfile.language;
           if (typeof window !== "undefined") {
@@ -116,6 +177,13 @@ export async function getOrCreateProviderProfile(user: any): Promise<ProviderPro
           full_name: profile.fullName,
           avatar_url: profile.avatar,
           language: profile.language || "en",
+          verified: profile.verified,
+          aadhaar_verified: profile.aadhaarVerified,
+          aadhaar_number: profile.aadhaarNumber,
+          aadhaar_name: profile.aadhaarName,
+          aadhaar_dob: profile.aadhaarDob,
+          aadhaar_gender: profile.aadhaarGender,
+          aadhaar_address: profile.aadhaarAddress,
           updated_at: new Date().toISOString(),
         });
       }
@@ -131,6 +199,97 @@ export async function getOrCreateProviderProfile(user: any): Promise<ProviderPro
   }
 
   return profile;
+}
+
+/**
+ * Completes Aadhaar OCR Verification for the provider
+ * Sets verified: true, aadhaarVerified: true, stores extracted details,
+ * and notifies active components.
+ */
+export async function completeAadhaarVerification(details: {
+  aadhaarNumber: string;
+  aadhaarName: string;
+  aadhaarDob: string;
+  aadhaarGender: string;
+  aadhaarAddress?: string;
+  aadhaarCardImage?: string;
+}): Promise<ProviderProfile> {
+  const current = (await getProviderProfile()) || DEFAULT_PROFILE;
+  const updated: ProviderProfile = {
+    ...current,
+    verified: true,
+    aadhaarVerified: true,
+    aadhaarNumber: details.aadhaarNumber,
+    aadhaarName: details.aadhaarName,
+    aadhaarDob: details.aadhaarDob,
+    aadhaarGender: details.aadhaarGender,
+    aadhaarAddress: details.aadhaarAddress || "Verified Resident of India",
+    aadhaarScanDate: new Date().toISOString(),
+  };
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("locallens_provider_session", JSON.stringify(updated));
+    window.dispatchEvent(
+      new CustomEvent("locallens_profile_updated", { detail: updated })
+    );
+  }
+
+  // Non-blocking sync to Supabase
+  try {
+    const { data: session } = await supabase.auth.getSession();
+    const userId = session?.session?.user?.id || updated.id;
+    if (userId) {
+      await supabase.from("profiles").upsert({
+        id: userId,
+        full_name: updated.fullName || updated.name,
+        verified: true,
+        aadhaar_verified: true,
+        aadhaar_number: details.aadhaarNumber,
+        aadhaar_name: details.aadhaarName,
+        aadhaar_dob: details.aadhaarDob,
+        aadhaar_gender: details.aadhaarGender,
+        aadhaar_address: details.aadhaarAddress || "Verified Resident of India",
+        updated_at: new Date().toISOString(),
+      });
+      await supabase.auth.updateUser({
+        data: {
+          verified: true,
+          aadhaar_verified: true,
+          aadhaar_number: details.aadhaarNumber,
+        },
+      });
+    }
+  } catch (e) {
+    console.warn("Supabase Aadhaar completion sync notice:", e);
+  }
+
+  return updated;
+}
+
+/**
+ * Resets Aadhaar verification state (useful for re-testing OCR verification)
+ */
+export async function resetAadhaarVerification(): Promise<ProviderProfile> {
+  const current = (await getProviderProfile()) || DEFAULT_PROFILE;
+  const updated: ProviderProfile = {
+    ...current,
+    verified: false,
+    aadhaarVerified: false,
+    aadhaarNumber: undefined,
+    aadhaarName: undefined,
+    aadhaarDob: undefined,
+    aadhaarGender: undefined,
+    aadhaarAddress: undefined,
+    aadhaarScanDate: undefined,
+  };
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem("locallens_provider_session", JSON.stringify(updated));
+    window.dispatchEvent(
+      new CustomEvent("locallens_profile_updated", { detail: updated })
+    );
+  }
+  return updated;
 }
 
 /**

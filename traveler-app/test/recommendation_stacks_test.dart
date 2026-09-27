@@ -7,7 +7,7 @@ import 'package:traveler_app/widgets/recommendation_swipe_stack.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Recommendation Stack Logic & Itinerary Count Tests', () {
+  group('Master Recommendation Pool, Auto Itinerary & Swipe Tests', () {
     // Helper to generate mock recommendations
     List<RecommendationModel> generateMockRecs({
       required String category,
@@ -32,35 +32,36 @@ void main() {
       });
     }
 
-    test('TEST 1: placesToVisit = 4, interests = Food, Culture, Adventure -> 4 stacks, 4 final places', () async {
+    test('TEST A: All Recommendations Pool (placesToVisit = 4 does NOT truncate recommendation pool)', () {
       const placesToVisit = 4;
-      final interests = ['Food', 'Culture', 'Adventure'];
+      final mlCandidates = generateMockRecs(category: 'Culture', count: 10);
 
-      // Dynamic stack generation rule
-      final stackThemes = List.generate(placesToVisit, (i) {
-        if (i < interests.length) {
-          return interests[i];
+      // Verify the ML candidate pool is NOT truncated to placesToVisit
+      expect(mlCandidates.length, equals(10));
+      expect(mlCandidates.length > placesToVisit, isTrue);
+
+      final candidatePool = List<RecommendationModel>.from(mlCandidates);
+      expect(candidatePool.length, equals(10));
+    });
+
+    test('TEST B: Select Four -> selectedPlaces.length = 4 -> Triggers itinerary generation for exactly 4 places', () async {
+      const placesToVisit = 4;
+      final candidatePool = generateMockRecs(category: 'Food', count: 10);
+      final selectedPlaces = <RecommendationModel>[];
+      bool autoGenerationTriggered = false;
+
+      // Select A, B, C, D
+      for (int i = 0; i < 4; i++) {
+        final card = candidatePool.removeAt(0);
+        selectedPlaces.add(card);
+        if (selectedPlaces.length == placesToVisit) {
+          autoGenerationTriggered = true;
         }
-        return 'Mixed (${interests.join(" • ")})';
-      });
-
-      expect(stackThemes.length, equals(4));
-      expect(stackThemes[0], equals('Food'));
-      expect(stackThemes[1], equals('Culture'));
-      expect(stackThemes[2], equals('Adventure'));
-      expect(stackThemes[3], contains('Mixed'));
-
-      // Simulate 1 selection per stack
-      final selectedPlaces = [
-        generateMockRecs(category: 'Food', count: 1)[0],
-        generateMockRecs(category: 'Culture', count: 1)[0],
-        generateMockRecs(category: 'Adventure', count: 1)[0],
-        generateMockRecs(category: 'Food', count: 1, prefix: 'MIX')[0],
-      ];
+      }
 
       expect(selectedPlaces.length, equals(4));
+      expect(autoGenerationTriggered, isTrue);
 
-      // Test fallback/API generation receives and generates all 4
       final result = await ItineraryApiService.generateItinerary(
         destination: 'Mumbai',
         tripDate: '2026-09-26',
@@ -74,36 +75,102 @@ void main() {
       );
 
       expect(result.items.length, equals(4));
-      expect(result.items[0].category, equals('Food'));
-      expect(result.items[1].category, equals('Culture'));
-      expect(result.items[2].category, equals('Adventure'));
+      expect(result.items.map((i) => i.id).toList(), equals(selectedPlaces.map((p) => p.experienceId).toList()));
     });
 
-    test('TEST 2: placesToVisit = 8, interests = Food, Culture, Adventure -> 8 stacks, 8 final places', () async {
-      const placesToVisit = 8;
-      final interests = ['Food', 'Culture', 'Adventure'];
+    test('TEST C: Rejected Places (LEFT Swipe) do NOT count toward selected count', () async {
+      const placesToVisit = 4;
+      final candidatePool = generateMockRecs(category: 'Food', count: 10);
+      final selectedPlaces = <RecommendationModel>[];
+      final rejectedPlaces = <RecommendationModel>[];
+      bool autoGenerationTriggered = false;
 
-      final stackThemes = List.generate(placesToVisit, (i) {
-        if (i < interests.length) {
-          return interests[i];
-        }
-        return 'Mixed (${interests.join(" • ")})';
-      });
+      // A -> reject
+      rejectedPlaces.add(candidatePool.removeAt(0));
+      // B -> reject
+      rejectedPlaces.add(candidatePool.removeAt(0));
+      // C -> select
+      selectedPlaces.add(candidatePool.removeAt(0));
+      // D -> reject
+      rejectedPlaces.add(candidatePool.removeAt(0));
+      // E -> select
+      selectedPlaces.add(candidatePool.removeAt(0));
+      // F -> select
+      selectedPlaces.add(candidatePool.removeAt(0));
+      // G -> select
+      selectedPlaces.add(candidatePool.removeAt(0));
 
-      expect(stackThemes.length, equals(8));
-      expect(stackThemes[0], equals('Food'));
-      expect(stackThemes[1], equals('Culture'));
-      expect(stackThemes[2], equals('Adventure'));
-      for (int i = 3; i < 8; i++) {
-        expect(stackThemes[i], contains('Mixed'));
+      if (selectedPlaces.length == placesToVisit) {
+        autoGenerationTriggered = true;
       }
 
+      expect(rejectedPlaces.length, equals(3));
+      expect(selectedPlaces.length, equals(4));
+      expect(autoGenerationTriggered, isTrue);
+      expect(selectedPlaces[0].experienceId, equals('EXP-FOOD-2')); // C
+      expect(selectedPlaces[1].experienceId, equals('EXP-FOOD-4')); // E
+      expect(selectedPlaces[2].experienceId, equals('EXP-FOOD-5')); // F
+      expect(selectedPlaces[3].experienceId, equals('EXP-FOOD-6')); // G
+
+      final result = await ItineraryApiService.generateItinerary(
+        destination: 'Mumbai',
+        tripDate: '2026-09-26',
+        startTime: '10:30 AM',
+        durationHours: 6.0,
+        budget: 5000.0,
+        selectedExperienceIds: selectedPlaces.map((p) => p.experienceId).toList(),
+        selectedPlacesModels: selectedPlaces,
+        travelerCount: 2,
+        travelerType: 'Couple',
+      );
+
+      expect(result.items.length, equals(4));
+    });
+
+    test('TEST D: placesToVisit = 5 generates exact 5 itinerary places and resolves images', () async {
+      const placesToVisit = 5;
+      final selectedPlaces = List.generate(placesToVisit, (i) {
+        return RecommendationModel(
+          experienceId: 'EXP-DELHI-00${i + 1}',
+          name: 'Delhi Experience ${i + 1}',
+          category: i == 0 ? 'Food' : (i == 1 ? 'Culture' : 'Nature'),
+          location: 'Delhi',
+          city: 'Delhi',
+          durationMinutes: 60,
+          durationHours: 1.0,
+          price: 250.0,
+          rating: 4.8,
+          reason: 'Top place',
+          score: 0.9,
+          image: 'assets/images/destinations/food_trail.png',
+        );
+      });
+
+      final result = await ItineraryApiService.generateItinerary(
+        destination: 'Delhi',
+        tripDate: '2026-09-26',
+        startTime: '10:30 AM',
+        durationHours: 6.0,
+        budget: 5000.0,
+        selectedExperienceIds: selectedPlaces.map((p) => p.experienceId).toList(),
+        selectedPlacesModels: selectedPlaces,
+        travelerCount: 2,
+        travelerType: 'Couple',
+      );
+
+      expect(result.items.length, equals(5));
+      for (final item in result.items) {
+        expect(item.image, isNotEmpty);
+      }
+    });
+
+    test('TEST E: placesToVisit = 8 generates exact 8 itinerary places', () async {
+      const placesToVisit = 8;
       final selectedPlaces = List.generate(8, (i) {
-        final cat = interests[i % interests.length];
         return RecommendationModel(
           experienceId: 'EXP-8-$i',
-          name: '$cat Experience $i',
-          category: cat,
+          name: 'Experience $i',
+          category: 'Culture',
           location: 'Loc $i',
           city: 'Mumbai',
           durationMinutes: 45,
@@ -131,105 +198,39 @@ void main() {
       expect(result.items.length, equals(8));
     });
 
-    test('TEST 3: placesToVisit = 10, interests = Food -> 10 Food-only stacks, 10 final places', () async {
-      const placesToVisit = 10;
-      final interests = ['Food'];
+    testWidgets('TEST F: Left Swipe (Skip / Reject) complete smooth exit', (tester) async {
+      final candidates = generateMockRecs(category: 'Food', count: 3);
+      RecommendationModel? leftRejected;
 
-      final stackThemes = List.generate(placesToVisit, (i) {
-        if (i < interests.length) {
-          return interests[i];
-        }
-        return 'Mixed (${interests.join(" • ")})';
-      });
-
-      expect(stackThemes.length, equals(10));
-      for (final theme in stackThemes) {
-        expect(theme.contains('Food'), isTrue);
-      }
-
-      final selectedPlaces = List.generate(10, (i) {
-        return RecommendationModel(
-          experienceId: 'EXP-FOOD-$i',
-          name: 'Food Tasting $i',
-          category: 'Food',
-          location: 'Market $i',
-          city: 'Mumbai',
-          durationMinutes: 40,
-          durationHours: 0.65,
-          price: 150.0,
-          rating: 4.9,
-          reason: 'Delicious food',
-          score: 0.92,
-          image: 'assets/images/destinations/food_trail.png',
-        );
-      });
-
-      final result = await ItineraryApiService.generateItinerary(
-        destination: 'Mumbai',
-        tripDate: '2026-09-26',
-        startTime: '09:00 AM',
-        durationHours: 10.0,
-        budget: 5000.0,
-        selectedExperienceIds: selectedPlaces.map((p) => p.experienceId).toList(),
-        selectedPlacesModels: selectedPlaces,
-        travelerCount: 1,
-        travelerType: 'Solo',
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 800,
+              child: RecommendationSwipeStack(
+                candidates: candidates,
+                placesToVisit: 4,
+                selectedCount: 0,
+                onSwipeRight: (_) {},
+                onSwipeLeft: (c) => leftRejected = c,
+              ),
+            ),
+          ),
+        ),
       );
 
-      expect(result.items.length, equals(10));
-      for (final item in result.items) {
-        expect(item.category, equals('Food'));
-      }
+      expect(find.text('Food Experience 0'), findsOneWidget);
+
+      // Tap Skip button (Left Swipe action)
+      await tester.tap(find.text('Skip'));
+      await tester.pumpAndSettle();
+
+      expect(leftRejected, isNotNull);
+      expect(leftRejected!.experienceId, equals('EXP-FOOD-0'));
     });
 
-    test('TEST 4: placesToVisit = 5, interests = Food, Adventure -> 5 stacks with only selected interests', () async {
-      const placesToVisit = 5;
-      final interests = ['Food', 'Adventure'];
-
-      final stackThemes = List.generate(placesToVisit, (i) {
-        if (i < interests.length) {
-          return interests[i];
-        }
-        return 'Mixed (${interests.join(" • ")})';
-      });
-
-      expect(stackThemes.length, equals(5));
-      expect(stackThemes[0], equals('Food'));
-      expect(stackThemes[1], equals('Adventure'));
-      expect(stackThemes[2], contains('Food'));
-      expect(stackThemes[2], contains('Adventure'));
-      expect(stackThemes[2].contains('Culture'), isFalse);
-      expect(stackThemes[2].contains('Nature'), isFalse);
-    });
-
-    test('TEST 5: Session-level exclusion prevents duplicates across stacks', () {
-      final selectedPlaceIds = <String>{};
-      final rejectedPlaceIds = <String>{};
-      final shownPlaceIds = <String>{};
-
-      final candidateA = generateMockRecs(category: 'Food', count: 1, prefix: 'A')[0];
-      final candidateB = generateMockRecs(category: 'Food', count: 1, prefix: 'B')[0];
-
-      // Select candidateA in Stack 1
-      selectedPlaceIds.add(candidateA.experienceId);
-      shownPlaceIds.add(candidateA.experienceId);
-
-      // Reject candidateB in Stack 1
-      rejectedPlaceIds.add(candidateB.experienceId);
-      shownPlaceIds.add(candidateB.experienceId);
-
-      // Verify Stack 2 pool excludes both
-      final stack2CandidatePool = [candidateA, candidateB, generateMockRecs(category: 'Culture', count: 1, prefix: 'C')[0]];
-      final validForStack2 = stack2CandidatePool.where((c) {
-        final id = c.experienceId;
-        return !selectedPlaceIds.contains(id) && !rejectedPlaceIds.contains(id);
-      }).toList();
-
-      expect(validForStack2.length, equals(1));
-      expect(validForStack2[0].experienceId, contains('C-CULTURE'));
-    });
-
-    testWidgets('TEST 6: Swipe smooth interaction, left=reject, right=select, double processing lock', (tester) async {
+    testWidgets('TEST G: Right Swipe (Select) complete smooth exit', (tester) async {
       final candidates = generateMockRecs(category: 'Food', count: 3);
       RecommendationModel? rightSelected;
 
@@ -251,17 +252,125 @@ void main() {
         ),
       );
 
-      // Top card is visible
       expect(find.text('Food Experience 0'), findsOneWidget);
 
-      // Rapid tap Select button
+      // Tap Select button (Right Swipe action)
       await tester.tap(find.text('Select'));
-      await tester.tap(find.text('Select')); // Second rapid tap while animating
       await tester.pumpAndSettle();
 
-      // Exactly one selection fired
       expect(rightSelected, isNotNull);
       expect(rightSelected!.experienceId, equals('EXP-FOOD-0'));
+    });
+
+    testWidgets('TEST H: Fast Left Swipe fling exits cleanly without sticking', (tester) async {
+      final candidates = generateMockRecs(category: 'Food', count: 3);
+      RecommendationModel? leftRejected;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 800,
+              child: RecommendationSwipeStack(
+                candidates: candidates,
+                placesToVisit: 4,
+                selectedCount: 0,
+                onSwipeRight: (_) {},
+                onSwipeLeft: (c) => leftRejected = c,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Fling strong distance left (-200px)
+      await tester.drag(find.text('Food Experience 0'), const Offset(-250, 0));
+      await tester.pumpAndSettle();
+
+      expect(leftRejected, isNotNull);
+      expect(leftRejected!.experienceId, equals('EXP-FOOD-0'));
+    });
+
+    testWidgets('TEST I: Fast Right Swipe fling exits cleanly without sticking', (tester) async {
+      final candidates = generateMockRecs(category: 'Food', count: 3);
+      RecommendationModel? rightSelected;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 800,
+              child: RecommendationSwipeStack(
+                candidates: candidates,
+                placesToVisit: 4,
+                selectedCount: 0,
+                onSwipeRight: (c) => rightSelected = c,
+                onSwipeLeft: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Fling strong distance right (+250px)
+      await tester.drag(find.text('Food Experience 0'), const Offset(250, 0));
+      await tester.pumpAndSettle();
+
+      expect(rightSelected, isNotNull);
+      expect(rightSelected!.experienceId, equals('EXP-FOOD-0'));
+    });
+
+    test('TEST J & K: CSV Image Resolution & Fallback Image Placeholder', () {
+      final recWithImage = RecommendationModel(
+        experienceId: 'EXP-DELHI-001',
+        name: 'Heritage Fort',
+        category: 'Heritage',
+        location: 'Old Delhi',
+        city: 'Delhi',
+        durationMinutes: 90,
+        durationHours: 1.5,
+        price: 350.0,
+        rating: 4.8,
+        reason: 'Historic landmark',
+        score: 0.95,
+        image: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&q=80',
+      );
+
+      expect(recWithImage.image.startsWith('http') || recWithImage.image.startsWith('assets/'), isTrue);
+      expect(recWithImage.image.isNotEmpty, isTrue);
+    });
+
+    testWidgets('TEST L: Rapid Swipes Double Processing Lock (prevents duplicate auto-generation)', (tester) async {
+      final candidates = generateMockRecs(category: 'Food', count: 3);
+      int selectCallCount = 0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 800,
+              child: RecommendationSwipeStack(
+                candidates: candidates,
+                placesToVisit: 4,
+                selectedCount: 0,
+                onSwipeRight: (_) => selectCallCount++,
+                onSwipeLeft: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Rapidly tap Select twice in succession while animation is in flight
+      await tester.tap(find.text('Select'));
+      await tester.tap(find.text('Select'));
+      await tester.pumpAndSettle();
+
+      // Exactly ONE selection processed
+      expect(selectCallCount, equals(1));
     });
   });
 }

@@ -189,6 +189,15 @@ class ItineraryItem {
           double.tryParse(json['longitude']?.toString() ?? ''),
     );
   }
+
+  /// Convenience name getter
+  String get name => experienceName;
+
+  /// Formatted time window string
+  String get timeWindow => '$startTime - $endTime';
+
+  /// Price in INR
+  double get priceInr => price;
 }
 
 /// Details of an experience skipped during time/budget optimization

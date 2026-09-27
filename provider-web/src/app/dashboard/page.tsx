@@ -23,6 +23,9 @@ import {
   User,
   CheckCircle2,
   ShieldCheck,
+  ShieldAlert,
+  CreditCard,
+  Scan,
   Mail,
   Phone,
   LogOut,
@@ -48,6 +51,7 @@ import {
 import { BookingDetailDrawer } from "@/components/bookings/BookingDetailDrawer";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { AadhaarOcrVerificationModal } from "@/components/modals/AadhaarOcrVerificationModal";
 
 function DashboardContent() {
   const router = useRouter();
@@ -58,12 +62,27 @@ function DashboardContent() {
   const { user, profile: authProfile, loading: authLoading, signOut } = useAuth();
   const [profile, setProfile] = useState<ProviderProfile | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isAadhaarModalOpen, setIsAadhaarModalOpen] = useState(false);
 
   useEffect(() => {
     if (authProfile) {
       setProfile(authProfile);
     }
   }, [authProfile]);
+
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail) {
+        setProfile(e.detail);
+      } else {
+        getProviderProfile().then((p) => setProfile(p));
+      }
+    };
+    window.addEventListener("locallens_profile_updated", handleProfileUpdate);
+    return () => {
+      window.removeEventListener("locallens_profile_updated", handleProfileUpdate);
+    };
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user && !authProfile) {
@@ -1265,10 +1284,21 @@ function DashboardContent() {
                   <h3 className="text-[18px] font-black text-[#0F172A] truncate">
                     {profile?.name || "Local Provider"}
                   </h3>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-[#00875A] border border-emerald-200 text-[10px] font-bold">
-                    <ShieldCheck className="w-3 h-3" />
-                    Verified
-                  </span>
+                  {profile?.verified && profile?.aadhaarVerified ? (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-[#00875A] border border-emerald-200 text-[10px] font-bold">
+                      <ShieldCheck className="w-3 h-3" />
+                      Aadhaar Verified
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsAadhaarModalOpen(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500 hover:bg-amber-600 text-white text-[10px] font-extrabold shadow-sm transition-colors cursor-pointer"
+                    >
+                      <ShieldAlert className="w-3 h-3" />
+                      Verify Aadhaar (OCR)
+                    </button>
+                  )}
                 </div>
                 <p className="text-[12px] font-semibold text-[#00875A] mt-0.5 truncate">
                   {profile?.role || "Experience Host"}
@@ -1282,6 +1312,28 @@ function DashboardContent() {
               <h4 className="text-[11.5px] font-extrabold text-slate-400 uppercase tracking-wider">
                 Account &amp; Contact Details
               </h4>
+
+              {/* Aadhaar Verification Row */}
+              <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                <div className="flex items-center gap-2.5 text-xs text-slate-600">
+                  <CreditCard className="w-4 h-4 text-slate-400" />
+                  <span className="font-medium">Govt Aadhaar Status</span>
+                </div>
+                {profile?.verified && profile?.aadhaarVerified ? (
+                  <span className="text-xs font-mono font-bold text-emerald-700 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    {profile.aadhaarNumber || "Verified"}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setIsAadhaarModalOpen(true)}
+                    className="text-xs font-bold text-amber-700 hover:text-amber-800 underline flex items-center gap-1"
+                  >
+                    <span>Unverified — Scan Now</span>
+                  </button>
+                )}
+              </div>
 
               {/* Full Name */}
               <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-100">
@@ -1382,6 +1434,13 @@ function DashboardContent() {
         booking={selectedBooking}
         onClose={() => setSelectedBooking(null)}
         onUpdateStatus={handleUpdateBookingStatus}
+      />
+
+      {/* Aadhaar OCR Verification Modal */}
+      <AadhaarOcrVerificationModal
+        isOpen={isAadhaarModalOpen}
+        onClose={() => setIsAadhaarModalOpen(false)}
+        onVerified={(updated) => setProfile(updated)}
       />
     </div>
   );
