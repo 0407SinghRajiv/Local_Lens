@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' hide AuthException;
+import '../config/supabase_config.dart';
 import '../models/driver.dart';
 import '../models/ride.dart';
 import '../models/location.dart';
@@ -32,6 +33,7 @@ class AppState extends ChangeNotifier {
   StreamSubscription? _locationSub;
   StreamSubscription? _rideRequestSub;
   StreamSubscription? _authSub;
+  StreamSubscription? _passengerLocationSub;
 
   AppState({
     required AuthService authService,
@@ -454,7 +456,64 @@ class AppState extends ChangeNotifier {
     _pendingRequest = ride;
     _countdownSeconds = 15;
     _startCountdown();
+    _startListeningToPassengerLocation(ride.passengerId);
     notifyListeners();
+  }
+
+  void _startListeningToPassengerLocation(String passengerId) {
+    _passengerLocationSub?.cancel();
+    if (passengerId.isEmpty) return;
+
+    final client = SupabaseConfig.client;
+    if (client == null) return;
+
+    debugPrint('[AppState] Listening to live location from profiles table for passenger: $passengerId');
+
+    // 1. Initial fetch from profiles table
+    client.from('profiles').select().eq('id', passengerId).maybeSingle().then((res) {
+      if (res != null && res['latitude'] != null && res['longitude'] != null) {
+        final pLat = (res['latitude'] as num).toDouble();
+        final pLng = (res['longitude'] as num).toDouble();
+        if (pLat != 0.0 || pLng != 0.0) {
+          if (_activeRide != null) {
+            _activeRide = _activeRide!.copyWith(pickupLat: pLat, pickupLng: pLng);
+          }
+          if (_pendingRequest != null) {
+            _pendingRequest = _pendingRequest!.copyWith(pickupLat: pLat, pickupLng: pLng);
+          }
+          notifyListeners();
+        }
+      }
+    }).catchError((e) {
+      debugPrint('[AppState] Error fetching passenger profile location: $e');
+    });
+
+    // 2. Live Supabase Realtime channel on profiles table
+    try {
+      final channel = client.channel('public:profiles:$passengerId');
+      channel.onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'profiles',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: passengerId),
+        callback: (payload) {
+          final newLat = (payload.newRecord['latitude'] as num?)?.toDouble();
+          final newLng = (payload.newRecord['longitude'] as num?)?.toDouble();
+          if (newLat != null && newLng != null && (newLat != 0.0 || newLng != 0.0)) {
+            debugPrint('[AppState] Live passenger location update from profiles: ($newLat, $newLng)');
+            if (_activeRide != null) {
+              _activeRide = _activeRide!.copyWith(pickupLat: newLat, pickupLng: newLng);
+            }
+            if (_pendingRequest != null) {
+              _pendingRequest = _pendingRequest!.copyWith(pickupLat: newLat, pickupLng: newLng);
+            }
+            notifyListeners();
+          }
+        },
+      ).subscribe();
+    } catch (e) {
+      debugPrint('[AppState] Realtime profiles listener error: $e');
+    }
   }
 
   void _startCountdown() {
@@ -495,6 +554,7 @@ class AppState extends ChangeNotifier {
 
     try {
       final rideId = _pendingRequest!.id;
+      final passengerId = _pendingRequest!.passengerId;
       final result = await _rideRepo.acceptRide(rideId, _driver!.id);
 
       if (result['success'] == true) {
@@ -509,6 +569,8 @@ class AppState extends ChangeNotifier {
         try {
           _activeRide = await _rideRepo.getRide(rideId);
         } catch (_) {}
+
+        _startListeningToPassengerLocation(passengerId);
 
         locationService?.setTarget(
             _activeRide!.pickupLat, _activeRide!.pickupLng);
@@ -655,6 +717,7 @@ class AppState extends ChangeNotifier {
     _locationSub?.cancel();
     _rideRequestSub?.cancel();
     _authSub?.cancel();
+    _passengerLocationSub?.cancel();
     _locationService.dispose();
     _realtimeService.dispose();
     super.dispose();

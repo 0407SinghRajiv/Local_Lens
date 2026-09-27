@@ -40,6 +40,9 @@ class _HomeScreenState extends State<HomeScreen> {
         return;
       }
 
+      final isCurrentRoute = ModalRoute.of(context)?.isCurrent ?? false;
+      if (!isCurrentRoute) return;
+
       // Navigate to ride request when pending
       if (state.hasPendingRequest) {
         final request = state.pendingRequest!;

@@ -751,6 +751,7 @@ class ExperienceCard extends StatelessWidget {
   final bool isSaved;
   final VoidCallback onTap;
   final VoidCallback? onSaveTap;
+  final VoidCallback? onBookRideTap;
   final double width;
   final bool isStormy;
 
@@ -767,6 +768,7 @@ class ExperienceCard extends StatelessWidget {
     this.isSaved = false,
     required this.onTap,
     this.onSaveTap,
+    this.onBookRideTap,
     this.width = 220,
     this.isStormy = false,
   });
@@ -805,6 +807,52 @@ class ExperienceCard extends StatelessWidget {
                     ),
                   ),
                 ),
+
+                // Ride Booking Quick Action Badge (Top Left)
+                if (onBookRideTap != null)
+                  Positioned(
+                    top: 10,
+                    left: 10,
+                    child: GestureDetector(
+                      onTap: onBookRideTap,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 350),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: isStormy
+                              ? const Color(0xFF0F172A).withValues(alpha: 0.9)
+                              : Colors.white.withValues(alpha: 0.95),
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.15),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.directions_car_rounded,
+                              size: 14,
+                              color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Book Ride',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w900,
+                                color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
                 Positioned(
                   top: 10,
                   right: 10,
@@ -921,7 +969,43 @@ class ExperienceCard extends StatelessWidget {
                           color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.primaryTeal,
                         ),
                       ),
-                      if (durationHours != null)
+                      if (onBookRideTap != null)
+                        GestureDetector(
+                          onTap: onBookRideTap,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 350),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isStormy
+                                  ? const Color(0xFF0288D1).withValues(alpha: 0.2)
+                                  : LocalLensColors.terracottaPrimary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.local_taxi_rounded,
+                                  size: 13,
+                                  color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Book Ride',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: isStormy ? const Color(0xFF38BDF8) : LocalLensColors.terracottaPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else if (durationHours != null)
                         Text(
                           '${durationHours!.toStringAsFixed(1)}h',
                           style: LocalLensTypography.caption.copyWith(
@@ -933,6 +1017,7 @@ class ExperienceCard extends StatelessWidget {
                   ),
                 ],
               ),
+
             ),
           ],
         ),

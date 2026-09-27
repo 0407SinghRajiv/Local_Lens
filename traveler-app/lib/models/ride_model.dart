@@ -133,6 +133,8 @@ class Rider {
   final String vehicleNumber;
   final String profileImage;
   final String phone;
+  final double latitude;
+  final double longitude;
 
   const Rider({
     required this.id,
@@ -142,16 +144,20 @@ class Rider {
     required this.vehicleNumber,
     required this.profileImage,
     required this.phone,
+    this.latitude = 19.0760,
+    this.longitude = 72.8777,
   });
 
   static const Rider defaultMockRider = Rider(
-    id: 'rider-amit-01',
-    name: 'Amit Sharma',
-    rating: 4.8,
-    vehicleType: 'White Sedan (Maruti Dzire)',
+    id: 'rider-yahya-01',
+    name: 'Yahya Rawal',
+    rating: 4.9,
+    vehicleType: 'Sedan (Maruti Dzire)',
     vehicleNumber: 'MH 04 AB 1234',
     profileImage: 'assets/images/characters/solo.png',
     phone: '+91 98201 23456',
+    latitude: 19.0760,
+    longitude: 72.8777,
   );
 }
 

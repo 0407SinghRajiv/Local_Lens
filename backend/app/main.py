@@ -2,6 +2,14 @@
 LocalLens Backend Application Entrypoint.
 Intelligent Discovery, ML Recommendation, and Itinerary Generation Service.
 """
+import sys
+from pathlib import Path
+
+# Add project root to sys.path so 'ml' and 'backend' packages resolve cleanly
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse

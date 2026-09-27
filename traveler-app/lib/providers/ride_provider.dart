@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../config/supabase_config.dart';
 import '../models/ride_model.dart';
 import '../repositories/traveler_ride_repository.dart';
+import '../services/location_service.dart';
 
 class RideState {
   final RideStatus status;
@@ -92,19 +93,37 @@ class RideNotifier extends StateNotifier<RideState> {
   final TravelerRideRepository _repository;
   StreamSubscription? _rideSub;
   StreamSubscription? _riderLocationSub;
+  StreamSubscription? _userLocationSub;
   Timer? _timeoutTimer;
   Timer? _pollTimer;
+  Timer? _riderPollTimer;
 
   RideNotifier([TravelerRideRepository? repository])
       : _repository = repository ?? SupabaseTravelerRideRepository(),
-        super(const RideState());
+        super(const RideState()) {
+    _listenToUserLocation();
+  }
+
+  void _listenToUserLocation() {
+    _userLocationSub?.cancel();
+    _userLocationSub = LocationService.positionStream.listen((pos) {
+      if (pos.latitude != 0.0 && pos.longitude != 0.0) {
+        state = state.copyWith(
+          pickupLat: pos.latitude,
+          pickupLng: pos.longitude,
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {
     _rideSub?.cancel();
     _riderLocationSub?.cancel();
+    _userLocationSub?.cancel();
     _timeoutTimer?.cancel();
     _pollTimer?.cancel();
+    _riderPollTimer?.cancel();
     super.dispose();
   }
 
@@ -272,6 +291,8 @@ class RideNotifier extends StateNotifier<RideState> {
         state = state.copyWith(
           status: RideStatus.accepted,
           activeRider: rider,
+          riderLat: rider.latitude,
+          riderLng: rider.longitude,
           currentRequest: state.currentRequest?.copyWith(
             status: RideStatus.accepted,
             rider: rider,
@@ -320,11 +341,33 @@ class RideNotifier extends StateNotifier<RideState> {
 
   void _listenToRiderLocation(String riderId) {
     _riderLocationSub?.cancel();
+    _riderPollTimer?.cancel();
+    if (riderId.isEmpty) return;
+
+    // 1. Supabase Realtime channel on public:riders:$riderId
     _riderLocationSub = _repository.listenToRiderLocation(riderId).listen((row) {
       final lat = (row['latitude'] as num?)?.toDouble();
       final lng = (row['longitude'] as num?)?.toDouble();
-      if (lat != null && lng != null) {
+      if (lat != null && lng != null && (lat != 0.0 || lng != 0.0)) {
         state = state.copyWith(riderLat: lat, riderLng: lng);
+      }
+    });
+
+    // 2. 3-second periodic polling fallback on riders table
+    _riderPollTimer = Timer.periodic(const Duration(seconds: 3), (_) async {
+      final client = SupabaseConfig.client;
+      if (client == null) return;
+      try {
+        final res = await client.from('riders').select('latitude, longitude').eq('id', riderId).maybeSingle();
+        if (res != null) {
+          final lat = (res['latitude'] as num?)?.toDouble();
+          final lng = (res['longitude'] as num?)?.toDouble();
+          if (lat != null && lng != null && (lat != 0.0 || lng != 0.0)) {
+            state = state.copyWith(riderLat: lat, riderLng: lng);
+          }
+        }
+      } catch (e) {
+        debugPrint('[RideNotifier] Error polling rider location: $e');
       }
     });
   }
@@ -334,6 +377,7 @@ class RideNotifier extends StateNotifier<RideState> {
     _timeoutTimer?.cancel();
     _rideSub?.cancel();
     _riderLocationSub?.cancel();
+    _riderPollTimer?.cancel();
 
     final reqId = state.currentRequest?.id;
     if (reqId != null) {
@@ -353,6 +397,7 @@ class RideNotifier extends StateNotifier<RideState> {
     _timeoutTimer?.cancel();
     _rideSub?.cancel();
     _riderLocationSub?.cancel();
+    _riderPollTimer?.cancel();
     state = const RideState();
   }
 }

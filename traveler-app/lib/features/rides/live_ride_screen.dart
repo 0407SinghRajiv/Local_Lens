@@ -8,6 +8,8 @@ import '../../models/ride_model.dart';
 import '../../providers/ride_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 /// Screen: Live Ride Tracking & Status Simulation Screen
 class LiveRideScreen extends ConsumerStatefulWidget {
   const LiveRideScreen({super.key});
@@ -19,8 +21,7 @@ class LiveRideScreen extends ConsumerStatefulWidget {
 class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _carAnimationController;
-  Timer? _simulationTimer;
-  int _simulationSeconds = 0;
+  GoogleMapController? _mapController;
 
   @override
   void initState() {
@@ -30,44 +31,13 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
       vsync: this,
       duration: const Duration(seconds: 12),
     )..forward();
-
-    // Start ride progression simulation
-    _simulationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) return;
-      setState(() {
-        _simulationSeconds++;
-      });
-
-      final notifier = ref.read(rideProvider.notifier);
-      final currentStatus = ref.read(rideProvider).status;
-
-      // 4 seconds: Driver arrives at pickup
-      if (_simulationSeconds == 4 && currentStatus == RideStatus.riderArriving) {
-        notifier.markDriverArrived();
-      }
-
-      // Update progress value based on animation
-      notifier.setRouteProgress(_carAnimationController.value);
-    });
   }
 
   @override
   void dispose() {
+    _mapController?.dispose();
     _carAnimationController.dispose();
-    _simulationTimer?.cancel();
     super.dispose();
-  }
-
-  void _onStartRidePressed() {
-    ref.read(rideProvider.notifier).startTrip();
-    _carAnimationController.reset();
-    _carAnimationController.duration = const Duration(seconds: 8);
-    _carAnimationController.forward().then((_) {
-      if (mounted) {
-        ref.read(rideProvider.notifier).completeTrip();
-        context.pushReplacement(AppRoutes.travelerRideCompleted);
-      }
-    });
   }
 
   @override
@@ -83,45 +53,76 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
     final vehicle = rideState.selectedVehicle;
     final status = rideState.status;
 
-    return Scaffold(
-      body: Stack(
-        children: [
-          // 1. Map Canvas Background with animated Route
-          Positioned.fill(
-            child: Container(
-              color: const Color(0xFFE8ECEF),
-              child: Stack(
-                children: [
-                  // Map Graphic Background
-                  Positioned.fill(
-                    child: Image.asset(
-                      'assets/images/54506.png',
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: const Color(0xFFE2E8F0)),
-                    ),
-                  ),
+    final riderPos = LatLng(rideState.riderLat, rideState.riderLng);
+    final dropPos = LatLng(rideState.dropLat, rideState.dropLng);
 
-                  // Interactive animated Custom Route Painter
-                  AnimatedBuilder(
-                    animation: _carAnimationController,
-                    builder: (context, child) {
-                      return CustomPaint(
-                        size: Size.infinite,
-                        painter: _LiveRoutePainter(
-                          progress: _carAnimationController.value,
-                          isDriverArrived: status == RideStatus.arrived || status == RideStatus.inProgress || status == RideStatus.completed,
-                        ),
-                      );
-                    },
-                  ),
-                ],
+    final markers = <Marker>{
+      Marker(
+        markerId: const MarkerId('rider_vehicle_marker'),
+        position: riderPos,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        infoWindow: InfoWindow(title: '${rider.name} (${vehicle.name})', snippet: 'En Route to Destination'),
+      ),
+      Marker(
+        markerId: const MarkerId('destination_marker'),
+        position: dropPos,
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+        infoWindow: const InfoWindow(title: 'Destination', snippet: 'Experience Dropoff Location'),
+      ),
+    };
+
+    final polylines = <Polyline>{
+      Polyline(
+        polylineId: const PolylineId('rider_to_destination_route'),
+        points: [riderPos, dropPos],
+        color: LocalLensColors.primaryTeal,
+        width: 5,
+        geodesic: true,
+      ),
+    };
+
+    return Scaffold(
+      backgroundColor: LocalLensColors.background,
+      body: SizedBox.expand(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. Google Map Canvas Background with active Route Polyline
+            Positioned.fill(
+              child: GoogleMap(
+                initialCameraPosition: CameraPosition(
+                  target: dropPos,
+                  zoom: 14.5,
+                ),
+                markers: markers,
+                polylines: polylines,
+                zoomControlsEnabled: false,
+                myLocationEnabled: true,
+                myLocationButtonEnabled: false,
+                onMapCreated: (controller) {
+                  _mapController = controller;
+                  final bounds = LatLngBounds(
+                    southwest: LatLng(
+                      riderPos.latitude < dropPos.latitude ? riderPos.latitude - 0.005 : dropPos.latitude - 0.005,
+                      riderPos.longitude < dropPos.longitude ? riderPos.longitude - 0.005 : dropPos.longitude - 0.005,
+                    ),
+                    northeast: LatLng(
+                      riderPos.latitude > dropPos.latitude ? riderPos.latitude + 0.005 : dropPos.latitude + 0.005,
+                      riderPos.longitude > dropPos.longitude ? riderPos.longitude + 0.005 : dropPos.longitude + 0.005,
+                    ),
+                  );
+                  controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
+                },
               ),
             ),
-          ),
 
-          // 2. Top Header Navigation Bar
-          SafeArea(
-            child: Padding(
+            // 2. Top Header Navigation Bar
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -140,45 +141,55 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                   ),
 
                   // Live Status Pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                      boxShadow: LocalLensDimensions.floatingShadow,
-                      border: Border.all(
-                        color: status == RideStatus.arrived
-                            ? LocalLensColors.successGreen
-                            : LocalLensColors.primaryTeal,
-                        width: 1.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
+                          boxShadow: LocalLensDimensions.floatingShadow,
+                          border: Border.all(
                             color: status == RideStatus.arrived
                                 ? LocalLensColors.successGreen
-                                : LocalLensColors.accentOrange,
+                                : LocalLensColors.primaryTeal,
+                            width: 1.5,
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          status == RideStatus.arrived
-                              ? 'Driver has arrived!'
-                              : (status == RideStatus.inProgress
-                                  ? 'Heading to destination'
-                                  : 'Driver arriving • ETA 3 min'),
-                          style: LocalLensTypography.bodyMedium.copyWith(
-                            fontWeight: FontWeight.w800,
-                            color: LocalLensColors.textPrimary,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: status == RideStatus.arrived
+                                    ? LocalLensColors.successGreen
+                                    : LocalLensColors.accentOrange,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: Text(
+                                status == RideStatus.arrived
+                                    ? 'Driver has arrived!'
+                                    : (status == RideStatus.inProgress
+                                        ? 'Heading to destination'
+                                        : 'Driver arriving • ETA 3 min'),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
+                                style: LocalLensTypography.bodyMedium.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: LocalLensColors.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
 
@@ -206,6 +217,7 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
               ),
             ),
           ),
+        ),
 
           // 3. Driver Arrived Banner (When Arrived)
           if (status == RideStatus.arrived)
@@ -282,8 +294,10 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(color: LocalLensColors.primaryTeal, width: 2),
-                          image: const DecorationImage(
-                            image: AssetImage('assets/images/characters/solo.png'),
+                          image: DecorationImage(
+                            image: rider.profileImage.startsWith('http')
+                                ? NetworkImage(rider.profileImage) as ImageProvider
+                                : AssetImage(rider.profileImage.isNotEmpty ? rider.profileImage : 'assets/images/characters/solo.png'),
                             fit: BoxFit.cover,
                           ),
                         ),
@@ -295,9 +309,13 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                           children: [
                             Row(
                               children: [
-                                Text(
-                                  rider.name,
-                                  style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                                Flexible(
+                                  child: Text(
+                                    rider.name,
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
+                                    style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                                 const SizedBox(width: 6),
                                 const Icon(Icons.star_rounded, color: Colors.amber, size: 16),
@@ -309,7 +327,7 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                               style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.bold, color: LocalLensColors.primaryTeal),
                             ),
                             Text(
-                              'White Sedan (Maruti Dzire)',
+                              rider.vehicleType.isNotEmpty ? rider.vehicleType : '${vehicle.name} (${rider.vehicleNumber})',
                               style: LocalLensTypography.caption.copyWith(color: LocalLensColors.textSecondary, fontSize: 11),
                             ),
                           ],
@@ -416,84 +434,7 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Custom Route Painter with animated car marker
-class _LiveRoutePainter extends CustomPainter {
-  final double progress;
-  final bool isDriverArrived;
-
-  _LiveRoutePainter({required this.progress, required this.isDriverArrived});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final start = Offset(size.width * 0.25, size.height * 0.65);
-    final control1 = Offset(size.width * 0.4, size.height * 0.45);
-    final control2 = Offset(size.width * 0.65, size.height * 0.55);
-    final end = Offset(size.width * 0.8, size.height * 0.3);
-
-    final path = Path()
-      ..moveTo(start.dx, start.dy)
-      ..cubicTo(control1.dx, control1.dy, control2.dx, control2.dy, end.dx, end.dy);
-
-    // 1. Draw Route Background Glow Line
-    final bgLinePaint = Paint()
-      ..color = LocalLensColors.primaryTeal.withValues(alpha: 0.25)
-      ..strokeWidth = 10.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(path, bgLinePaint);
-
-    // 2. Draw Main Route Line
-    final mainLinePaint = Paint()
-      ..color = LocalLensColors.primaryTeal
-      ..strokeWidth = 5.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    canvas.drawPath(path, mainLinePaint);
-
-    // 3. Draw Pickup Marker (Circle with Teal)
-    final pickupPaint = Paint()..color = LocalLensColors.primaryTealDark;
-    canvas.drawCircle(start, 9.0, pickupPaint);
-    final pickupInner = Paint()..color = Colors.white;
-    canvas.drawCircle(start, 4.5, pickupInner);
-
-    // 4. Draw Drop Destination Marker (Orange Pin)
-    final dropPaint = Paint()..color = LocalLensColors.accentOrange;
-    canvas.drawCircle(end, 10.0, dropPaint);
-    final dropInner = Paint()..color = Colors.white;
-    canvas.drawCircle(end, 5.0, dropInner);
-
-    // 5. Calculate animated car position along cubic bezier path
-    final t = progress.clamp(0.0, 1.0);
-    final currentPos = _calculateCubicBezierPoint(start, control1, control2, end, t);
-
-    // Draw Animated Vehicle Dot & Wave
-    final carGlow = Paint()..color = LocalLensColors.accentOrange.withValues(alpha: 0.3);
-    canvas.drawCircle(currentPos, 18.0, carGlow);
-
-    final carPaint = Paint()..color = LocalLensColors.accentOrange;
-    canvas.drawCircle(currentPos, 10.0, carPaint);
-    final carCenter = Paint()..color = Colors.white;
-    canvas.drawCircle(currentPos, 5.0, carCenter);
-  }
-
-  Offset _calculateCubicBezierPoint(Offset p0, Offset p1, Offset p2, Offset p3, double t) {
-    final u = 1 - t;
-    final tt = t * t;
-    final uu = u * u;
-    final uuu = uu * u;
-    final ttt = tt * t;
-
-    final x = uuu * p0.dx + 3 * uu * t * p1.dx + 3 * u * tt * p2.dx + ttt * p3.dx;
-    final y = uuu * p0.dy + 3 * uu * t * p1.dy + 3 * u * tt * p2.dy + ttt * p3.dy;
-    return Offset(x, y);
-  }
-
-  @override
-  bool shouldRepaint(covariant _LiveRoutePainter oldDelegate) {
-    return oldDelegate.progress != progress || oldDelegate.isDriverArrived != isDriverArrived;
+    ),
+  );
   }
 }

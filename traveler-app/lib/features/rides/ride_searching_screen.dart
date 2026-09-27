@@ -37,7 +37,7 @@ class _RideSearchingScreenState extends ConsumerState<RideSearchingScreen>
   Widget build(BuildContext context) {
     ref.listen<RideState>(rideProvider, (previous, next) {
       if (next.status == RideStatus.accepted || next.status == RideStatus.riderArriving) {
-        context.pushReplacement(AppRoutes.travelerRideAccepted);
+        context.pushReplacement(AppRoutes.driverAssigned);
       } else if (next.status == RideStatus.cancelled || next.status == RideStatus.failed) {
         if (mounted && context.canPop()) {
           context.pop();

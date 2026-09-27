@@ -2,8 +2,15 @@
 Routing and Travel Time Service.
 Provides clean service abstraction for distance and transit estimation between itinerary stops.
 """
+from pathlib import Path
 from typing import Any, Dict, Optional
 import logging
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from ml.preprocessing.features import calculate_haversine_distance
 
 logger = logging.getLogger(__name__)

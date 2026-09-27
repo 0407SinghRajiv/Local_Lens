@@ -13,7 +13,7 @@ class RideRequestScreen extends StatelessWidget {
       canPop: true,
       child: Consumer<AppState>(
         builder: (context, state, _) {
-          final ride = state.pendingRequest;
+          final ride = state.pendingRequest ?? state.activeRide;
 
           if (ride == null) {
             // Request expired or dismissed
@@ -268,8 +268,10 @@ class RideRequestScreen extends StatelessWidget {
                     onPressed: () async {
                       final success = await state.acceptRide();
                       if (context.mounted) {
-                        Navigator.pop(context);
-                        if (!success) {
+                        if (success) {
+                          Navigator.pushReplacementNamed(context, '/pickup');
+                        } else {
+                          Navigator.pop(context);
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(content: Text('Ride request was already accepted by another driver.')),
                           );
