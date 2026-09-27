@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import {
   Compass,
@@ -26,31 +26,21 @@ import {
   Eye,
   Rocket,
   ShieldCheck,
-  ShieldAlert,
-  Lock,
   Star,
   Users,
   Layers,
-  Search,
-  Loader2,
+  Wand2,
+  Navigation,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { searchPlaceLocation } from "@/services/geocodingService";
 import { supabase } from "@/lib/supabaseClient";
-import {
-  getStoredExperiences,
-  saveStoredExperiences,
-  getStoredExperiencesForProvider,
-  saveStoredExperiencesForProvider,
-} from "@/services/mockExperiences";
-import { getProviderProfile } from "@/lib/authSession";
-import { ExperienceListing, ExperienceCategory } from "@/types/experience";
+import { getStoredExperiences, saveStoredExperiences, saveStoredExperiencesForProvider } from "@/services/mockExperiences";
+import { ExperienceListing } from "@/types/experience";
 import { AIContentValidatorWidget } from "@/components/ai/AIContentValidatorWidget";
-import { checkProfanity, checkClarity, validateExperienceLocations } from "@/lib/aiValidator";
-import { useI18n } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { useAuth } from "@/hooks/useAuth";
 
-// Google Maps & OpenStreetMap Pin Dropper dynamically loaded client-side
+// Dynamic map pin dropper
 const GoogleMapPinDropper = dynamic(
   () =>
     import("@/components/map/GoogleMapPinDropper").then(
@@ -59,1926 +49,1410 @@ const GoogleMapPinDropper = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-[320px] bg-slate-100 rounded-2xl flex items-center justify-center text-xs text-slate-400 font-bold">
-        Loading Interactive Map...
+      <div className="w-full h-[300px] bg-slate-100 rounded-2xl flex items-center justify-center text-xs text-slate-400 font-bold">
+        Loading Map Coordinates...
       </div>
     ),
   }
 );
 
-const CATEGORIES: ExperienceCategory[] = [
-  "Nature & Adventure",
-  "Heritage",
-  "Culinary & Food",
-  "Culture & Arts",
-  "Wellness & Spiritual",
-  "Nightlife & Social",
-  "Workshops & Crafts",
-];
-
-const SAMPLE_PHOTOS = [
-  "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
-  "https://images.unsplash.com/photo-1512343879784-a960bf40e7f2?auto=format&fit=crop&w=800&q=80",
-];
-
-export default function SimplifiedExperienceCreationPage() {
+export default function NewExperienceWizardPage() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { t } = useI18n();
+  const searchParams = useSearchParams();
+  const editId = searchParams.get("id") || searchParams.get("edit");
+  const isEditMode = Boolean(editId);
+  const { user, profile } = useAuth();
+  const userId = user?.id || profile?.id || "provider_default";
+  const userEmail = profile?.email || user?.email || "provider@locallens.in";
 
-  // Active Provider Identity (Multi-tenant isolation)
-  const [currentProviderId, setCurrentProviderId] = useState<string>("provider_default");
-  const [currentProviderEmail, setCurrentProviderEmail] = useState<string>("provider@locallens.in");
+  // Active step: 1 = Details, 2 = Location & Schedule, 3 = Pricing & Publish
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toastMsg, setToastMsg] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  useEffect(() => {
-    async function initProviderIdentity() {
-      try {
-        const prof = await getProviderProfile();
-        let sessionData: any = null;
-        try {
-          const { data } = await supabase.auth.getSession();
-          sessionData = data?.session?.user;
-        } catch {}
-
-        let localSession: any = null;
-        if (typeof window !== "undefined") {
-          try {
-            const raw = localStorage.getItem("locallens_provider_session");
-            if (raw) localSession = JSON.parse(raw);
-          } catch {}
-        }
-
-        const uid =
-          sessionData?.id ||
-          localSession?.id ||
-          prof?.id ||
-          sessionData?.email ||
-          localSession?.email ||
-          prof?.email ||
-          "provider_default";
-
-        const uemail =
-          sessionData?.email ||
-          localSession?.email ||
-          prof?.email ||
-          "provider@locallens.in";
-
-        setCurrentProviderId(uid);
-        setCurrentProviderEmail(uemail);
-
-        if (typeof window !== "undefined") {
-          const verified = localStorage.getItem("locallens_aadhaar_verified") === "true";
-          setIsAadhaarVerified(verified);
-        }
-      } catch (e) {
-        console.warn("Provider identity notice:", e);
-      }
-    }
-    initProviderIdentity();
-  }, []);
-
-  // Host Aadhaar Verification Gate (Must be verified to create/list experiences)
-  const [isAadhaarVerified, setIsAadhaarVerified] = useState<boolean>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("locallens_aadhaar_verified") === "true";
-    }
-    return false;
-  });
-
-  // -------------------------------------------------------------
-  // 1. Wizard Step State: 1 (Details), 2 (Location), 3 (Pricing)
-  // -------------------------------------------------------------
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-
-  // -------------------------------------------------------------
-  // 2. Step 1: Details State
-  // -------------------------------------------------------------
-  const [experienceName, setExperienceName] = useState("Sunset Kayaking at Versova");
-  const [category, setCategory] = useState<ExperienceCategory>("Nature & Adventure");
-  const [setting, setSetting] = useState<"Indoor" | "Outdoor" | "Mixed">("Outdoor");
+  // STEP 1: EXPERIENCE DETAILS
+  const [name, setName] = useState("Sunset Kayaking at Versova");
+  const [category, setCategory] = useState("Nature & Adventure");
+  const [setting, setSetting] = useState<"Outdoor" | "Indoor" | "Mixed">("Outdoor");
   const [description, setDescription] = useState(
-    "Sunset kayaking off Versova beach with certified safety marshals, top-grade equipment, and scenic mangrove waterways. Suitable for beginners and nature enthusiasts."
+    "Paddle through calm coastal waters and scenic mangrove channels with certified safety marshals and premium gear."
   );
-  const [photos, setPhotos] = useState<string[]>([
+  const [highlights, setHighlights] = useState<string[]>([]);
+  const [newHighlightInput, setNewHighlightInput] = useState("");
+
+  const [images, setImages] = useState<string[]>([
     "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=800&q=80",
     "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
   ]);
-  const [photoUrlInput, setPhotoUrlInput] = useState("");
-  const [highlights, setHighlights] = useState<string[]>([
-    "Certified Kayaks & Lifejackets",
-    "Sunset Mangrove Trail",
-    "Professional Safety Marshals",
-    "Beginner Friendly",
-  ]);
-  const [newHighlight, setNewHighlight] = useState("");
-  const [isAuthenticLocal, setIsAuthenticLocal] = useState(true);
-  const [isHiddenGem, setIsHiddenGem] = useState(true);
+  const [customImageUrl, setCustomImageUrl] = useState("");
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // -------------------------------------------------------------
-  // 3. Step 2: Location & Schedule State
-  // -------------------------------------------------------------
-  const [meetingPoint1, setMeetingPoint1] = useState("Versova Beach Pier 2, Off Jetty Road");
-  const [startTime1, setStartTime1] = useState("05:00 PM");
-  const [endTime1, setEndTime1] = useState("07:00 PM");
-  const [coords1, setCoords1] = useState({
-    lat: 19.131102,
-    lng: 72.81541,
-    city: "Mumbai",
-    district: "Mumbai Suburban",
-  });
+  // STEP 2: LOCATION & SCHEDULE
+  const [meetingPoint, setMeetingPoint] = useState("Versova Beach Pier 2, Off Fisherfolk Jetty, Mumbai");
+  const [city, setCity] = useState("Mumbai");
+  const [district, setDistrict] = useState("Mumbai Suburban");
+  const [stateName, setStateName] = useState("Maharashtra");
+  const [lat, setLat] = useState<number>(19.131102);
+  const [lng, setLng] = useState<number>(72.81541);
+  const [showAdvancedCoords, setShowAdvancedCoords] = useState(false);
 
-  // Multi-Show: Show 2 is only revealed when provider needs it
+  // Show 1 Times
+  const [startTime, setStartTime] = useState("05:00 PM");
+  const [endTime, setEndTime] = useState("07:00 PM");
+
+  // Multi-Show Support (Optional Show 2)
   const [hasShow2, setHasShow2] = useState(false);
-  const [activeShowTab, setActiveShowTab] = useState<1 | 2>(1);
-  const [meetingPoint2, setMeetingPoint2] = useState("Juhu Coastal Base Station");
-  const [startTime2, setStartTime2] = useState("07:30 AM");
-  const [endTime2, setEndTime2] = useState("09:30 AM");
-  const [coords2, setCoords2] = useState({
-    lat: 19.0988,
-    lng: 72.8264,
-    city: "Mumbai",
-    district: "Mumbai Suburban",
-  });
+  const [show2Name, setShow2Name] = useState("Morning Mangrove Session");
+  const [show2Venue, setShow2Venue] = useState("Versova Beach Pier 2");
+  const [show2StartTime, setShow2StartTime] = useState("07:30 AM");
+  const [show2EndTime, setShow2EndTime] = useState("09:30 AM");
 
-  const [showAdvancedLocation, setShowAdvancedLocation] = useState(false);
-
-  // -------------------------------------------------------------
-  // 4. Step 3: Pricing & Publish State
-  // -------------------------------------------------------------
+  // STEP 3: PRICING & PUBLISH
   const [priceInr, setPriceInr] = useState<number>(1200);
-  const [minGuests, setMinGuests] = useState<number>(1);
   const [maxGuests, setMaxGuests] = useState<number>(8);
-  const [durationHours, setDurationHours] = useState<number>(2.0);
-  const [availability, setAvailability] = useState("Daily, 05:00 PM - 07:00 PM");
+  const [durationHours, setDurationHours] = useState<number>(2);
+  const [availability, setAvailability] = useState("Daily");
 
-  // -------------------------------------------------------------
-  // 5. System, Validation & Notification State
-  // -------------------------------------------------------------
-  const [formError, setFormError] = useState<string | null>(null);
-  const [saveToast, setSaveToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [publishedListing, setPublishedListing] = useState<ExperienceListing | null>(null);
-
-  // AI Validation Gate — updated live by the widget
-  const [aiCanPublish, setAiCanPublish] = useState(true);
-  const [aiBlockReason, setAiBlockReason] = useState<string | null>(null);
-
-  // Multi-show objects for validation & saving
-  const show1Data = useMemo(
-    () => ({
-      id: "show-1",
-      name: "Primary Show",
-      venue: meetingPoint1,
-      city: coords1.city,
-      district: coords1.district,
-      lat: coords1.lat,
-      lng: coords1.lng,
-      timeSlot: `${startTime1} - ${endTime1}`,
-    }),
-    [meetingPoint1, coords1, startTime1, endTime1]
-  );
-
-  const show2Data = useMemo(
-    () =>
-      hasShow2
-        ? {
-            id: "show-2",
-            name: "Morning Show",
-            venue: meetingPoint2,
-            city: coords2.city,
-            district: coords2.district,
-            lat: coords2.lat,
-            lng: coords2.lng,
-            timeSlot: `${startTime2} - ${endTime2}`,
-          }
-        : null,
-    [hasShow2, meetingPoint2, coords2, startTime2, endTime2]
-  );
-
-  // Active show convenience accessors for map
-  const activeShowCoords = activeShowTab === 1 ? coords1 : coords2;
-  const updateActiveCoords = (coords: { lat: number; lng: number }) => {
-    if (activeShowTab === 1) {
-      setCoords1((prev) => ({ ...prev, lat: coords.lat, lng: coords.lng }));
-    } else {
-      setCoords2((prev) => ({ ...prev, lat: coords.lat, lng: coords.lng }));
-    }
+  // Show success toast helper
+  const showToast = (text: string, type: "success" | "error" = "success") => {
+    setToastMsg({ text, type });
+    setTimeout(() => setToastMsg(null), 4000);
   };
 
-  // -------------------------------------------------------------
-  // Place Search & Map Geolocation Logic
-  // Automatically searches place in map when user enters place name
-  // -------------------------------------------------------------
-  const [isSearchingPlace, setIsSearchingPlace] = useState(false);
-  const [placeSearchResult, setPlaceSearchResult] = useState<{
-    showTab: 1 | 2;
-    displayName: string;
-    lat: number;
-    lng: number;
-  } | null>(null);
-
-  const handlePerformPlaceSearch = async (tab: 1 | 2, textOverride?: string) => {
-    const query = (textOverride !== undefined ? textOverride : (tab === 1 ? meetingPoint1 : meetingPoint2)).trim();
-    if (!query || query.length < 2) return;
-
-    setIsSearchingPlace(true);
-    try {
-      const result = await searchPlaceLocation(query);
-      if (result) {
-        if (tab === 1) {
-          setCoords1((prev) => ({ ...prev, lat: result.lat, lng: result.lng }));
-        } else {
-          setCoords2((prev) => ({ ...prev, lat: result.lat, lng: result.lng }));
-        }
-        setPlaceSearchResult({
-          showTab: tab,
-          displayName: result.displayName,
-          lat: result.lat,
-          lng: result.lng,
-        });
-      }
-    } catch (err) {
-      console.warn("Place search notice:", err);
-    } finally {
-      setIsSearchingPlace(false);
-    }
-  };
-
-  // Debounced auto-search when user enters place name
-  useEffect(() => {
-    const target = activeShowTab === 1 ? meetingPoint1 : meetingPoint2;
-    if (!target || target.trim().length < 3) return;
-
-    const timer = setTimeout(() => {
-      handlePerformPlaceSearch(activeShowTab, target);
-    }, 700);
-
-    return () => clearTimeout(timer);
-  }, [meetingPoint1, meetingPoint2, activeShowTab]);
-
-  // -------------------------------------------------------------
-  // Photo Handling Handlers
-  // -------------------------------------------------------------
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setPhotos((prev) => [...prev, event.target!.result as string]);
-        }
-      };
-      reader.readAsDataURL(file);
-    });
-
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  };
-
-  const handleAddPhotoUrl = () => {
-    if (!photoUrlInput.trim()) return;
-    setPhotos((prev) => [...prev, photoUrlInput.trim()]);
-    setPhotoUrlInput("");
-  };
-
-  const handleDeletePhoto = (index: number) => {
-    setPhotos((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  // -------------------------------------------------------------
-  // Highlight Tags Handlers
-  // -------------------------------------------------------------
+  // Add / remove highlights
   const handleAddHighlight = () => {
-    if (!newHighlight.trim()) return;
-    if (!highlights.includes(newHighlight.trim())) {
-      setHighlights((prev) => [...prev, newHighlight.trim()]);
-    }
-    setNewHighlight("");
+    if (!newHighlightInput.trim()) return;
+    setHighlights((prev) => [...prev, newHighlightInput.trim()]);
+    setNewHighlightInput("");
   };
 
-  const handleRemoveHighlight = (item: string) => {
-    setHighlights((prev) => prev.filter((h) => h !== item));
+  const handleRemoveHighlight = (idx: number) => {
+    setHighlights((prev) => prev.filter((_, i) => i !== idx));
   };
 
-  // -------------------------------------------------------------
-  // Step Validation & Navigation Handlers
-  // -------------------------------------------------------------
-  const validateStep1 = (): boolean => {
-    setFormError(null);
-    if (!experienceName.trim() || experienceName.trim().length < 4) {
-      setFormError("Please enter a descriptive experience name (at least 4 characters).");
-      return false;
-    }
-    if (!description.trim() || description.trim().length < 15) {
-      setFormError("Please write a short description explaining what travelers will do (at least 15 characters).");
-      return false;
-    }
-    if (photos.length === 0) {
-      setFormError("Please add at least one photo for your experience.");
-      return false;
-    }
-    return true;
+  // Photo handlers
+  const handleAddImageUrl = () => {
+    if (!customImageUrl.trim()) return;
+    setImages((prev) => [...prev, customImageUrl.trim()]);
+    setCustomImageUrl("");
+    showToast("Photo added to gallery");
   };
 
-  const validateStep2 = (): boolean => {
-    setFormError(null);
-    if (!meetingPoint1.trim()) {
-      setFormError("Please provide a meeting point or venue address for travelers.");
-      return false;
-    }
-    if (hasShow2 && !meetingPoint2.trim()) {
-      setFormError("Please provide a venue address for Show 2 or remove it.");
-      return false;
-    }
-    return true;
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      if (event.target?.result) {
+        setImages((prev) => [...prev, event.target!.result as string]);
+        showToast("Photo uploaded successfully");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleNextFromStep1 = () => {
-    if (!validateStep1()) return;
-
-    // AI content check — block step navigation if title/description has bad words or fake claims
-    if (!aiCanPublish && aiBlockReason) {
-      setFormError(`AI Validation blocked: ${aiBlockReason}`);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+  const handleDeleteImage = (index: number) => {
+    if (images.length <= 1) {
+      showToast("Please keep at least one photo for your listing", "error");
       return;
     }
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    showToast("Photo removed");
+  };
 
-    setStep(2);
+  // Save Draft to Local Storage
+  const handleSaveDraft = () => {
+    if (typeof window === "undefined") return;
+    const draft = {
+      name,
+      category,
+      setting,
+      description,
+      highlights,
+      images,
+      meetingPoint,
+      city,
+      district,
+      lat,
+      lng,
+      startTime,
+      endTime,
+      hasShow2,
+      show2Name,
+      show2Venue,
+      show2StartTime,
+      show2EndTime,
+      priceInr,
+      maxGuests,
+      durationHours,
+      availability,
+      savedAt: new Date().toISOString(),
+    };
+    try {
+      localStorage.setItem("locallens_experience_draft", JSON.stringify(draft));
+      showToast("Draft saved successfully! You can resume anytime.");
+    } catch {
+      showToast("Could not save draft to local storage.", "error");
+    }
+  };
+
+  // Fetch listing for editing when id or edit query param is present
+  useEffect(() => {
+    if (!editId) return;
+
+    let isMounted = true;
+    async function fetchListingForEdit() {
+      // 1. Try Supabase public.experience table
+      try {
+        const { data, error } = await supabase
+          .from("experience")
+          .select("*")
+          .eq("experience_id", editId)
+          .maybeSingle();
+
+        if (isMounted && data && !error) {
+          if (data.experience_name) setName(data.experience_name);
+          if (data.category) setCategory(data.category);
+          if (data.indoor_outdoor) setSetting(data.indoor_outdoor as any);
+          if (data.description) setDescription(data.description);
+          if (data.city) setCity(data.city);
+          if (data.district) setDistrict(data.district);
+          if (data.state) setStateName(data.state);
+          if (data.latitude) setLat(Number(data.latitude));
+          if (data.longitude) setLng(Number(data.longitude));
+          if (data.meeting_point) setMeetingPoint(data.meeting_point);
+          if (data.price_inr_clean || data.price_inr) {
+            setPriceInr(Number(data.price_inr_clean) || Number(String(data.price_inr).replace(/[^0-9]/g, "")) || 1200);
+          }
+          if (data.duration_hours_clean || data.duration_hours) {
+            setDurationHours(Number(data.duration_hours_clean) || Number(String(data.duration_hours).replace(/[^0-9.]/g, "")) || 2);
+          }
+          if (data.max_group_size) setMaxGuests(Number(data.max_group_size));
+          if (data.availability) setAvailability(data.availability);
+          if (data.best_time) setStartTime(data.best_time);
+          if (data.image_url) setImages([data.image_url]);
+
+          // Exact user-entered highlights extraction (NO defaults/suggestions)
+          let fetchedHl: string[] = [];
+          if (data.image_note) {
+            try {
+              const parsed = JSON.parse(data.image_note);
+              if (Array.isArray(parsed.highlights)) {
+                fetchedHl = parsed.highlights;
+              }
+            } catch {}
+          }
+          if (fetchedHl.length === 0 && Array.isArray(data.inclusions) && data.inclusions.length > 0) {
+            fetchedHl = data.inclusions;
+          }
+          setHighlights(fetchedHl);
+          return;
+        }
+      } catch (err) {
+        console.warn("Listing fetch for edit notice:", err);
+      }
+
+      // 2. Fallback to locally stored experiences
+      const stored = getStoredExperiences();
+      const local = stored.find((exp) => exp.experience_id === editId);
+      if (isMounted && local) {
+        if (local.experience_name) setName(local.experience_name);
+        if (local.category) setCategory(local.category);
+        if (local.indoor_outdoor_clean) setSetting(local.indoor_outdoor_clean);
+        if (local.description) setDescription(local.description);
+        if (local.city) setCity(local.city);
+        if (local.district) setDistrict(local.district);
+        if (local.state) setStateName(local.state);
+        if (local.latitude) setLat(local.latitude);
+        if (local.longitude) setLng(local.longitude);
+        if (local.meeting_point) setMeetingPoint(local.meeting_point);
+        if (local.price_inr_clean) setPriceInr(local.price_inr_clean);
+        if (local.duration_hours_clean) setDurationHours(local.duration_hours_clean);
+        if (local.max_group_size) setMaxGuests(local.max_group_size);
+        if (local.availability) setAvailability(local.availability);
+        if (local.images && local.images.length > 0) setImages(local.images);
+        setHighlights(Array.isArray(local.inclusions) ? local.inclusions : []);
+      }
+    }
+
+    fetchListingForEdit();
+    return () => {
+      isMounted = false;
+    };
+  }, [editId]);
+
+  // Load draft on mount if available
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem("locallens_experience_draft");
+      if (saved) {
+        const d = JSON.parse(saved);
+        if (d.name) setName(d.name);
+        if (d.category) setCategory(d.category);
+        if (d.description) setDescription(d.description);
+        if (d.priceInr) setPriceInr(Number(d.priceInr));
+        if (d.meetingPoint) setMeetingPoint(d.meetingPoint);
+      }
+    } catch {}
+  }, []);
+
+  // Step Navigation Validation
+  const handleContinueToStep2 = () => {
+    if (!name.trim()) {
+      showToast("Please enter an Experience Name", "error");
+      return;
+    }
+    if (!description.trim() || description.trim().length < 15) {
+      showToast("Please write a short description (at least 15 characters)", "error");
+      return;
+    }
+    setCurrentStep(2);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleNextFromStep2 = () => {
-    if (validateStep2()) {
-      setStep(3);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+  const handleContinueToStep3 = () => {
+    if (!meetingPoint.trim()) {
+      showToast("Please provide a Meeting Point address or landmark", "error");
+      return;
     }
+    setCurrentStep(3);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-
-  // -------------------------------------------------------------
-  // -------------------------------------------------------------
-  // Save Draft Handler (Stores in Supabase and localStorage scoped to provider)
-  // -------------------------------------------------------------
-  const handleSaveDraft = async () => {
-    setSaveToast(null);
-    setFormError(null);
-
-    const currentList = getStoredExperiencesForProvider(currentProviderId);
-    const draftId = `EXP-DFT-${Date.now().toString().slice(-4)}`;
-
-    const draftListing: ExperienceListing = {
-      experience_id: draftId,
-      provider_id: currentProviderId,
-      provider_email: currentProviderEmail,
-      experience_name: experienceName || "Draft Experience",
-      category: category,
-      sub_category: "Local Exploration",
-      tags: [...highlights, `provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`],
-      local_experience_bool: isAuthenticLocal,
-      hidden_gem_bool: isHiddenGem,
-      latitude: coords1.lat,
-      longitude: coords1.lng,
-      city: coords1.city,
-      district: coords1.district,
-      state: "Maharashtra",
-      region: "Konkan",
-      price_inr_clean: priceInr || 1200,
-      duration_hours_clean: durationHours || 2.0,
-      min_group_size: minGuests || 1,
-      max_group_size: maxGuests || 8,
-      booking_required_bool: true,
-      advance_booking_days_clean: 1,
-      availability: availability || `${startTime1} - ${endTime1}`,
-      indoor_outdoor_clean: setting,
-      best_time: startTime1,
-      season: "All Year",
-      accessibility: "Standard",
-      images: photos.length > 0 ? photos : SAMPLE_PHOTOS,
-      description: description.trim(),
-      meeting_point: meetingPoint1,
-      inclusions: highlights,
-      rules: ["Valid government ID required"],
-      cancellation_policy: "100% refund up to 24h prior",
-      status: "needs_improvement",
-      health_score: 85,
-      earnings_generated_inr: 0,
-      bookings_count: 0,
-      rating: 4.8,
-      review_count: 0,
-    };
-
-    // Save strictly to this provider's storage
-    saveStoredExperiencesForProvider(currentProviderId, [draftListing, ...currentList]);
-
-    // Save to Supabase experience table with provider ownership tags
-    try {
-      const payload = {
-        experience_id: draftListing.experience_id,
-        experience_name: draftListing.experience_name,
-        city: draftListing.city,
-        district: draftListing.district,
-        state: draftListing.state,
-        region: draftListing.region,
-        latitude: draftListing.latitude,
-        longitude: draftListing.longitude,
-        category: draftListing.category,
-        sub_category: draftListing.sub_category,
-        description: draftListing.description,
-        tags: highlights.concat([`provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`]).join(", "),
-        price_inr: `₹${draftListing.price_inr_clean}`,
-        duration_hours: `${draftListing.duration_hours_clean} hours`,
-        best_for: "Travelers & Explorers",
-        min_group_size: draftListing.min_group_size,
-        max_group_size: draftListing.max_group_size,
-        rating: draftListing.rating,
-        review_count: draftListing.review_count,
-        best_time: draftListing.best_time,
-        season: draftListing.season,
-        indoor_outdoor: draftListing.indoor_outdoor_clean,
-        booking_required: "Yes",
-        advance_booking_days: "1 day",
-        availability: draftListing.availability,
-        accessibility: draftListing.accessibility,
-        local_experience: "Yes",
-        hidden_gem: isHiddenGem ? "Yes" : "No",
-        image_url: photos[0] || "",
-        source_name: `provider:${currentProviderId}`,
-        source_url: `https://locallens.in/provider/${currentProviderId}`,
-        provider_id: currentProviderId,
-        user_id: currentProviderId,
-        provider_email: currentProviderEmail,
-        last_verified: new Date().toISOString(),
-      };
-
-      const { data: existingDraft } = await supabase
-        .from("experience")
-        .select("experience_id")
-        .eq("experience_id", payload.experience_id)
-        .maybeSingle();
-
-      if (existingDraft) {
-        await supabase.from("experience").update(payload).eq("experience_id", payload.experience_id);
-      } else {
-        await supabase.from("experience").insert(payload);
-      }
-
-      fetch("/api/experiences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, provider_id: currentProviderId, provider_email: currentProviderEmail }),
-      }).catch((e) => console.warn("API sync note:", e));
-    } catch (err) {
-      console.warn("Supabase draft sync notice:", err);
-    }
-
-    setSaveToast({ message: "Draft saved successfully! You can resume editing anytime.", type: "success" });
-    setTimeout(() => setSaveToast(null), 4000);
-  };
-
-  // -------------------------------------------------------------
   // Publish Experience Handler
-  // -------------------------------------------------------------
-  const handlePublish = async () => {
-    if (!validateStep1() || !validateStep2()) {
-      return;
-    }
-
-    if (priceInr <= 0) {
-      setFormError("Please enter a valid price per guest (greater than 0).");
-      return;
-    }
-
-    // Strict Aadhaar KYC Gate: unverified providers cannot publish listings
-    const verified = isAadhaarVerified || (typeof window !== "undefined" && localStorage.getItem("locallens_aadhaar_verified") === "true");
-    if (!verified) {
-      setFormError("Aadhaar KYC Verification Required: You must verify your Aadhaar card in Settings before you can publish an experience.");
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      return;
-    }
-
-    // AI hard-block: abusive language, fake claims, or poor content
-    if (!aiCanPublish && aiBlockReason) {
-      setFormError(`AI Validation Failed — ${aiBlockReason}`);
-      return;
-    }
-
+  const handlePublishExperience = async () => {
     setIsSubmitting(true);
-    setFormError(null);
 
-    const currentList = getStoredExperiencesForProvider(currentProviderId, currentProviderEmail);
-    const publishedId = `EXP-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 899 + 100)}`;
-
+    const generatedId = `EXP-${Date.now()}`;
     const newListing: ExperienceListing = {
-      experience_id: publishedId,
-      provider_id: currentProviderId,
-      provider_email: currentProviderEmail,
-      experience_name: experienceName.trim(),
-      category: category,
-      sub_category: "Local Exploration",
-      tags: [...highlights, `provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`],
-      local_experience_bool: isAuthenticLocal,
-      hidden_gem_bool: isHiddenGem,
-      latitude: coords1.lat,
-      longitude: coords1.lng,
-      city: coords1.city,
-      district: coords1.district,
-      state: "Maharashtra",
+      experience_id: generatedId,
+      experience_name: name.trim(),
+      provider_id: userId,
+      provider_email: userEmail,
+      user_id: userId,
+      category: category as any,
+      sub_category: "Guided Tour",
+      tags: [category, city, setting, `provider:${userId}`],
+      local_experience_bool: true,
+      hidden_gem_bool: false,
+      description: description.trim(),
+      city: city.trim(),
+      district: district.trim(),
+      state: stateName.trim(),
       region: "Konkan",
+      latitude: lat,
+      longitude: lng,
       price_inr_clean: priceInr,
       duration_hours_clean: durationHours,
-      min_group_size: minGuests,
+      min_group_size: 1,
       max_group_size: maxGuests,
       booking_required_bool: true,
       advance_booking_days_clean: 1,
-      availability: hasShow2
-        ? `2 Shows Daily (${startTime1} & ${startTime2})`
-        : `${availability || "Daily"} (${startTime1} - ${endTime1})`,
+      availability: hasShow2 ? "2 Daily Shows" : availability,
       indoor_outdoor_clean: setting,
-      best_time: startTime1,
+      best_time: startTime,
       season: "All Year",
-      accessibility: "Standard",
-      images: photos.length > 0 ? photos : SAMPLE_PHOTOS,
-      description: description.trim(),
-      meeting_point: meetingPoint1,
+      accessibility: "Accessible",
+      images: images,
+      meeting_point: meetingPoint.trim(),
       inclusions: highlights,
-      rules: ["Valid government ID required", "Arrive 10 minutes before start time"],
-      cancellation_policy: "100% refund up to 24 hours prior",
+      rules: ["Comfortable attire recommended"],
+      cancellation_policy: "100% refund 24 hours prior",
       status: "active",
       health_score: 95,
       earnings_generated_inr: 0,
       bookings_count: 0,
-      rating: 5.0,
-      review_count: 1,
+      rating: 4.9,
+      review_count: 0,
     };
 
-    // 1. Persist strictly to this provider's storage for immediate dashboard display
-    saveStoredExperiencesForProvider(currentProviderId, [newListing, ...currentList], currentProviderEmail);
-
-    // 2. Persist to Supabase experience table & server API
-    const payload = {
-      experience_id: newListing.experience_id,
-      experience_name: newListing.experience_name,
-      city: newListing.city,
-      district: newListing.district,
-      state: newListing.state,
-      region: newListing.region,
-      latitude: newListing.latitude,
-      longitude: newListing.longitude,
-      category: newListing.category,
-      sub_category: newListing.sub_category,
-      description: newListing.description,
-      tags: highlights.concat([`provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`]).join(", "),
-      price_inr: `₹${newListing.price_inr_clean}`,
-      duration_hours: `${newListing.duration_hours_clean} hours`,
-      best_for: "Travelers & Explorers",
-      min_group_size: newListing.min_group_size,
-      max_group_size: newListing.max_group_size,
-      rating: 5.0,
-      review_count: 1,
-      best_time: newListing.best_time,
-      season: newListing.season,
-      indoor_outdoor: newListing.indoor_outdoor_clean,
+    const finalId = editId || generatedId;
+    const dbPayload = {
+      experience_id: finalId,
+      experience_name: name.trim(),
+      provider_id: userId,
+      provider_email: userEmail,
+      user_id: userId,
+      category: category,
+      sub_category: "Guided Tour",
+      tags: highlights.length > 0 ? `${highlights.join("; ")}; provider:${userId}` : `${category}; ${city}; ${setting}; provider:${userId}`,
+      local_experience_bool: true,
+      hidden_gem_bool: false,
+      description: description.trim(),
+      city: city.trim(),
+      district: district.trim(),
+      state: stateName.trim(),
+      region: "Konkan",
+      latitude: lat,
+      longitude: lng,
+      price_inr: String(priceInr),
+      duration_hours: `${durationHours} hours`,
+      rating: 4.9,
+      review_count: 0,
+      image_url: images[0] || "",
+      image_note: highlights.length > 0 ? JSON.stringify({ highlights }) : null,
+      source_name: `provider:${userId}`,
+      source_url: typeof window !== "undefined" ? `${window.location.origin}/provider/${userId}` : `https://locallens.in/provider/${userId}`,
+      last_verified: new Date().toISOString(),
       booking_required: "Yes",
       advance_booking_days: "1 day",
-      availability: newListing.availability,
-      accessibility: newListing.accessibility,
-      local_experience: isAuthenticLocal ? "Yes" : "No",
-      hidden_gem: isHiddenGem ? "Yes" : "No",
-      image_url: photos[0] || "",
-      source_name: `provider:${currentProviderId}`,
-      source_url: `https://locallens.in/provider/${currentProviderId}`,
-      provider_id: currentProviderId,
-      user_id: currentProviderId,
-      provider_email: currentProviderEmail,
-      last_verified: new Date().toISOString(),
+      availability: hasShow2 ? "2 Daily Shows" : availability,
+      accessibility: "Accessible",
+      local_experience: "Yes",
+      hidden_gem: "Yes",
+      indoor_outdoor: setting,
+      best_time: startTime,
+      season: "All Year",
+      min_group_size: 1,
+      max_group_size: maxGuests,
     };
 
     try {
-      const { data: existingExp } = await supabase
-        .from("experience")
-        .select("experience_id")
-        .eq("experience_id", payload.experience_id)
-        .maybeSingle();
-
-      if (existingExp) {
-        const { error: updateErr } = await supabase
-          .from("experience")
-          .update(payload)
-          .eq("experience_id", payload.experience_id);
-        if (updateErr) console.warn("Supabase update notice:", updateErr.message);
+      if (editId) {
+        await supabase.from("experience").update(dbPayload).eq("experience_id", editId);
       } else {
-        const { error: insertErr } = await supabase.from("experience").insert(payload);
-        if (insertErr) console.warn("Supabase insert notice:", insertErr.message);
+        await supabase.from("experience").insert(dbPayload);
       }
-    } catch (dbErr) {
-      console.warn("Supabase insert note:", dbErr);
-    }
-
-    try {
       await fetch("/api/experiences", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, provider_id: currentProviderId, provider_email: currentProviderEmail, images: photos.length > 0 ? photos : SAMPLE_PHOTOS }),
+        body: JSON.stringify(dbPayload),
       });
-    } catch (apiErr) {
-      console.warn("API sync note:", apiErr);
+    } catch (e) {
+      console.warn("Database sync note:", e);
     }
 
-    setIsSubmitting(false);
-    setPublishedListing(newListing);
+    const currentStored = getStoredExperiences();
+    const updatedListings = editId
+      ? currentStored.map((exp) => (exp.experience_id === editId ? newListing : exp))
+      : [newListing, ...currentStored];
 
-    // Launch celebratory confetti
+    saveStoredExperiencesForProvider(userId, updatedListings, userEmail);
+    saveStoredExperiences(updatedListings);
+
     try {
-      confetti({
-        particleCount: 80,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-    } catch {
-      // Confetti fallback
-    }
+      localStorage.removeItem("locallens_experience_draft");
+    } catch {}
+
+    confetti({
+      particleCount: 100,
+      spread: 70,
+      origin: { y: 0.6 },
+      colors: ["#00875A", "#10B981", "#3B82F6", "#F59E0B"],
+    });
+
+    showToast("Experience published successfully! Redirecting...");
+    setTimeout(() => {
+      try {
+        router.push("/dashboard");
+      } catch (_) {}
+      window.location.href = "/dashboard";
+    }, 1000);
   };
 
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans pb-24">
-      {/* ------------------------------------------------------------- */}
-      {/* Top Header & 3-Step Wizard Flow Tracker */}
-      {/* ------------------------------------------------------------- */}
-      <header className="bg-white border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-18 flex items-center justify-between gap-4">
-          <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-[#0e8a5b] text-white flex items-center justify-center shadow-xs">
+  const categoriesList = [
+    "Nature & Adventure",
+    "Heritage & Culture",
+    "Food & Culinary",
+    "Art & Workshops",
+    "Wellness & Yoga",
+    "Boat & Watersports",
+  ];  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50/70 via-[#F8FAFC] to-emerald-100/50 text-[#0F172A] font-sans pb-24 selection:bg-[#00875A] selection:text-white relative overflow-x-hidden">
+      {/* Green Monochromatic Ambient Background Aura */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-200/35 via-transparent to-emerald-100/25" />
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-emerald-100/40 via-transparent to-transparent" />
+      {/* ── Top Header Bar ────────────────────────────────────────── */}
+      <header className="bg-white border-b border-slate-200/80 sticky top-0 z-40 shadow-2xs">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-2 group">
+            <div className="w-8 h-8 rounded-lg bg-[#00875A] text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform">
               <Compass className="w-4 h-4" />
             </div>
-            <div>
-              <span className="font-heading font-anton text-base text-slate-900 tracking-tight">
-                {t("nav.brand", "Local Lens")}
-              </span>
-              <span className="text-[10px] text-slate-400 block -mt-0.5 font-medium">
-                {t("experienceForm.pageTitle", "List a New Local Experience")}
-              </span>
-            </div>
+            <span className="font-black text-sm text-[#0F172A] tracking-tight">
+              LocalLens <span className="text-[#00875A] font-bold text-xs">- Provider</span>
+            </span>
           </Link>
 
-          {/* 3 Step Interactive Indicator */}
-          <div className="flex items-center gap-2 sm:gap-4">
-            {/* Step 1 Pill */}
-            <button
-              type="button"
-              onClick={() => isAadhaarVerified && setStep(1)}
-              disabled={!isAadhaarVerified}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
-                !isAadhaarVerified
-                  ? "opacity-60 cursor-not-allowed text-slate-400"
-                  : step === 1
-                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold cursor-pointer"
-                  : step > 1
-                  ? "text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
-                  : "text-slate-400"
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  !isAadhaarVerified
-                    ? "bg-slate-200 text-slate-400"
-                    : step > 1
-                    ? "bg-[#0e8a5b] text-white"
-                    : step === 1
-                    ? "bg-[#0e8a5b] text-white"
-                    : "bg-slate-200 text-slate-500"
-                }`}
-              >
-                {!isAadhaarVerified ? (
-                  <Lock className="w-3 h-3 text-slate-400" />
-                ) : step > 1 ? (
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                ) : (
-                  "1"
-                )}
-              </div>
-              <div className="text-left hidden sm:block">
-                <div className="text-xs leading-none">{t("experienceForm.step1", "Step 1: Details")}</div>
-              </div>
-            </button>
-
-            <div className={`h-[2px] w-4 sm:w-6 transition-colors ${step > 1 && isAadhaarVerified ? "bg-[#0e8a5b]" : "bg-slate-200"}`} />
-
-            {/* Step 2 Pill */}
-            <button
-              type="button"
-              onClick={() => isAadhaarVerified && validateStep1() && setStep(2)}
-              disabled={!isAadhaarVerified}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
-                !isAadhaarVerified
-                  ? "opacity-60 cursor-not-allowed text-slate-400"
-                  : step === 2
-                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold cursor-pointer"
-                  : step > 2
-                  ? "text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
-                  : "text-slate-400"
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  !isAadhaarVerified
-                    ? "bg-slate-200 text-slate-400"
-                    : step > 2
-                    ? "bg-[#0e8a5b] text-white"
-                    : step === 2
-                    ? "bg-[#0e8a5b] text-white"
-                    : "bg-slate-200 text-slate-500"
-                }`}
-              >
-                {!isAadhaarVerified ? (
-                  <Lock className="w-3 h-3 text-slate-400" />
-                ) : step > 2 ? (
-                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
-                ) : (
-                  "2"
-                )}
-              </div>
-              <div className="text-left hidden sm:block">
-                <div className="text-xs leading-none">{t("experienceForm.step2", "Step 2: Location & Schedule")}</div>
-              </div>
-            </button>
-
-            <div className={`h-[2px] w-4 sm:w-6 transition-colors ${step > 2 && isAadhaarVerified ? "bg-[#0e8a5b]" : "bg-slate-200"}`} />
-
-            {/* Step 3 Pill */}
-            <button
-              type="button"
-              onClick={() => isAadhaarVerified && validateStep1() && validateStep2() && setStep(3)}
-              disabled={!isAadhaarVerified}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
-                !isAadhaarVerified
-                  ? "opacity-60 cursor-not-allowed text-slate-400"
-                  : step === 3
-                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold cursor-pointer"
-                  : "text-slate-400 hover:text-slate-600 cursor-pointer"
-              }`}
-            >
-              <div
-                className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  !isAadhaarVerified
-                    ? "bg-slate-200 text-slate-400"
-                    : step === 3
-                    ? "bg-[#0e8a5b] text-white"
-                    : "bg-slate-200 text-slate-500"
-                }`}
-              >
-                {!isAadhaarVerified ? <Lock className="w-3 h-3 text-slate-400" /> : "3"}
-              </div>
-              <div className="text-left hidden sm:block">
-                <div className="text-xs leading-none">{t("experienceForm.step3", "Step 3: Pricing & Publish")}</div>
-              </div>
-            </button>
+          {/* Clean 3-Step Tracker */}
+          <div className="hidden sm:flex items-center gap-2">
+            {[
+              { num: 1, label: "Details" },
+              { num: 2, label: "Location & Schedule" },
+              { num: 3, label: "Pricing & Publish" },
+            ].map((s) => {
+              const isActive = currentStep === s.num;
+              const isPast = currentStep > s.num;
+              return (
+                <button
+                  key={s.num}
+                  type="button"
+                  onClick={() => {
+                    if (s.num === 1) setCurrentStep(1);
+                    else if (s.num === 2) handleContinueToStep2();
+                    else if (s.num === 3) handleContinueToStep3();
+                  }}
+                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer ${
+                    isActive
+                      ? "bg-[#00875A] text-white shadow-xs"
+                      : isPast
+                      ? "bg-emerald-50 text-[#00875A] hover:bg-emerald-100"
+                      : "text-slate-400 hover:text-slate-700 bg-slate-50"
+                  }`}
+                >
+                  <span
+                    className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
+                      isActive ? "bg-white text-[#00875A]" : isPast ? "bg-[#00875A] text-white" : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {isPast ? "✓" : s.num}
+                  </span>
+                  <span>{s.label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Language Selector & Quick Save Draft */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-3">
             <LanguageSelector variant="navbar" />
-
             <button
               type="button"
               onClick={handleSaveDraft}
-              disabled={!isAadhaarVerified}
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-colors cursor-pointer"
             >
               <Save className="w-3.5 h-3.5 text-slate-500" />
-              <span>{t("experienceForm.saveDraft", "Save Draft")}</span>
+              <span className="hidden sm:inline">Save Draft</span>
             </button>
+            <Link
+              href="/dashboard"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              title="Close and exit to Dashboard"
+            >
+              <X className="w-5 h-5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Mobile Step Indicator */}
+        <div className="sm:hidden px-4 py-2 bg-slate-50 border-t border-slate-200/60 flex items-center justify-between text-xs font-bold text-slate-600">
+          <span>
+            Step {currentStep} of 3:{" "}
+            {currentStep === 1 ? "Details" : currentStep === 2 ? "Location & Schedule" : "Pricing & Publish"}
+          </span>
+          <div className="flex gap-1">
+            {[1, 2, 3].map((n) => (
+              <span
+                key={n}
+                className={`w-2 h-2 rounded-full ${n === currentStep ? "bg-[#00875A]" : n < currentStep ? "bg-emerald-300" : "bg-slate-200"}`}
+              />
+            ))}
           </div>
         </div>
       </header>
 
-      {/* ------------------------------------------------------------- */}
-      {/* Main Wizard Content Area */}
-      {/* ------------------------------------------------------------- */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 space-y-5">
-        {/* Top Breadcrumb Back Navigation */}
-        <div className="flex items-center justify-between gap-3">
-          <Link
-            href="/dashboard"
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#0F172A] shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
+      {/* ── Toast Notification ────────────────────────────────────────── */}
+      {toastMsg && (
+        <div className="fixed top-20 right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
+          <div
+            className={`px-4 py-2.5 rounded-2xl shadow-xl border flex items-center gap-2 text-xs font-bold ${
+              toastMsg.type === "success"
+                ? "bg-white text-emerald-800 border-emerald-200"
+                : "bg-white text-rose-800 border-rose-200"
+            }`}
           >
-            <ArrowLeft className="w-4 h-4 text-[#059669]" />
-            <span>Back to Dashboard</span>
-          </Link>
-          <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Auto-saving Drafts</span>
+            {toastMsg.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600" />
+            )}
+            <span>{toastMsg.text}</span>
           </div>
         </div>
-        {/* Save Draft Toast */}
-        {saveToast && (
-          <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in">
-            <CheckCircle2 className="w-4 h-4 text-[#0e8a5b] shrink-0" />
-            <span className="flex-1">{saveToast.message}</span>
-            <button
-              type="button"
-              onClick={() => setSaveToast(null)}
-              className="text-emerald-700 hover:text-emerald-900 font-bold"
-            >
-              &times;
-            </button>
-          </div>
-        )}
+      )}
 
-        {/* Real Validation Error Alert (Only shown when there is an actual error) */}
-        {formError && (
-          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold flex items-center gap-3 shadow-xs animate-in fade-in">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span className="flex-1">{formError}</span>
-            <button
-              type="button"
-              onClick={() => setFormError(null)}
-              className="text-rose-500 hover:text-rose-800 text-base font-bold cursor-pointer"
-            >
-              &times;
-            </button>
-          </div>
-        )}
+      {/* ── Main Container ────────────────────────────────────────────── */}
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-8">
 
-        {/* ========================================================= */}
-        {/* STRICT KYC GATE: MUST BE AADHAAR VERIFIED TO LIST        */}
-        {/* ========================================================= */}
-        {!isAadhaarVerified ? (
-          <div className="bg-white p-8 sm:p-10 rounded-3xl border-2 border-amber-300 shadow-md space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shadow-xs">
-                  <ShieldAlert className="w-8 h-8 stroke-[2.2]" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">
-                      Aadhaar Identity Verification Required
-                    </h2>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
-                      Listing Locked
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1">
-                    To maintain safety, trust, and quality for travelers, all hosts must complete Govt. Aadhaar verification before listing experiences.
-                  </p>
-                </div>
-              </div>
-
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Dashboard</span>
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-400">Current Status</span>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-                  <span className="text-sm font-bold text-slate-800">Unverified Account</span>
-                </div>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Account is currently using basic email identity ({currentProviderEmail || "provider@locallens.in"}). Experience creation is locked until Aadhaar KYC is completed.
-                </p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
-                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-800">Required KYC Step</span>
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full bg-[#0e8a5b]" />
-                  <span className="text-sm font-bold text-[#0e8a5b]">Upload &amp; Scan Aadhaar Card</span>
-                </div>
-                <p className="text-xs text-emerald-900/80 leading-relaxed">
-                  Takes less than 30 seconds. Scan your Aadhaar in Settings to instantly unlock experience publishing, verified badges, and traveler bookings.
-                </p>
-              </div>
-            </div>
-
-            <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3">
-              <Link
-                href="/dashboard"
-                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 text-center transition-colors"
-              >
-                Go to Dashboard
-              </Link>
-              <Link
-                href="/settings"
-                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-black shadow-md shadow-emerald-700/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
-              >
-                <ShieldCheck className="w-4 h-4" />
-                <span>Verify Aadhaar in Settings Now</span>
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Small Collapsible AI Quality Check Card (Requirement 5) */}
-            <AIContentValidatorWidget
-              title={experienceName}
-              description={description}
-              onApplyPolish={(polished) => setDescription(polished)}
-              show1={show1Data}
-              show2={show2Data}
-              onValidationChange={({ canPublish, blockingReason }) => {
-                setAiCanPublish(canPublish);
-                setAiBlockReason(blockingReason);
-              }}
-            />
-
-            {/* ========================================================= */}
-            {/* STEP 1: DETAILS                                           */}
-            {/* ========================================================= */}
-            {step === 1 && (
-              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
+        {/* ============================================================== */}
+        {/* STEP 1: DETAILS                                                */}
+        {/* ============================================================== */}
+        {currentStep === 1 && (
+          <div className="space-y-6 animate-in fade-in duration-300">
             <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-[#0e8a5b] border border-emerald-200/70 inline-flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#0e8a5b]" />
-                  Step 1 of 3
-                </span>
-                <span className="text-xs text-slate-400 font-medium">Basic Information & Media</span>
-              </div>
-              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                Step 1: Experience Details
+              <span className="text-[11px] font-bold text-[#00875A] uppercase tracking-wider">Step 1 of 3</span>
+              <h1 className="text-2xl font-black text-[#0F172A] tracking-tight mt-0.5">
+                Tell travelers about your experience
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Tell travelers what makes your experience special and upload welcoming photos.
+              <p className="text-xs text-slate-500 font-medium mt-1">
+                A captivating title, clear description, and vibrant photos attract more bookings.
               </p>
             </div>
 
-            {/* Experience Name */}
-            <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">
-                Experience Name <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={experienceName}
-                onChange={(e) => setExperienceName(e.target.value)}
-                placeholder="e.g. Sunset Kayaking at Versova"
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e8a5b]/20 focus:border-[#0e8a5b]"
-              />
-              <p className="text-[10.5px] text-slate-400">
-                A descriptive title that travelers will search for.
-              </p>
-            </div>
-
-            {/* Category & Setting Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Category */}
+            <div className="bg-white rounded-3xl border border-slate-200/90 shadow-2xs p-5 sm:p-7 space-y-6">
+              {/* Experience Name */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Category
+                <label className="block text-xs font-extrabold text-[#0F172A]">
+                  Experience Title <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value as ExperienceCategory)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-[#0e8a5b]/20 focus:border-[#0e8a5b]"
-                >
-                  {CATEGORIES.map((cat) => (
-                    <option key={cat} value={cat}>
-                      {cat}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Setting: Indoor / Outdoor / Mixed */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Setting
-                </label>
-                <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-xl">
-                  {(["Indoor", "Outdoor", "Mixed"] as const).map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setSetting(opt)}
-                      className={`py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                        setting === opt
-                          ? "bg-white text-[#0e8a5b] shadow-xs"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Short Description */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700">
-                  Short Description <span className="text-rose-500">*</span>
-                </label>
-                <span className="text-[10.5px] text-slate-400 font-medium">
-                  {description.split(/\s+/).filter(Boolean).length} words
-                </span>
-              </div>
-              <textarea
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Describe what guests will see, do, explore, and remember..."
-                className="w-full p-3.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e8a5b]/20 focus:border-[#0e8a5b] leading-relaxed"
-              />
-            </div>
-
-            {/* Photos (Functional Upload & Delete) */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-bold text-slate-700">
-                  Photos ({photos.length}) <span className="text-rose-500">*</span>
-                </label>
-                <span className="text-[10.5px] text-slate-400">
-                  JPG / PNG • Upload from computer or paste image link
-                </span>
-              </div>
-
-              {/* Photo Thumbnails Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {/* Upload Button Card */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-200 hover:border-[#0e8a5b] bg-slate-50/50 hover:bg-emerald-50/30 rounded-2xl flex flex-col items-center justify-center p-3 text-center cursor-pointer aspect-square transition-all group"
-                >
-                  <UploadCloud className="w-5 h-5 text-slate-400 group-hover:text-[#0e8a5b] mb-1 group-hover:scale-110 transition-transform" />
-                  <span className="text-[11px] font-bold text-slate-700 group-hover:text-[#0e8a5b]">
-                    Upload Photo
-                  </span>
-                  <span className="text-[9.5px] text-slate-400 mt-0.5">Select file</span>
-                </button>
-
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileUpload}
-                  multiple
-                  accept="image/*"
-                  className="hidden"
-                />
-
-                {/* Photo Previews with Delete Button */}
-                {photos.map((url, idx) => (
-                  <div
-                    key={idx}
-                    className="relative rounded-2xl overflow-hidden aspect-square border border-slate-200 group bg-slate-100 shadow-2xs"
-                  >
-                    <Image
-                      src={url}
-                      alt={`Photo ${idx + 1}`}
-                      fill
-                      className="object-cover"
-                      unoptimized
-                    />
-                    {idx === 0 && (
-                      <span className="absolute top-1.5 left-1.5 bg-slate-900/80 backdrop-blur-xs text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-md pointer-events-none">
-                        Cover
-                      </span>
-                    )}
-                    {/* Delete Photo Button */}
-                    <button
-                      type="button"
-                      onClick={() => handleDeletePhoto(idx)}
-                      className="absolute top-1.5 right-1.5 w-6 h-6 rounded-lg bg-rose-600/90 text-white flex items-center justify-center opacity-90 group-hover:opacity-100 hover:bg-rose-700 transition-all cursor-pointer shadow-xs"
-                      title="Delete photo"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              {/* Paste Image URL Input */}
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="url"
-                  value={photoUrlInput}
-                  onChange={(e) => setPhotoUrlInput(e.target.value)}
-                  placeholder="Or paste an image URL here..."
-                  className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0e8a5b]"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddPhotoUrl}
-                  disabled={!photoUrlInput.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
-                >
-                  + Add URL
-                </button>
-              </div>
-            </div>
-
-            {/* Experience Highlights */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <label className="block text-xs font-bold text-slate-700">
-                Experience Highlights &amp; Inclusions
-              </label>
-
-              {/* Highlights Chip Cloud */}
-              <div className="flex flex-wrap items-center gap-1.5">
-                {highlights.map((item) => (
-                  <span
-                    key={item}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-50 text-[#0e8a5b] text-xs font-bold border border-emerald-200/80"
-                  >
-                    <span>{item}</span>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveHighlight(item)}
-                      className="hover:text-rose-600 cursor-pointer text-xs"
-                    >
-                      &times;
-                    </button>
-                  </span>
-                ))}
-              </div>
-
-              {/* Add New Highlight Tag */}
-              <div className="flex items-center gap-2 pt-1 max-w-md">
                 <input
                   type="text"
-                  value={newHighlight}
-                  onChange={(e) => setNewHighlight(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddHighlight())}
-                  placeholder="Add a highlight (e.g. Safety Marshals, Gear Included)..."
-                  className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0e8a5b]"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Sunset Kayaking at Versova Beach"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 outline-none transition-all placeholder:text-slate-400"
                 />
-                <button
-                  type="button"
-                  onClick={handleAddHighlight}
-                  disabled={!newHighlight.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer"
-                >
-                  + Add
-                </button>
               </div>
 
-              {/* Badges Toggles */}
-              <div className="flex flex-wrap items-center gap-4 pt-3">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={isAuthenticLocal}
-                    onChange={(e) => setIsAuthenticLocal(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#0e8a5b] focus:ring-[#0e8a5b]"
-                  />
-                  <span className="text-xs font-bold text-slate-700">
-                    Authentic Local Experience
-                  </span>
-                </label>
-
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={isHiddenGem}
-                    onChange={(e) => setIsHiddenGem(e.target.checked)}
-                    className="w-4 h-4 rounded text-[#0e8a5b] focus:ring-[#0e8a5b]"
-                  />
-                  <span className="text-xs font-bold text-slate-700">
-                    Hidden Gem (Off the beaten path)
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Bottom Bar: Back to Dashboard & Continue to Step 2 */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
-              <Link
-                href="/dashboard"
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Dashboard</span>
-              </Link>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer"
-                >
-                  Save Draft
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleNextFromStep1}
-                  className="px-5 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-extrabold shadow-sm shadow-emerald-700/20 flex items-center gap-1.5 cursor-pointer transition-all"
-                >
-                  <span>Continue to Location</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* STEP 2: LOCATION & SCHEDULE                               */}
-        {/* ========================================================= */}
-        {step === 2 && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-[#0e8a5b] border border-emerald-200/70 inline-flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0e8a5b]" />
-                    Step 2 of 3
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">Location & Schedule</span>
+              {/* Category & Setting Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-extrabold text-[#0F172A]">Category</label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-[#00875A] text-xs font-bold text-slate-800 outline-none bg-white cursor-pointer"
+                  >
+                    {categoriesList.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Step 2: Location &amp; Schedule
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Set meeting point, schedule timings, and place the pin on the map.
-                </p>
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-extrabold text-[#0F172A]">Setting</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(["Outdoor", "Indoor", "Mixed"] as const).map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setSetting(s)}
+                        className={`py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                          setting === s
+                            ? "bg-[#00875A] text-white border-[#00875A] shadow-xs"
+                            : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
-              {/* Multi-Show Add/Remove Button (Shown only when needed) */}
-              {!hasShow2 ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHasShow2(true);
-                    setActiveShowTab(2);
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-[#0e8a5b] text-xs font-bold border border-slate-200 transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5 text-[#0e8a5b]" />
-                  <span>+ Add Another Show / Slot</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHasShow2(false);
-                    setActiveShowTab(1);
-                  }}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition-colors cursor-pointer"
-                >
-                  <X className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Remove Show 2</span>
-                </button>
-              )}
-            </div>
-
-            {/* Show Switcher Tabs if 2 Shows exist */}
-            {hasShow2 && (
-              <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl">
-                <button
-                  type="button"
-                  onClick={() => setActiveShowTab(1)}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    activeShowTab === 1
-                      ? "bg-white text-[#0e8a5b] shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-[#0e8a5b]" />
-                  <span>Show 1: {meetingPoint1 || "Primary Slot"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setActiveShowTab(2)}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                    activeShowTab === 2
-                      ? "bg-white text-indigo-700 shadow-xs"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                  <span>Show 2: {meetingPoint2 || "Second Slot"}</span>
-                </button>
-              </div>
-            )}
-
-            {/* Meeting Point & Schedule Timing Input */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-              {/* Meeting Point Venue & Automated Place Search (7 cols) */}
-              <div className="md:col-span-7 space-y-1.5">
+              {/* Short Description */}
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Meeting Point / Place Name {hasShow2 ? `(Show ${activeShowTab})` : ""} <span className="text-rose-500">*</span>
+                  <label className="block text-xs font-extrabold text-[#0F172A]">
+                    Description <span className="text-rose-500">*</span>
                   </label>
-                  {isSearchingPlace && (
-                    <span className="text-[10.5px] font-semibold text-[#0e8a5b] flex items-center gap-1 animate-pulse">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Searching place on map...
-                    </span>
-                  )}
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    {description.length} characters
+                  </span>
                 </div>
-                <div className="relative flex items-center">
-                  <MapPin className="w-4 h-4 text-[#0e8a5b] absolute left-3 top-3 pointer-events-none" />
+                <textarea
+                  rows={4}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe the adventure, what travelers will see, do and feel..."
+                  className="w-full px-4 py-3 rounded-2xl border border-slate-200 hover:border-slate-300 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-normal text-slate-700 leading-relaxed outline-none transition-all placeholder:text-slate-400 resize-none"
+                />
+              </div>
+
+              {/* Photos Gallery */}
+              <div className="space-y-3 pt-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-extrabold text-[#0F172A]">
+                      Experience Photos ({images.length})
+                    </label>
+                    <span className="text-[10.5px] text-slate-400 font-medium">
+                      First photo is your listing cover image.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-[#00875A]" />
+                    <span>Upload Photo</span>
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Thumbnails Grid with Delete Trash Icon */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {images.map((img, idx) => (
+                    <div
+                      key={idx}
+                      className="group relative aspect-[4/3] rounded-2xl overflow-hidden bg-slate-100 border border-slate-200 shadow-2xs"
+                    >
+                      <Image
+                        src={img}
+                        alt={`Photo ${idx + 1}`}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        unoptimized
+                      />
+                      {idx === 0 && (
+                        <div className="absolute top-2 left-2 z-10 px-2 py-0.5 rounded-md bg-[#00875A] text-white text-[9px] font-black tracking-tight shadow-xs">
+                          Cover
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteImage(idx)}
+                        className="absolute top-2 right-2 z-10 p-1.5 rounded-lg bg-black/60 hover:bg-rose-600 text-white backdrop-blur-xs transition-colors cursor-pointer"
+                        title="Delete photo"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {/* Add Photo by URL Box */}
+                  <div className="aspect-[4/3] rounded-2xl border-2 border-dashed border-slate-200 p-2.5 flex flex-col justify-center items-center gap-1.5 bg-slate-50/50">
+                    <input
+                      type="url"
+                      value={customImageUrl}
+                      onChange={(e) => setCustomImageUrl(e.target.value)}
+                      placeholder="Paste image URL..."
+                      className="w-full text-[10px] px-2 py-1 rounded-lg border border-slate-200 bg-white outline-none text-slate-700"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddImageUrl}
+                      className="text-[10px] font-bold text-[#00875A] hover:underline cursor-pointer"
+                    >
+                      + Add by URL
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Experience Highlights */}
+              <div className="space-y-2 pt-1 border-t border-slate-100">
+                <label className="block text-xs font-extrabold text-[#0F172A]">
+                  Experience Highlights
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {highlights.map((h, idx) => (
+                    <span
+                      key={idx}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50/80 text-[#00875A] text-xs font-semibold border border-emerald-200/80"
+                    >
+                      <span>✓ {h}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveHighlight(idx)}
+                        className="text-emerald-700 hover:text-rose-600 cursor-pointer ml-0.5"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+
+                <div className="flex gap-2 max-w-md pt-1">
                   <input
                     type="text"
-                    value={activeShowTab === 1 ? meetingPoint1 : meetingPoint2}
-                    onChange={(e) =>
-                      activeShowTab === 1
-                        ? setMeetingPoint1(e.target.value)
-                        : setMeetingPoint2(e.target.value)
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handlePerformPlaceSearch(activeShowTab);
-                      }
-                    }}
-                    placeholder="e.g. Versova Beach, Gateway of India, Marine Drive"
-                    className="w-full pl-9 pr-24 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0e8a5b]/20 focus:border-[#0e8a5b]"
+                    value={newHighlightInput}
+                    onChange={(e) => setNewHighlightInput(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddHighlight())}
+                    placeholder="e.g. Safety marshals on water, Sunset tea provided"
+                    className="flex-1 px-3 py-1.5 rounded-xl border border-slate-200 text-xs outline-none focus:border-[#00875A]"
                   />
                   <button
                     type="button"
-                    onClick={() => handlePerformPlaceSearch(activeShowTab)}
-                    disabled={isSearchingPlace}
-                    className="absolute right-1.5 top-1.5 bottom-1.5 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#0e8a5b] border border-emerald-200 text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50"
-                    title="Search place on map"
+                    onClick={handleAddHighlight}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold cursor-pointer"
                   >
-                    {isSearchingPlace ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Search className="w-3 h-3" />
-                    )}
-                    <span>Search</span>
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Small Collapsible AI Quality Card (Quiet & Compact) */}
+              <div className="pt-2">
+                <AIContentValidatorWidget
+                  title={name}
+                  description={description}
+                  onApplyPolish={(polished) => {
+                    setDescription(polished);
+                    showToast("AI Polished description applied!");
+                  }}
+                  show1={{
+                    id: "show-1",
+                    name: "Main Show",
+                    venue: meetingPoint,
+                    city: city,
+                    district: district,
+                    lat: lat,
+                    lng: lng,
+                    timeSlot: `${startTime} - ${endTime}`,
+                  }}
+                />
+              </div>
+
+              {/* Continue to Step 2 Button */}
+              <div className="pt-4 flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleContinueToStep2}
+                  className="px-6 py-3 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white font-extrabold text-xs shadow-md shadow-emerald-700/20 flex items-center gap-2 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+                >
+                  <span>Continue to Location &amp; Schedule</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}﻿        {/* ========================================================================= */}
+        {/* STEP 2: LOCATION & SCHEDULE                                              */}
+        {/* ========================================================================= */}
+        {currentStep === 2 && (
+          <div className="space-y-8 animate-fadeIn">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+              <div>
+                <h2 className="text-lg font-black text-[#0F172A] flex items-center gap-2">
+                  <MapPin className="w-5 h-5 text-[#00875A]" />
+                  <span>Step 2: Location & Schedule</span>
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  Where will travelers meet you, and what are your operating hours or show timings?
+                </p>
+              </div>
+
+              {/* Meeting Point Input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700">
+                  Meeting Point / Venue Address <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <MapPin className="w-4 h-4 text-[#00875A]" />
+                  </div>
+                  <input
+                    type="text"
+                    value={meetingPoint}
+                    onChange={(e) => setMeetingPoint(e.target.value)}
+                    placeholder="e.g. Versova Beach Pier 2, Off Fisherfolk Jetty, Mumbai"
+                    className="w-full pl-10 pr-4 py-3 rounded-2xl border border-slate-200 focus:border-[#00875A] focus:ring-4 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none transition-all"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-400 pl-1">
+                  Be clear and specific so travelers easily find your starting spot.
+                </p>
+              </div>
+
+              {/* City, District, State Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">City</label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g. Mumbai"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">District</label>
+                  <input
+                    type="text"
+                    value={district}
+                    onChange={(e) => setDistrict(e.target.value)}
+                    placeholder="e.g. Mumbai Suburban"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">State</label>
+                  <input
+                    type="text"
+                    value={stateName}
+                    onChange={(e) => setStateName(e.target.value)}
+                    placeholder="e.g. Maharashtra"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {/* Interactive Map Section */}
+              <div className="space-y-3 pt-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Compass className="w-3.5 h-3.5 text-[#00875A]" />
+                      <span>Interactive Map Pin Dropper</span>
+                    </label>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-[#00875A] border border-emerald-200/50">
+                      Click or drag pin
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            setLat(pos.coords.latitude);
+                            setLng(pos.coords.longitude);
+                            showToast("Location set from GPS!");
+                          },
+                          () => {
+                            showToast("Could not retrieve GPS location.", "error");
+                          }
+                        );
+                      } else {
+                        showToast("Geolocation not supported by your browser.", "error");
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-[#00875A] text-[11px] font-bold flex items-center gap-1.5 border border-slate-200/80 transition-all cursor-pointer"
+                  >
+                    <Navigation className="w-3 h-3 text-[#00875A]" />
+                    <span>Use My GPS</span>
                   </button>
                 </div>
 
-                {/* Real Place Location Confirmation Banner */}
-                {placeSearchResult && placeSearchResult.showTab === activeShowTab ? (
-                  <div className="p-2.5 rounded-xl bg-emerald-50/90 border border-emerald-200 flex items-start gap-2 text-[11px] text-emerald-950 animate-fadeIn">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0e8a5b] shrink-0 mt-0.5" />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-bold text-[#0e8a5b]">Original Location Located on Map</div>
-                      <div className="truncate text-slate-700 font-medium">{placeSearchResult.displayName}</div>
-                      <div className="font-mono text-[10px] text-slate-500 mt-0.5">
-                        Coordinates: {placeSearchResult.lat.toFixed(6)}, {placeSearchResult.lng.toFixed(6)} • Pin placed!
+                {/* Map Component with Auto Fallback */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                  <GoogleMapPinDropper
+                    position={{ lat, lng }}
+                    onPinSelected={(coords) => {
+                      setLat(coords.lat);
+                      setLng(coords.lng);
+                      if (coords.address) setMeetingPoint(coords.address);
+                      if (coords.city) setCity(coords.city);
+                      if (coords.district) setDistrict(coords.district);
+                      if (coords.state) setStateName(coords.state);
+                    }}
+                    venueName={meetingPoint}
+                  />
+                </div>
+
+                {/* Collapsible Advanced Coordinates */}
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedCoords(!showAdvancedCoords)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 hover:text-[#00875A] transition-colors cursor-pointer"
+                  >
+                    <span>{showAdvancedCoords ? "Hide" : "Show"} Advanced Location (GPS Coordinates)</span>
+                    {showAdvancedCoords ? (
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+
+                  {showAdvancedCoords && (
+                    <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-1 sm:grid-cols-2 gap-3 animate-fadeIn">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600">Latitude</label>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          value={lat}
+                          onChange={(e) => setLat(parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-[#00875A]"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-bold text-slate-600">Longitude</label>
+                        <input
+                          type="number"
+                          step="0.000001"
+                          value={lng}
+                          onChange={(e) => setLng(parseFloat(e.target.value) || 0)}
+                          className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-mono font-semibold text-slate-800 outline-none focus:border-[#00875A]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Schedule & Show Timings */}
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div>
+                  <h3 className="text-xs font-extrabold text-[#0F172A] uppercase tracking-wider flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-[#00875A]" />
+                    <span>Show & Timing Slots</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Configure your daily session timing. You can optionally add a second show if you run multiple slots.
+                  </p>
+                </div>
+
+                {/* Show 1 Card */}
+                <div className="p-4 sm:p-5 rounded-2xl bg-emerald-50/40 border border-emerald-100/80 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <span className="w-5 h-5 rounded-full bg-[#00875A] text-white flex items-center justify-center text-[10px] font-bold">
+                        1
+                      </span>
+                      <span>Show 1 (Main Session)</span>
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-[#00875A]">
+                      Default Slot
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-600">Start Time</label>
+                      <input
+                        type="text"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        placeholder="e.g. 05:00 PM"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 focus:border-[#00875A] text-xs font-semibold text-slate-800 outline-none"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-600">End Time</label>
+                      <input
+                        type="text"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        placeholder="e.g. 07:00 PM"
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 focus:border-[#00875A] text-xs font-semibold text-slate-800 outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Show 2 Card (Conditional) */}
+                {hasShow2 ? (
+                  <div className="p-4 sm:p-5 rounded-2xl bg-blue-50/40 border border-blue-100/80 space-y-3 animate-fadeIn">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                        <span className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold">
+                          2
+                        </span>
+                        <span>Show 2 (Second Slot)</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setHasShow2(false)}
+                        className="text-[11px] font-bold text-rose-500 hover:text-rose-700 flex items-center gap-1 hover:underline cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remove Show 2</span>
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-600">Show Title</label>
+                          <input
+                            type="text"
+                            value={show2Name}
+                            onChange={(e) => setShow2Name(e.target.value)}
+                            placeholder="e.g. Morning Mangrove Session"
+                            className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-blue-500 text-xs font-semibold text-slate-800 outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-600">Meeting Point / Venue</label>
+                          <input
+                            type="text"
+                            value={show2Venue}
+                            onChange={(e) => setShow2Venue(e.target.value)}
+                            placeholder="e.g. Versova Beach Pier 2"
+                            className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-blue-500 text-xs font-semibold text-slate-800 outline-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-600">Start Time</label>
+                          <input
+                            type="text"
+                            value={show2StartTime}
+                            onChange={(e) => setShow2StartTime(e.target.value)}
+                            placeholder="e.g. 07:30 AM"
+                            className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-blue-500 text-xs font-semibold text-slate-800 outline-none"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-bold text-slate-600">End Time</label>
+                          <input
+                            type="text"
+                            value={show2EndTime}
+                            onChange={(e) => setShow2EndTime(e.target.value)}
+                            placeholder="e.g. 09:30 AM"
+                            className="w-full px-3.5 py-2 rounded-xl bg-white border border-slate-200 focus:border-blue-500 text-xs font-semibold text-slate-800 outline-none"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-[10.5px] text-slate-400">
-                    Enter the name of any place or landmark — the map automatically searches and shows the original location.
-                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setHasShow2(true)}
+                    className="w-full py-3 rounded-2xl border-2 border-dashed border-slate-200 hover:border-[#00875A] bg-slate-50/50 hover:bg-emerald-50/30 text-slate-600 hover:text-[#00875A] text-xs font-extrabold flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>+ Add Another Show / Session Time</span>
+                  </button>
                 )}
               </div>
 
-              {/* Start & End Time (5 cols) */}
-              <div className="md:col-span-5 space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Schedule Timing {hasShow2 ? `(Show ${activeShowTab})` : ""}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <input
-                      type="text"
-                      value={activeShowTab === 1 ? startTime1 : startTime2}
-                      onChange={(e) =>
-                        activeShowTab === 1
-                          ? setStartTime1(e.target.value)
-                          : setStartTime2(e.target.value)
-                      }
-                      placeholder="Start: 05:00 PM"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 text-center"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="text"
-                      value={activeShowTab === 1 ? endTime1 : endTime2}
-                      onChange={(e) =>
-                        activeShowTab === 1
-                          ? setEndTime1(e.target.value)
-                          : setEndTime2(e.target.value)
-                      }
-                      placeholder="End: 07:00 PM"
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 text-center"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Interactive Map (Google Maps with Automatic OpenStreetMap Fallback) */}
-            <div className="space-y-2">
-              <label className="block text-xs font-bold text-slate-700">
-                Interactive Map Pin {hasShow2 ? `(Show ${activeShowTab})` : ""}
-              </label>
-
-              <GoogleMapPinDropper
-                position={{ lat: activeShowCoords.lat, lng: activeShowCoords.lng }}
-                venueName={activeShowTab === 1 ? meetingPoint1 : meetingPoint2}
-                onPinSelected={updateActiveCoords}
-              />
-            </div>
-
-            {/* Hide Latitude / Longitude under Collapsible "Advanced Location" (Requirement 3) */}
-            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/60 overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setShowAdvancedLocation(!showAdvancedLocation)}
-                className="w-full px-4 py-2.5 flex items-center justify-between text-xs font-bold text-slate-700 hover:bg-slate-100/70 transition-colors cursor-pointer"
-              >
-                <span className="flex items-center gap-2">
-                  <Compass className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Advanced Location Coordinates (Optional)</span>
-                </span>
-                <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
-                  {showAdvancedLocation ? "Hide" : "Show"}
-                  {showAdvancedLocation ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
-                </span>
-              </button>
-
-              {showAdvancedLocation && (
-                <div className="p-4 pt-2 border-t border-slate-200/60 grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase">
-                      Latitude
-                    </label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={activeShowCoords.lat}
-                      onChange={(e) =>
-                        updateActiveCoords({
-                          lat: parseFloat(e.target.value) || 0,
-                          lng: activeShowCoords.lng,
-                        })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase">
-                      Longitude
-                    </label>
-                    <input
-                      type="number"
-                      step="0.000001"
-                      value={activeShowCoords.lng}
-                      onChange={(e) =>
-                        updateActiveCoords({
-                          lat: activeShowCoords.lat,
-                          lng: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-800"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      value={activeShowTab === 1 ? coords1.city : coords2.city}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (activeShowTab === 1) setCoords1((prev) => ({ ...prev, city: val }));
-                        else setCoords2((prev) => ({ ...prev, city: val }));
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 font-medium"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase">
-                      District
-                    </label>
-                    <input
-                      type="text"
-                      value={activeShowTab === 1 ? coords1.district : coords2.district}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (activeShowTab === 1) setCoords1((prev) => ({ ...prev, district: val }));
-                        else setCoords2((prev) => ({ ...prev, district: val }));
-                      }}
-                      className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-800 font-medium"
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Bar: Back to Step 1 & Continue to Step 3 */}
-            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/dashboard"
-                  className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5 text-[#059669]" />
-                  <span>Dashboard</span>
-                </Link>
+              {/* Step 2 Bottom Controls */}
+              <div className="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setStep(1)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  onClick={() => {
+                    setCurrentStep(1);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
+                  className="px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
                 >
-                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <ArrowLeft className="w-4 h-4" />
                   <span>Back to Details</span>
                 </button>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer"
-                >
-                  Save Draft
-                </button>
-
-                <button
-                  type="button"
-                  onClick={handleNextFromStep2}
-                  className="px-5 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-extrabold shadow-sm shadow-emerald-700/20 flex items-center gap-1.5 cursor-pointer transition-all"
-                >
-                  <span>Continue to Pricing</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================= */}
-        {/* STEP 3: PRICING & PUBLISH (with Live Preview)             */}
-        {/* ========================================================= */}
-        {step === 3 && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left Panel: Pricing & Capacity Form (7 cols) */}
-            <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-[#0e8a5b] border border-emerald-200/70 inline-flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#0e8a5b]" />
-                    Step 3 of 3
-                  </span>
-                  <span className="text-xs text-slate-400 font-medium">Pricing & Review</span>
-                </div>
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
-                  Step 3: Pricing &amp; Capacity
-                </h1>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Set your price per guest, group size limits, and schedule availability.
-                </p>
-              </div>
-
-              {/* Price Per Person */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-slate-700">
-                  Price per Guest (INR) <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative max-w-sm">
-                  <span className="absolute left-4 top-2.5 text-base font-black text-slate-400">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    min="100"
-                    step="50"
-                    value={priceInr}
-                    onChange={(e) => setPriceInr(parseInt(e.target.value) || 0)}
-                    placeholder="1200"
-                    className="w-full pl-8 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0e8a5b]/20 focus:border-[#0e8a5b]"
-                  />
-                </div>
-
-                {/* Quick Price Presets */}
-                <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase mr-1">
-                    Presets:
-                  </span>
-                  {[499, 799, 1200, 1800, 2500].map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setPriceInr(preset)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors cursor-pointer ${
-                        priceInr === preset
-                          ? "bg-emerald-50 text-[#0e8a5b] border-emerald-300"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      ₹{preset.toLocaleString()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Guests Capacity & Duration */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Max Guests */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Maximum Group Size
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setMaxGuests(Math.max(1, maxGuests - 1))}
-                      className="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center font-bold text-sm text-slate-700 cursor-pointer"
-                    >
-                      -
-                    </button>
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={maxGuests}
-                      onChange={(e) => setMaxGuests(parseInt(e.target.value) || 1)}
-                      className="w-16 py-2 rounded-xl border border-slate-200 text-xs font-bold text-center text-slate-900"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setMaxGuests(maxGuests + 1)}
-                      className="w-9 h-9 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center font-bold text-sm text-slate-700 cursor-pointer"
-                    >
-                      +
-                    </button>
-                    <span className="text-xs text-slate-500 font-medium">guests</span>
-                  </div>
-                </div>
-
-                {/* Duration */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Duration (Hours)
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      min="0.5"
-                      step="0.5"
-                      value={durationHours}
-                      onChange={(e) => setDurationHours(parseFloat(e.target.value) || 1)}
-                      className="w-20 py-2 rounded-xl border border-slate-200 text-xs font-bold text-center text-slate-900"
-                    />
-                    <span className="text-xs text-slate-500 font-medium">hours</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Availability */}
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Availability Schedule
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {["Daily", "Weekends Only", "Weekdays Only", "Fridays & Sundays"].map((opt) => (
-                    <button
-                      key={opt}
-                      type="button"
-                      onClick={() => setAvailability(opt)}
-                      className={`p-2 rounded-xl text-[11px] font-bold border transition-colors cursor-pointer ${
-                        availability === opt
-                          ? "bg-emerald-50 text-[#0e8a5b] border-emerald-300 ring-1 ring-[#0e8a5b]/20"
-                          : "bg-white text-slate-600 border-slate-200 hover:bg-slate-50"
-                      }`}
-                    >
-                      {opt}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Bottom Actions for Step 3 */}
-              <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Link
-                    href="/dashboard"
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5 text-[#059669]" />
-                    <span>Dashboard</span>
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                  >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Back to Location</span>
-                  </button>
-                </div>
 
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handleSaveDraft}
-                    className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+                    className="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
-                    Save Draft
+                    <Save className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Save Draft</span>
                   </button>
 
                   <button
                     type="button"
-                    onClick={handlePublish}
-                    disabled={isSubmitting || !aiCanPublish}
-                    title={!aiCanPublish && aiBlockReason ? `Blocked: ${aiBlockReason}` : undefined}
-                    className={`px-6 py-2.5 rounded-xl text-white text-xs font-black shadow-md flex items-center gap-1.5 transition-all ${
-                      !aiCanPublish
-                        ? "bg-rose-400 cursor-not-allowed opacity-80 shadow-rose-400/20"
-                        : "bg-[#0e8a5b] hover:bg-[#0b744d] cursor-pointer shadow-emerald-700/25 disabled:opacity-50"
-                    }`}
+                    onClick={handleContinueToStep3}
+                    className="px-6 py-2.5 rounded-2xl bg-[#00875A] hover:bg-[#00704A] text-white font-extrabold text-xs shadow-md shadow-emerald-700/20 flex items-center gap-2 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
                   >
-                    <Rocket className="w-3.5 h-3.5" />
-                    <span>
-                      {isSubmitting ? "Publishing..." : !aiCanPublish ? "AI Check Failed" : "Publish Experience"}
-                    </span>
+                    <span>Continue to Pricing &amp; Publish</span>
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
             </div>
-
-            {/* Right Panel: Live Traveler Preview Card (5 cols) (Requirement 4) */}
-            <div className="lg:col-span-5 space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-[#0e8a5b]" />
-                  <span>Traveler Live Preview</span>
-                </span>
-                <span className="text-[10.5px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                  Real-time preview
-                </span>
-              </div>
-
-              {/* LocalLens Experience Card */}
-              <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                {/* Card Image */}
-                <div className="relative aspect-[16/10] w-full bg-slate-100">
-                  <Image
-                    src={photos[0] || SAMPLE_PHOTOS[0]}
-                    alt={experienceName}
-                    fill
-                    className="object-cover"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-900/60 via-transparent to-transparent pointer-events-none" />
-
-                  {/* Category Badge */}
-                  <span className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-white/95 backdrop-blur-md text-[10px] font-extrabold text-slate-900 shadow-xs">
-                    {category}
-                  </span>
-
-                  {/* Rating Badge */}
-                  <span className="absolute top-3 right-3 px-2 py-0.5 rounded-lg bg-slate-900/85 backdrop-blur-md text-white text-[10.5px] font-bold flex items-center gap-1">
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
-                    <span>5.0</span>
-                  </span>
-
-                  {/* Setting Pill */}
-                  <span className="absolute bottom-3 left-3 text-[10.5px] font-bold text-white flex items-center gap-1 drop-shadow-sm">
-                    <MapPin className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{coords1.city || "Mumbai"}</span>
-                    <span>•</span>
-                    <span>{setting}</span>
-                  </span>
+          </div>
+        )}
+﻿        {/* ========================================================================= */}
+        {/* STEP 3: PRICING & PUBLISH                                                 */}
+        {/* ========================================================================= */}
+        {currentStep === 3 && (
+          <div className="space-y-8 animate-fadeIn">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+              {/* Form Inputs (7 Cols) */}
+              <div className="lg:col-span-7 bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+                <div>
+                  <h2 className="text-lg font-black text-[#0F172A] flex items-center gap-2">
+                    <Rocket className="w-5 h-5 text-[#00875A]" />
+                    <span>Step 3: Pricing &amp; Final Settings</span>
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Set your pricing per person, group capacity, and publish your experience to travelers.
+                  </p>
                 </div>
 
-                {/* Card Content Details */}
-                <div className="p-4 space-y-2.5">
-                  <h3 className="text-sm font-extrabold text-slate-900 leading-snug line-clamp-2">
-                    {experienceName || "Sunset Kayaking at Versova"}
-                  </h3>
-
-                  <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
-                    {description || "Explore picturesque waters with certified guides."}
+                {/* Price In INR */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Price per Traveler (INR ₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400 font-bold text-sm">
+                      ₹
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="50"
+                      value={priceInr}
+                      onChange={(e) => setPriceInr(Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="1200"
+                      className="w-full pl-9 pr-4 py-3 rounded-2xl border border-slate-200 focus:border-[#00875A] focus:ring-4 focus:ring-emerald-500/10 text-sm font-extrabold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 pl-1">
+                    Competitive prices attract 3x more bookings. Standard local market average is ₹800 - ₹2,500.
                   </p>
+                </div>
 
-                  {/* Highlights Pill Cloud */}
-                  <div className="flex flex-wrap items-center gap-1 pt-0.5">
-                    {highlights.slice(0, 3).map((hl) => (
-                      <span
-                        key={hl}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-600 inline-flex items-center gap-1"
-                      >
-                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
-                        <span>{hl}</span>
-                      </span>
-                    ))}
-                    {highlights.length > 3 && (
-                      <span className="text-[9.5px] text-slate-400 font-semibold">
-                        +{highlights.length - 3} more
-                      </span>
-                    )}
+                {/* Capacity & Duration */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Users className="w-3.5 h-3.5 text-[#00875A]" />
+                      <span>Max Guests per Slot</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={maxGuests}
+                      onChange={(e) => setMaxGuests(Math.max(1, parseInt(e.target.value) || 1))}
+                      placeholder="8"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 outline-none transition-all"
+                    />
                   </div>
 
-                  {/* Meeting Point & Schedule Info */}
-                  <div className="pt-2 border-t border-slate-100 space-y-1 text-[11px] text-slate-600">
-                    <div className="flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-[#0e8a5b] shrink-0" />
-                      <span className="truncate">{meetingPoint1 || "Meeting point"}</span>
-                    </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-[#00875A]" />
+                      <span>Duration (Hours)</span>
+                    </label>
+                    <input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      max="24"
+                      value={durationHours}
+                      onChange={(e) => setDurationHours(Math.max(0.5, parseFloat(e.target.value) || 1))}
+                      placeholder="2"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
 
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{durationHours} hrs • {startTime1}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-slate-500">
-                        <Users className="w-3.5 h-3.5 text-slate-400" />
-                        <span>Up to {maxGuests}</span>
-                      </div>
-                    </div>
+                {/* Availability Schedule */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-[#00875A]" />
+                    <span>Availability Schedule</span>
+                  </label>
+                  <select
+                    value={availability}
+                    onChange={(e) => setAvailability(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-[#00875A] focus:ring-2 focus:ring-emerald-500/10 text-xs font-semibold text-slate-800 bg-white outline-none transition-all cursor-pointer"
+                  >
+                    <option value="Daily">Daily (All 7 Days)</option>
+                    <option value="Weekends Only">Weekends Only (Saturday &amp; Sunday)</option>
+                    <option value="Friday to Sunday">Friday to Sunday</option>
+                    <option value="Weekdays Only">Weekdays Only (Monday - Friday)</option>
+                    <option value="By Appointment">By Prior Appointment</option>
+                  </select>
+                </div>
+
+                {/* LocalLens Host Guarantees Card */}
+                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-100 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-[#00875A]">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Host Protection &amp; Guarantees</span>
+                  </div>
+                  <ul className="text-[11px] text-slate-600 space-y-1 font-medium">
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-3 h-3 text-[#00875A] shrink-0" />
+                      <span>Instant direct payout via Razorpay / UPI upon trip completion</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-3 h-3 text-[#00875A] shrink-0" />
+                      <span>Verified guest profiles with phone &amp; identity checks</span>
+                    </li>
+                    <li className="flex items-center gap-1.5">
+                      <Check className="w-3 h-3 text-[#00875A] shrink-0" />
+                      <span>24-hour host cancellation &amp; no-show compensation protection</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* Step 3 Controls */}
+                <div className="pt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCurrentStep(2);
+                      window.scrollTo({ top: 0, behavior: "smooth" });
+                    }}
+                    className="px-5 py-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    <span>Back to Location</span>
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      className="px-4 py-2.5 rounded-2xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                    >
+                      <Save className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Save Draft</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={handlePublishExperience}
+                      className="px-7 py-3 rounded-2xl bg-[#00875A] hover:bg-[#00704A] disabled:opacity-60 text-white font-black text-xs shadow-lg shadow-emerald-700/25 flex items-center gap-2 hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          <span>Publishing to Travelers...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Rocket className="w-4 h-4" />
+                          <span>{isEditMode ? "Update Experience Now" : "Publish Experience Now"}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Realistic Live Traveler Preview Card (5 Cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="sticky top-24">
+                  <div className="flex items-center justify-between mb-3 px-1">
+                    <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                      <Eye className="w-3.5 h-3.5 text-[#00875A]" />
+                      <span>Live Traveler Preview</span>
+                    </span>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                      Real-time
+                    </span>
                   </div>
 
-                  {/* Price & Booking Button */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] text-slate-400 block font-medium">Price</span>
-                      <div className="text-base font-black text-[#0e8a5b]">
-                        ₹{priceInr.toLocaleString()}
-                        <span className="text-[10.5px] text-slate-400 font-normal ml-0.5">
-                          / guest
+                  <div className="bg-white rounded-3xl overflow-hidden border border-slate-200/90 shadow-lg shadow-slate-200/40 hover:shadow-xl transition-shadow">
+                    {/* Preview Image */}
+                    <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
+                      {images[0] ? (
+                        <img
+                          src={images[0]}
+                          alt={name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 gap-1">
+                          <Compass className="w-8 h-8" />
+                          <span className="text-[11px] font-bold">No Image Uploaded</span>
+                        </div>
+                      )}
+
+                      {/* Badges on Image */}
+                      <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                        <span className="px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-[10px] font-bold shadow-xs">
+                          {category}
+                        </span>
+                        <span className="px-2.5 py-1 rounded-full bg-[#00875A]/90 backdrop-blur-md text-white text-[10px] font-bold shadow-xs">
+                          {setting}
+                        </span>
+                      </div>
+
+                      <div className="absolute bottom-3 right-3">
+                        <span className="px-2.5 py-1 rounded-full bg-white/95 backdrop-blur-md text-slate-900 text-[11px] font-black shadow-xs flex items-center gap-1">
+                          <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
+                          <span>5.0</span>
+                          <span className="text-[9px] text-slate-400 font-normal">(New)</span>
                         </span>
                       </div>
                     </div>
 
-                    <span className="px-3.5 py-1.5 rounded-xl bg-[#0e8a5b] text-white text-[11px] font-extrabold shadow-2xs">
-                      Instant Book
-                    </span>
+                    {/* Preview Body */}
+                    <div className="p-5 space-y-3.5">
+                      <div>
+                        <h3 className="text-sm font-black text-[#0F172A] line-clamp-1">
+                          {name || "Untitled Experience"}
+                        </h3>
+                        <p className="text-[11px] text-slate-500 flex items-center gap-1 mt-1">
+                          <MapPin className="w-3 h-3 text-[#00875A] shrink-0" />
+                          <span className="line-clamp-1">{meetingPoint || `${city}, ${stateName}`}</span>
+                        </p>
+                      </div>
+
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                        {description || "Your exciting experience description will show here for travelers looking to explore your local region."}
+                      </p>
+
+                      {/* Highlights */}
+                      {highlights.length > 0 && (
+                        <div className="space-y-1 pt-1">
+                          {highlights.slice(0, 2).map((h, i) => (
+                            <div key={i} className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                              <Check className="w-3 h-3 text-[#00875A] shrink-0" />
+                              <span className="line-clamp-1">{h}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Timings & Capacity Pills */}
+                      <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center gap-2 text-[10px] font-bold text-slate-500">
+                        <span className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 flex items-center gap-1">
+                          <Clock className="w-3 h-3 text-slate-400" />
+                          <span>{durationHours} hrs</span>
+                        </span>
+                        <span className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-100 flex items-center gap-1">
+                          <Users className="w-3 h-3 text-slate-400" />
+                          <span>Max {maxGuests}</span>
+                        </span>
+                        <span className="px-2 py-1 rounded-lg bg-emerald-50 text-[#00875A] border border-emerald-100/50 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{startTime}</span>
+                        </span>
+                        {hasShow2 && (
+                          <span className="px-2 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-100/50">
+                            +2nd Show ({show2StartTime})
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Price & Book Row */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                          <span className="text-[10px] text-slate-400 block font-medium">From</span>
+                          <span className="text-base font-black text-[#0F172A]">
+                            ₹{priceInr.toLocaleString("en-IN")}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium"> / person</span>
+                        </div>
+
+                        <span className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold shadow-xs">
+                          Book Now
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         )}
-          </>
+
+        {/* Global Toast Notification */}
+        {toastMsg && (
+          <div
+            className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-xl border flex items-center gap-2.5 text-xs font-bold animate-fadeIn ${
+              toastMsg.type === "success"
+                ? "bg-[#00875A] text-white border-emerald-600 shadow-emerald-900/20"
+                : "bg-rose-600 text-white border-rose-700 shadow-rose-900/20"
+            }`}
+          >
+            {toastMsg.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4" />
+            ) : (
+              <AlertCircle className="w-4 h-4" />
+            )}
+            <span>{toastMsg.text}</span>
+          </div>
         )}
       </main>
-
-      {/* ------------------------------------------------------------- */}
-      {/* 6. Success Modal upon Publication (Celebratory Confetti)       */}
-      {/* ------------------------------------------------------------- */}
-      {publishedListing && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-[#0e8a5b] mx-auto flex items-center justify-center shadow-xs">
-              <CheckCircle2 className="w-8 h-8 text-[#0e8a5b]" />
-            </div>
-
-            <div>
-              <span className="text-[11px] font-extrabold uppercase text-[#0e8a5b] tracking-wider">
-                Listing Published Successfully!
-              </span>
-              <h2 className="text-lg font-black text-slate-900 mt-1">
-                {publishedListing.experience_name}
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                Your experience is live on LocalLens and discoverable by travelers across Mumbai.
-              </p>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 text-left text-xs space-y-1">
-              <div className="flex justify-between">
-                <span className="text-slate-500">Listing ID:</span>
-                <span className="font-mono font-bold text-slate-800">{publishedListing.experience_id}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Price:</span>
-                <span className="font-bold text-[#0e8a5b]">₹{publishedListing.price_inr_clean} / person</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Venue:</span>
-                <span className="font-bold text-slate-800 truncate max-w-[200px]">{publishedListing.meeting_point}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2.5 pt-2">
-              <Link
-                href="/dashboard"
-                className="py-2.5 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 text-center transition-colors"
-              >
-                Go to Dashboard
-              </Link>
-              <Link
-                href="/boost"
-                className="py-2.5 px-3 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-bold text-center shadow-xs transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Rocket className="w-3.5 h-3.5" />
-                <span>Boost This Listing</span>
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

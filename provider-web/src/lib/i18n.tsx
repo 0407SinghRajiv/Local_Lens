@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import en from "@/locales/en.json";
@@ -77,7 +77,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     }).catch(() => {});
 
-    // Listen to cross-window or inter-component language change events
+    // Listen to storage and custom language change events across components
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
         const newLang = e.newValue as SupportedLanguage;
@@ -88,8 +88,20 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     };
 
+    const handleCustomEvent = (e: any) => {
+      if (e.detail && (e.detail === "en" || e.detail === "hi" || e.detail === "mr" || e.detail === "bn")) {
+        setLanguageState(e.detail);
+        document.documentElement.lang = e.detail;
+      }
+    };
+
     window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
+    window.addEventListener("locallens_language_changed", handleCustomEvent);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      window.removeEventListener("locallens_language_changed", handleCustomEvent);
+    };
   }, []);
 
   const setLanguage = useCallback(async (newLang: SupportedLanguage) => {

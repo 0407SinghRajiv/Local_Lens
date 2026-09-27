@@ -48,6 +48,7 @@ import {
 import { BookingDetailDrawer } from "@/components/bookings/BookingDetailDrawer";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { getStoredExperiencesForProvider } from "@/services/mockExperiences";
 
 function DashboardContent() {
   const router = useRouter();
@@ -158,11 +159,14 @@ function DashboardContent() {
     const fetchExperiences = async () => {
       try {
         const filterClauses = [
+          `provider_id.eq.${userId}`,
+          `user_id.eq.${userId}`,
           `source_url.ilike.%/provider/${userId}%`,
           `source_name.ilike.%${userId}%`,
           `tags.ilike.%provider:${userId}%`,
         ];
         if (userEmail && userEmail !== "provider@locallens.in") {
+          filterClauses.push(`provider_email.eq.${userEmail}`);
           filterClauses.push(`source_url.ilike.%${userEmail}%`);
           filterClauses.push(`source_name.ilike.%${userEmail}%`);
           filterClauses.push(`tags.ilike.%provider_email:${userEmail}%`);
@@ -307,7 +311,7 @@ function DashboardContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#0F172A] font-sans flex antialiased selection:bg-[#ECFDF5] selection:text-[#059669]">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50/70 via-[#F8FAFC] to-emerald-100/40 font-sans antialiased text-[#0F172A] selection:bg-[#059669] selection:text-white flex flex-col cursor-default relative overflow-x-hidden">
       {/* ============================================================ */}
       {/* 1. LEFT SIDEBAR (~250px) - FIXED                             */}
       {/* ============================================================ */}
@@ -445,7 +449,8 @@ function DashboardContent() {
       {/* ============================================================ */}
       {/* 2. MAIN CONTENT AREA                                         */}
       {/* ============================================================ */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-[250px] min-h-screen overflow-y-auto">
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-200/25 via-transparent to-emerald-100/15" />
+      <div className="flex-1 flex flex-col min-w-0 lg:pl-[250px] min-h-screen overflow-y-auto z-10 relative">
         {/* TOP HEADER */}
         <header className="w-full bg-[#F8FAFC] px-5 sm:px-8 py-5 flex items-center justify-between gap-4 border-b border-[#F1F5F9]">
           {/* Greeting on Left */}

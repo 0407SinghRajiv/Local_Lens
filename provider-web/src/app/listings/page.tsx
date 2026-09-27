@@ -16,6 +16,7 @@ import { AiQualityAuditModal } from "@/components/modals/AiQualityAuditModal";
 import { SponsorshipBoostModal } from "@/components/modals/SponsorshipBoostModal";
 import {
   Plus,
+  Edit3,
   Search,
   Zap,
   Sparkles,
@@ -68,11 +69,14 @@ export default function ListingsPage() {
     // 2. Fetch from Supabase strictly matching THIS provider
     try {
       const filterClauses: string[] = [
+        `provider_id.eq.${pid}`,
+        `user_id.eq.${pid}`,
         `source_name.eq.provider:${pid}`,
         `source_url.ilike.%/provider/${pid}%`,
         `tags.ilike.%provider:${pid}%`,
       ];
       if (pEmail && pEmail !== "provider@locallens.in") {
+        filterClauses.push(`provider_email.eq.${pEmail}`);
         filterClauses.push(`source_url.ilike.%${pEmail}%`);
         filterClauses.push(`tags.ilike.%provider_email:${pEmail}%`);
       }
@@ -89,9 +93,9 @@ export default function ListingsPage() {
           experience_name: d.experience_name || d.title || "Experience",
           category: (d.category as ExperienceCategory) || "Heritage",
           sub_category: d.sub_category || "Local Tour",
-          tags: typeof d.tags === "string" ? d.tags.split(",").map((s: string) => s.trim()) : (d.tags || []),
-          local_experience_bool: d.local_experience === "Yes",
-          hidden_gem_bool: d.hidden_gem === "Yes",
+          tags: typeof d.tags === "string" ? d.tags.split(";").map((s: string) => s.trim()) : (d.tags || []),
+          local_experience_bool: d.local_experience === "Yes" || d.local_experience_bool === true,
+          hidden_gem_bool: d.hidden_gem === "Yes" || d.hidden_gem_bool === true,
           latitude: Number(d.latitude) || 19.076,
           longitude: Number(d.longitude) || 72.8777,
           city: d.city || "Mumbai",
@@ -102,7 +106,7 @@ export default function ListingsPage() {
           price_inr_clean: Number(String(d.price_inr_clean || d.price_inr || "500").replace(/[^0-9]/g, "")) || 500,
           duration_hours_clean: Number(String(d.duration_hours_clean || d.duration_hours || "2").replace(/[^0-9.]/g, "")) || 2,
           min_group_size: Number(d.min_group_size) || 1,
-          max_group_size: Number(d.max_group_size) || 8,
+          max_group_size: d.max_group_size !== null && d.max_group_size !== undefined ? Number(d.max_group_size) : null,
           booking_required_bool: d.booking_required !== "No",
           advance_booking_days_clean: Number(String(d.advance_booking_days || "1").replace(/[^0-9]/g, "")) || 1,
           availability: d.availability || "Daily",
@@ -111,17 +115,26 @@ export default function ListingsPage() {
           season: d.season || "All Year",
           accessibility: d.accessibility || "Standard",
           description: d.description || "",
-          inclusions: Array.isArray(d.inclusions) ? d.inclusions : ["Guide", "Equipment"],
+          inclusions: (() => {
+            if (Array.isArray(d.inclusions) && d.inclusions.length > 0) return d.inclusions;
+            if (d.image_note) {
+              try {
+                const parsed = JSON.parse(d.image_note);
+                if (Array.isArray(parsed.highlights)) return parsed.highlights;
+              } catch {}
+            }
+            return [];
+          })(),
           rules: Array.isArray(d.rules) ? d.rules : ["Government ID required"],
           cancellation_policy: d.cancellation_policy || "Free cancellation up to 24 hrs",
           health_score: 95,
-          rating: Number(d.rating) || 5.0,
-          review_count: Number(d.review_count) || 1,
+          rating: d.rating !== null && d.rating !== undefined ? Number(d.rating) : null,
+          review_count: d.review_count !== null && d.review_count !== undefined ? Number(d.review_count) : null,
           images: d.image_url ? [d.image_url] : [],
           status: "active" as const,
         }));
 
-        setExperiences([...formattedRemote, ...local.filter((l) => !seenIds.has(l.experience_id))]);
+        setExperiences([...local.filter((l) => !seenIds.has(l.experience_id)), ...formattedRemote]);
       }
     } catch (err) {
       console.warn("Supabase fetch notice:", err);
@@ -189,7 +202,10 @@ export default function ListingsPage() {
   }, [experiences, searchQuery, filterCategory]);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-500 selection:text-white pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50/70 via-[#F8FAFC] to-emerald-100/50 text-slate-900 font-sans selection:bg-[#00875A] selection:text-white pb-20 relative overflow-x-hidden">
+      {/* Green Monochromatic Ambient Background Aura */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-200/35 via-transparent to-emerald-100/25" />
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-emerald-100/40 via-transparent to-transparent" />
       <ProviderNavbar />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">

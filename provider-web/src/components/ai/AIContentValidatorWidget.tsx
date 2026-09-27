@@ -52,7 +52,7 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
 
   const { overallScore, blockingReason, profanity, fakeClaims, clarity, location } = validation;
 
-  const hasIssues = !validation.canPublish;
+  const hasIssues = Boolean(profanity?.hasBadWords || fakeClaims?.hasFakeClaims);
 
   return (
     <div className="rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-xs shadow-2xs overflow-hidden transition-all duration-200">
@@ -77,7 +77,7 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
               {overallScore}/100
             </span>
             <span className="text-[11px] text-slate-500 hidden sm:inline truncate">
-              {hasIssues ? "Action required before publishing" : "All checks passed ✓"}
+              {hasIssues ? "Review flagged words" : "Quality: Clean and Ready ✓"}
             </span>
           </div>
         </div>
