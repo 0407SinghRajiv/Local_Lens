@@ -1,6 +1,46 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/locallens_design_system.dart';
 
+/// Reusable background wrapper for app-wide background image consistency
+class AppBackgroundWrapper extends StatelessWidget {
+  final Widget child;
+  final bool isDark;
+
+  const AppBackgroundWrapper({
+    super.key,
+    required this.child,
+    this.isDark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Container(
+            color: isDark ? const Color(0xFF0F172A) : LocalLensColors.background,
+          ),
+        ),
+        Positioned.fill(
+          child: Opacity(
+            opacity: isDark ? 0.06 : 0.10,
+            child: Image.asset(
+              'assets/images/54511.png',
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Image.asset(
+                'assets/images/54506.png',
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+              ),
+            ),
+          ),
+        ),
+        child,
+      ],
+    );
+  }
+}
+
 /// LocalLens Brand Logo with Pin & Lens Icon
 class LocalLensLogo extends StatelessWidget {
   final double size;
@@ -374,7 +414,7 @@ class LocalLensBottomNav extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildNavItem(0, Icons.home_rounded, 'Home'),
-              _buildNavItem(1, Icons.explore_rounded, 'Explore'),
+              _buildNavItem(1, Icons.map_rounded, 'Map'),
               _buildNavItem(2, Icons.route_rounded, 'Trips'),
               _buildNavItem(3, Icons.bookmark_rounded, 'Saved'),
               _buildNavItem(4, Icons.person_rounded, 'Profile'),

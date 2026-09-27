@@ -51,11 +51,16 @@ class _ActiveRideFloatingBarState extends ConsumerState<ActiveRideFloatingBar> w
     final rideState = ref.watch(rideProvider);
     final status = rideState.status;
 
-    // Do not show floating bar if idle, completed, or cancelled
-    if (status == RideStatus.idle ||
-        status == RideStatus.completed ||
-        status == RideStatus.cancelled ||
-        status == RideStatus.failed) {
+    // Do not show floating bar if idle, completed, cancelled, or if no active ride request exists
+    final isRideActive = rideState.currentRequest != null &&
+        (status == RideStatus.searching ||
+            status == RideStatus.accepted ||
+            status == RideStatus.riderArriving ||
+            status == RideStatus.arrived ||
+            status == RideStatus.started ||
+            status == RideStatus.inProgress);
+
+    if (!isRideActive) {
       return const SizedBox.shrink();
     }
 

@@ -81,4 +81,25 @@ class SponsoredExperience {
           : DateTime.now().add(const Duration(days: 7)),
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'campaignId': campaignId,
+      'listingId': listingId,
+      'businessId': businessId,
+      'badge': badge,
+      'shopName': shopName,
+      'listingName': listingName,
+      'title': listingName,
+      'imageUrl': imageUrl,
+      'rating': rating,
+      'reviewsCount': reviewsCount,
+      'location': location,
+      'originalPrice': originalPrice,
+      'offer': offer,
+      'priceInr': offerPrice,
+      'offerPrice': offerPrice,
+      'sponsorInfo': sponsorInfo,
+    };
+  }
 }

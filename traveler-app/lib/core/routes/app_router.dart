@@ -229,7 +229,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // 4. Experience Details & Maps
       GoRoute(
         path: AppRoutes.experienceDetails,
-        pageBuilder: (context, state) => _buildPage(state, const ExperienceDetailsScreen()),
+        pageBuilder: (context, state) {
+          final extraData = state.extra as Map<String, dynamic>?;
+          return _buildPage(state, ExperienceDetailsScreen(experienceData: extraData));
+        },
       ),
       GoRoute(
         path: AppRoutes.experienceMap,

@@ -40,8 +40,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   late final ScrollController _scrollController;
   bool _isTopBarCollapsed = false;
 
-  late final AnimationController _borderPulseController;
-  late final Animation<double> _borderPulseAnimation;
   late final AnimationController _sunMoonRayController;
   late final AnimationController _stormController;
 
@@ -52,6 +50,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   String _weatherDesc = 'Clear Sky';
   IconData _weatherIcon = Icons.wb_sunny_rounded;
 
+  late final PageController _sponsoredPageController;
+  Timer? _sponsoredAutoTimer;
+  int _currentSponsoredPage = 0;
+  int _sponsoredCampaignCount = 5;
+
   @override
   void initState() {
     super.initState();
@@ -59,15 +62,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _scrollController.addListener(_onScroll);
     _refreshSponsored();
 
-    _borderPulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-
-    _borderPulseAnimation = CurvedAnimation(
-      parent: _borderPulseController,
-      curve: Curves.linear,
-    );
+    _sponsoredPageController = PageController(viewportFraction: 0.93);
+    _sponsoredAutoTimer = Timer.periodic(const Duration(milliseconds: 3800), (_) {
+      if (_sponsoredPageController.hasClients && _sponsoredCampaignCount > 0) {
+        _currentSponsoredPage = (_currentSponsoredPage + 1) % _sponsoredCampaignCount;
+        _sponsoredPageController.animateToPage(
+          _currentSponsoredPage,
+          duration: const Duration(milliseconds: 650),
+          curve: Curves.easeInOutCubic,
+        );
+      }
+    });
 
     _sunMoonRayController = AnimationController(
       vsync: this,
@@ -105,33 +110,40 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
 
   @override
   void dispose() {
+    _sponsoredAutoTimer?.cancel();
+    _sponsoredPageController.dispose();
     _clockTimer?.cancel();
     _sunMoonRayController.dispose();
     _stormController.dispose();
-    _borderPulseController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchWeather() async {
+    const apiKey = '9fb8d155eeb443116f6d35e81215a121';
     try {
-      final response = await http.get(Uri.parse(
-        'https://api.open-meteo.com/v1/forecast?latitude=18.9894&longitude=73.1175&current_weather=true',
-      )).timeout(const Duration(seconds: 5));
+      final loc = await LocationService.getCurrentResolvedLocation();
+      final url = Uri.parse(
+        'https://api.openweathermap.org/data/2.5/weather?lat=${loc.latitude}&lon=${loc.longitude}&appid=$apiKey&units=metric',
+      );
+      final response = await http.get(url).timeout(const Duration(seconds: 5));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final cw = data['current_weather'];
-        if (cw != null) {
-          final temp = (cw['temperature'] as num).round();
-          final code = (cw['weathercode'] as num).toInt();
-          final isDay = (cw['is_day'] as num?) == 1;
+        final main = data['main'];
+        final weatherList = data['weather'] as List?;
+        if (main != null && weatherList != null && weatherList.isNotEmpty) {
+          final temp = (main['temp'] as num).round();
+          final item = weatherList.first;
+          final desc = (item['description'] as String?) ?? 'Clear Sky';
+          final iconCode = (item['icon'] as String?) ?? '01d';
+
           if (mounted) {
             setState(() {
               _tempCelsius = '$temp°C';
-              _weatherDesc = _getWeatherDescription(code, isDay);
-              _weatherIcon = _getWeatherIcon(code, isDay);
+              _weatherDesc = _capitalizeWords(desc);
+              _weatherIcon = _getOWMWeatherIcon(iconCode);
             });
           }
           return;
@@ -164,22 +176,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }
   }
 
-  String _getWeatherDescription(int code, bool isDay) {
-    if (code == 0) return isDay ? 'Clear & Sunny' : 'Clear Night';
-    if (code >= 1 && code <= 3) return 'Partly Cloudy';
-    if (code == 45 || code == 48) return 'Hazy / Foggy';
-    if (code >= 51 && code <= 67) return 'Light Rain';
-    if (code >= 80 && code <= 82) return 'Rain Showers';
-    if (code >= 95) return 'Thunderstorm';
-    return isDay ? 'Sunny' : 'Clear';
+  IconData _getOWMWeatherIcon(String iconCode) {
+    if (iconCode.startsWith('01')) return Icons.wb_sunny_rounded;
+    if (iconCode.startsWith('02') || iconCode.startsWith('03')) return Icons.wb_cloudy_rounded;
+    if (iconCode.startsWith('04')) return Icons.cloud_rounded;
+    if (iconCode.startsWith('09') || iconCode.startsWith('10')) return Icons.water_drop_rounded;
+    if (iconCode.startsWith('11')) return Icons.thunderstorm_rounded;
+    if (iconCode.startsWith('13')) return Icons.ac_unit_rounded;
+    if (iconCode.startsWith('50')) return Icons.dehaze_rounded;
+    return Icons.wb_sunny_rounded;
   }
 
-  IconData _getWeatherIcon(int code, bool isDay) {
-    if (code == 0) return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
-    if (code >= 1 && code <= 3) return isDay ? Icons.wb_cloudy_rounded : Icons.cloud_queue_rounded;
-    if (code >= 51 && code <= 82) return Icons.grain_rounded;
-    if (code >= 95) return Icons.thunderstorm_rounded;
-    return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
+  String _capitalizeWords(String input) {
+    if (input.isEmpty) return input;
+    return input.split(' ').map((word) {
+      if (word.isEmpty) return '';
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
   }
 
   void _refreshSponsored() {
@@ -788,9 +801,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
         ? filteredExperiences.sublist(startIndex, endIndex)
         : <ExperienceItem>[];
 
-    return SafeArea(
-      bottom: false,
-      child: Column(
+    return AppBackgroundWrapper(
+      isDark: _isStormyDemo,
+      child: SafeArea(
+        bottom: false,
+        child: Column(
         children: [
           // 🍑 1. SOFT PEACH TOP BAR (#F7E2D5) OR DARK STORMY BAR (#1E293B) WITH REALTIME WEATHER & ANIMATION
           AnimatedContainer(
@@ -1234,107 +1249,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         ),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
 
-                      // DISCOVER SECTION HEADER TITLED "EXPLORE"
-                      Text(
-                        'Explore',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.6,
-                          color: _isStormyDemo ? const Color(0xFFF8FAFC) : const Color(0xFF111827),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Swipe to Discover Banner (with Animated Red Sweep Left-to-Right + Water Droplets Splash on Right Edge)
-                      GestureDetector(
-                        onTap: () {
-                          context.push(AppRoutes.recommendationSwipe);
-                        },
-                        child: AnimatedBuilder(
-                          animation: _borderPulseAnimation,
-                          builder: (context, child) {
-                            return CustomPaint(
-                              foregroundPainter: RedSweepWaterSplashPainter(
-                                progress: _borderPulseAnimation.value,
-                                borderRadius: AppRadius.lg,
-                                isStormy: _isStormyDemo,
-                              ),
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 350),
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                                decoration: BoxDecoration(
-                                  color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.white,
-                                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                                  boxShadow: AppShadows.card,
-                                  border: Border.all(
-                                    color: _isStormyDemo ? const Color(0xFF334155) : LocalLensColors.border,
-                                  ),
-                                ),
-                                child: child,
-                              ),
-                            );
-                          },
-                          child: Row(
-                            children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 350),
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: _isStormyDemo
-                                      ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
-                                      : const Color(0xFFFF1744).withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(AppRadius.md),
-                                ),
-                                child: Icon(
-                                  Icons.swipe_rounded,
-                                  color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Discover your way',
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: -0.3,
-                                        color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Swipe right to save, up to add to trip',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                        color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(
-                                Icons.arrow_forward_ios_rounded,
-                                size: 14,
-                                color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      // SPONSORED EXPERIENCES SECTION
+                      // SPONSORED EXPERIENCES SECTION (FEATURED SPOTLIGHT HEADER + INTERACTIVE CAROUSEL)
                       FutureBuilder<List<SponsoredExperience>>(
                         future: _sponsoredFuture,
                         builder: (context, snapshot) {
@@ -1360,7 +1277,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                                   ),
                                   const SizedBox(width: 10),
                                   Text(
-                                    'Checking for active sponsored experiences...',
+                                    'Loading spotlight deals...',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
@@ -1376,48 +1293,143 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                             return const SizedBox.shrink();
                           }
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
+                          _sponsoredCampaignCount = campaigns.length;
+                          return StatefulBuilder(
+                            builder: (context, setCarouselState) {
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: _isStormyDemo ? const Color(0xFF1E3A8A) : const Color(0xFFFEF3C7),
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(
-                                        color: _isStormyDemo ? const Color(0xFF3B82F6) : const Color(0xFFFDE68A),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.star_rounded,
-                                          size: 13,
-                                          color: _isStormyDemo ? const Color(0xFF60A5FA) : const Color(0xFFD97706),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          'FEATURED SPOTLIGHT',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w900,
-                                            color: _isStormyDemo ? const Color(0xFF93C5FD) : const Color(0xFF92400E),
-                                            letterSpacing: 0.5,
+                                  // BOLD PROMINENT FEATURED SPOTLIGHT HEADER
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  gradient: const LinearGradient(
+                                                    colors: [Color(0xFFF59E0B), Color(0xFFD97706)],
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: const Color(0xFFF59E0B).withValues(alpha: 0.3),
+                                                      blurRadius: 6,
+                                                      offset: const Offset(0, 2),
+                                                    ),
+                                                  ],
+                                                ),
+                                                child: const Row(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      Icons.star_rounded,
+                                                      size: 14,
+                                                      color: Colors.white,
+                                                    ),
+                                                    SizedBox(width: 4),
+                                                    Text(
+                                                      'FEATURED SPOTLIGHT',
+                                                      style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight: FontWeight.w900,
+                                                        color: Colors.white,
+                                                        letterSpacing: 0.8,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: _isStormyDemo ? const Color(0xFF1E3A8A) : const Color(0xFFFEF3C7),
+                                                  borderRadius: BorderRadius.circular(4),
+                                                ),
+                                                child: Text(
+                                                  'SPONSORED',
+                                                  style: TextStyle(
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w900,
+                                                    color: _isStormyDemo ? const Color(0xFF93C5FD) : const Color(0xFF92400E),
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            'Promoted local deals & partner experiences',
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700,
+                                              color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 14),
+
+                                  // INTERACTIVE CAROUSEL (AUTO-SCROLL + SWIPE CONTROL)
+                                  SizedBox(
+                                    height: 270,
+                                    child: PageView.builder(
+                                      controller: _sponsoredPageController,
+                                      itemCount: campaigns.length,
+                                      onPageChanged: (index) {
+                                        setCarouselState(() {
+                                          _currentSponsoredPage = index;
+                                        });
+                                      },
+                                      itemBuilder: (context, index) {
+                                        final camp = campaigns[index];
+                                        return Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              _showSponsoredDetailModal(context, camp);
+                                            },
+                                            child: _buildSponsoredCard(context, camp, isDark),
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
+                                  const SizedBox(height: 10),
 
-                              ...campaigns.map((camp) => _buildSponsoredCard(context, camp, isDark)),
-                              const SizedBox(height: 16),
-                            ],
+                                  // CAROUSEL DOT INDICATORS
+                                  Center(
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: List.generate(campaigns.length, (dotIndex) {
+                                        final isSelected = _currentSponsoredPage == dotIndex;
+                                        return AnimatedContainer(
+                                          duration: const Duration(milliseconds: 300),
+                                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                                          width: isSelected ? 22 : 7,
+                                          height: 7,
+                                          decoration: BoxDecoration(
+                                            color: isSelected
+                                                ? (_isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFFFF1744))
+                                                : (_isStormyDemo ? const Color(0xFF475569) : const Color(0xFFCBD5E1)),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                        );
+                                      }),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 20),
+                                ],
+                              );
+                            },
                           );
                         },
                       ),
@@ -1572,7 +1584,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                               location: exp.location,
                               distanceKm: exp.distanceKm,
                               durationHours: exp.durationHours,
-                              onTap: () => context.push(AppRoutes.experienceDetails),
+                              onTap: () => context.push(
+                                AppRoutes.experienceDetails,
+                                extra: {
+                                  'title': exp.title,
+                                  'imageUrl': exp.imageUrl,
+                                  'rating': exp.rating,
+                                  'category': exp.category,
+                                  'priceInr': exp.priceInr,
+                                  'location': exp.location,
+                                  'distanceKm': exp.distanceKm,
+                                  'durationHours': exp.durationHours,
+                                  'description': 'Discover authentic regional heritage, culinary delights, and curated local spots in Panvel with expert host guidance.',
+                                  'shopName': 'LocalLens Verified Host',
+                                },
+                              ),
                               onBookRideTap: () {
                                 showRideBookingBottomSheet(
                                   context: context,
@@ -1759,6 +1785,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1813,7 +1840,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   Widget _buildSponsoredCard(BuildContext context, SponsoredExperience camp, bool isDark) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 350),
-      margin: const EdgeInsets.only(bottom: 20),
+      margin: const EdgeInsets.only(bottom: 4),
       decoration: BoxDecoration(
         color: _isStormyDemo ? const Color(0xFF1E293B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
@@ -1846,22 +1873,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                       : const ColorFilter.mode(Colors.transparent, BlendMode.dst),
                   child: Image.network(
                     camp.imageUrl,
-                    height: 180,
+                    height: 115,
                     width: double.infinity,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) => Container(
-                      height: 180,
+                      height: 115,
                       color: Colors.grey.shade300,
                       child: const Center(
-                        child: Icon(Icons.image_not_supported_rounded, size: 40, color: Colors.grey),
+                        child: Icon(Icons.image_not_supported_rounded, size: 32, color: Colors.grey),
                       ),
                     ),
                   ),
                 ),
               ),
               Positioned(
-                top: 12,
-                left: 12,
+                top: 10,
+                left: 10,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -1888,8 +1915,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                 ),
               ),
               Positioned(
-                top: 12,
-                right: 12,
+                top: 10,
+                right: 10,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -1915,53 +1942,60 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             ],
           ),
           Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   camp.listingName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 15,
                     fontWeight: FontWeight.w900,
                     color: _isStormyDemo ? Colors.white : Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Row(
                   children: [
                     Text(
                       'Sponsored by: ',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: _isStormyDemo ? const Color(0xFF94A3B8) : Colors.black54,
                       ),
                     ),
-                    Text(
-                      camp.shopName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF00875A),
+                    Expanded(
+                      child: Text(
+                        camp.shopName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF00875A),
+                        ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 6),
                 Row(
                   children: [
-                    const Icon(Icons.star_rounded, size: 16, color: Color(0xFFF59E0B)),
+                    const Icon(Icons.star_rounded, size: 15, color: Color(0xFFF59E0B)),
                     const SizedBox(width: 4),
                     Text(
                       '${camp.rating} (${camp.reviewsCount})',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: FontWeight.bold,
                         color: _isStormyDemo ? Colors.white : Colors.black87,
                       ),
                     ),
-                    const SizedBox(width: 14),
-                    const Icon(Icons.location_on_rounded, size: 15, color: Color(0xFFEF4444)),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.location_on_rounded, size: 14, color: Color(0xFFEF4444)),
                     const SizedBox(width: 3),
                     Expanded(
                       child: Text(
@@ -1969,14 +2003,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: 11,
                           color: _isStormyDemo ? const Color(0xFF94A3B8) : Colors.black54,
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.baseline,
                   textBaseline: TextBaseline.alphabetic,
@@ -1984,7 +2018,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                     Text(
                       '₹${camp.offerPrice.toInt()}',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 18,
                         fontWeight: FontWeight.w900,
                         color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF00875A),
                       ),
@@ -1997,64 +2031,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         color: _isStormyDemo ? const Color(0xFF64748B) : Colors.grey,
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Text(
                       '₹${camp.originalPrice.toInt()}/person',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 12,
                         decoration: TextDecoration.lineThrough,
                         color: _isStormyDemo ? const Color(0xFF64748B) : Colors.grey,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Viewing ${camp.listingName} details'), behavior: SnackBarBehavior.floating),
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          side: BorderSide(
-                            color: _isStormyDemo ? const Color(0xFF334155) : Colors.grey.shade300,
-                          ),
-                        ),
-                        child: Text(
-                          'View Experience',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: _isStormyDemo ? Colors.white : Colors.black87,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Booking ${camp.listingName} with ${camp.offer} applied!'),
-                              backgroundColor: const Color(0xFF00875A),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _isStormyDemo ? const Color(0xFF0288D1) : const Color(0xFF00875A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Book Now', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],
@@ -2064,6 +2047,190 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
           ),
         ],
       ),
+    );
+  }
+
+  void _showSponsoredDetailModal(BuildContext context, SponsoredExperience camp) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        final isDark = _isStormyDemo;
+        final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+        final textColor = isDark ? Colors.white : const Color(0xFF111827);
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border.all(color: isDark ? const Color(0xFF334155) : LocalLensColors.border),
+          ),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF475569) : const Color(0xFFCBD5E1),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD97706).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.star_rounded, size: 14, color: Color(0xFFD97706)),
+                          SizedBox(width: 4),
+                          Text(
+                            'FEATURED PARTNER',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              color: Color(0xFFD97706),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: Icon(Icons.close_rounded, color: isDark ? Colors.white : Colors.black54),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  camp.listingName,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Promoted by ${camp.shopName} • ${camp.location}',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF0F172A) : const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? const Color(0xFF38BDF8) : const Color(0xFFFDE68A),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.local_offer_rounded, color: Color(0xFFD97706)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              camp.offer,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? Colors.white : const Color(0xFF92400E),
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Special LocalLens partner deal',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: isDark ? const Color(0xFF94A3B8) : const Color(0xFFB45309),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Exclusive Price',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            Text(
+                              '₹${camp.offerPrice.toInt()}',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                                color: isDark ? const Color(0xFF38BDF8) : const Color(0xFFFF1744),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '₹${camp.originalPrice.toInt()}',
+                              style: TextStyle(
+                                fontSize: 14,
+                                decoration: TextDecoration.lineThrough,
+                                color: isDark ? const Color(0xFF64748B) : Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    ElevatedButton.icon(
+                      icon: const Icon(Icons.touch_app_rounded, size: 18),
+                      label: const Text('Explore Deal'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isDark ? const Color(0xFF0284C7) : const Color(0xFFFF1744),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.push(AppRoutes.experienceDetails, extra: camp.toJson());
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

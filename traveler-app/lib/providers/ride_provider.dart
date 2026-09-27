@@ -346,7 +346,21 @@ class RideNotifier extends StateNotifier<RideState> {
           if (riderId != null && riderId.isNotEmpty) {
             _listenToRiderLocation(riderId);
           }
+        } else {
+          // Latest ride is completed, cancelled, or inactive -> reset state to idle
+          state = state.copyWith(
+            status: RideStatus.idle,
+            currentRequest: null,
+            activeRider: null,
+          );
         }
+      } else {
+        // No rides exist in database -> reset state to idle
+        state = state.copyWith(
+          status: RideStatus.idle,
+          currentRequest: null,
+          activeRider: null,
+        );
       }
     } catch (e) {
       debugPrint('[RideNotifier] Error checking active ride: $e');
