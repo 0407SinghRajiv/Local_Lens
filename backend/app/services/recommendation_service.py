@@ -29,6 +29,9 @@ except ImportError:
     )
     from app.services.place_image_resolver import PlaceImageResolver
 
+import time
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +42,55 @@ class RecommendationService:
     """
 
     _engine_instance: Optional[RecommendationEngine] = None
+    _last_sync_time: float = 0.0
+    _sync_interval_seconds: float = 120.0
+
+    @classmethod
+    def sync_with_supabase(
+        cls, engine: Optional[RecommendationEngine] = None, force: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Synchronize the in-memory ML candidate experiences DataFrame with live Supabase table records.
+        Preserves existing base dataset while adding/updating new provider-submitted experiences.
+        """
+        if engine is None:
+            engine = cls.get_engine()
+
+        try:
+            sb_df = SupabaseService.get_experience_dataframe(force_refresh=force)
+            if sb_df is not None and not sb_df.empty:
+                initial_count = len(engine.experiences_df) if engine.experiences_df is not None else 0
+                
+                # Merge Supabase experiences: replace or add based on experience_id
+                if engine.experiences_df is not None and not engine.experiences_df.empty:
+                    combined = pd.concat([engine.experiences_df, sb_df], ignore_index=True)
+                    combined = combined.drop_duplicates(subset=["experience_id"], keep="last")
+                    engine.experiences_df = combined
+                else:
+                    engine.experiences_df = sb_df.copy()
+
+                cls._last_sync_time = time.time()
+                current_count = len(engine.experiences_df)
+                added_count = current_count - initial_count
+                logger.info(
+                    f"ML Engine synchronized with Supabase experience table: "
+                    f"{len(sb_df)} fetched, total active experiences={current_count} (new={added_count})."
+                )
+                return {
+                    "success": True,
+                    "supabase_count": len(sb_df),
+                    "total_active_experiences": current_count,
+                    "new_provider_experiences": added_count,
+                }
+        except Exception as e:
+            logger.warning(f"Failed to sync ML engine with Supabase: {e}")
+
+        return {
+            "success": False,
+            "supabase_count": 0,
+            "total_active_experiences": len(engine.experiences_df) if engine.experiences_df is not None else 0,
+            "new_provider_experiences": 0,
+        }
 
     @classmethod
     def get_engine(cls) -> RecommendationEngine:
@@ -57,6 +109,8 @@ class RecommendationService:
                 dataset_dir=dataset_dir,
                 dataset_filename="all_experiences_with_photos.csv",
             )
+            # Sync with live Supabase database on initial boot
+            cls.sync_with_supabase(cls._engine_instance)
 
         return cls._engine_instance
 
@@ -66,6 +120,13 @@ class RecommendationService:
         Score and rank candidate experiences for the traveler request using the notebook ML pipeline.
         """
         engine = cls.get_engine()
+
+        # Check if periodic sync with Supabase is due (every 2 minutes)
+        if time.time() - cls._last_sync_time > cls._sync_interval_seconds:
+            try:
+                cls.sync_with_supabase(engine, force=True)
+            except Exception as e:
+                logger.debug(f"Periodic Supabase sync failed: {e}")
 
         # Extract normalized fields
         budget_inr = float(request.budget_inr or 2500.0)

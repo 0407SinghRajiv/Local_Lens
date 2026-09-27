@@ -41,3 +41,28 @@ async def get_recommendations(request: RecommendationRequest):
                 "message": f"Failed to score recommendations: {str(e)}",
             },
         )
+
+
+@router.post("/sync")
+@router.get("/sync")
+async def sync_supabase_experiences():
+    """
+    Manually synchronize the ML recommendation engine with the Supabase experience table.
+    Pulls newly registered provider listings, cleans attributes, and merges into active candidate pool.
+    """
+    try:
+        sync_result = RecommendationService.sync_with_supabase(force=True)
+        return {
+            "status": "success",
+            "message": "ML engine synchronized with Supabase experience table",
+            "data": sync_result,
+        }
+    except Exception as e:
+        logger.error(f"Error syncing with Supabase: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "code": "SYNC_FAILED",
+                "message": f"Failed to synchronize ML engine with Supabase: {str(e)}",
+            },
+        )

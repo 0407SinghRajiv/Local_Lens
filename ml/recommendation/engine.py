@@ -198,17 +198,49 @@ class RecommendationEngine:
             oc, orat = compute_interest_overlap(
                 interests_str, exp.get("tags"), exp.get("category"), exp.get("best_for")
             )
-            price = exp.get("price_inr_clean", exp.get("price_inr", 0.0))
-            duration = exp.get("duration_hours_clean", exp.get("duration_hours", 1.0))
-            min_g = exp.get("min_group_size", 1)
-            min_g = 1 if pd.isna(min_g) or min_g <= 0 else float(min_g)
-            max_g = exp.get("max_group_size")
-            max_g = 999 if pd.isna(max_g) else float(max_g)
+            price_raw = exp.get("price_inr_clean", exp.get("price_inr", 0.0))
+            try:
+                price = float(price_raw) if pd.notna(price_raw) else 0.0
+            except (ValueError, TypeError):
+                price = 0.0
+
+            dur_raw = exp.get("duration_hours_clean", exp.get("duration_hours", 1.0))
+            try:
+                duration = float(dur_raw) if pd.notna(dur_raw) else 1.0
+            except (ValueError, TypeError):
+                duration = 1.0
+
+            min_g_raw = exp.get("min_group_size", 1)
+            try:
+                min_g = float(min_g_raw) if pd.notna(min_g_raw) and float(min_g_raw) > 0 else 1.0
+            except (ValueError, TypeError):
+                min_g = 1.0
+
+            max_g_raw = exp.get("max_group_size", 999)
+            try:
+                max_g = float(max_g_raw) if pd.notna(max_g_raw) else 999.0
+            except (ValueError, TypeError):
+                max_g = 999.0
 
             rating_val = exp.get("rating")
-            rating_missing_val = int(exp.get("rating_missing", pd.isna(rating_val)))
-            local_exp_val = int(bool(exp.get("local_experience_bool", exp.get("local_experience", True))))
-            hidden_gem_val = int(bool(exp.get("hidden_gem_bool", exp.get("hidden_gem", False))))
+            r_miss = exp.get("rating_missing")
+            if r_miss is None or pd.isna(r_miss):
+                rating_missing_val = 1 if (rating_val is None or pd.isna(rating_val)) else 0
+            else:
+                try:
+                    rating_missing_val = int(r_miss)
+                except (ValueError, TypeError):
+                    rating_missing_val = 1 if (rating_val is None or pd.isna(rating_val)) else 0
+
+            loc_exp = exp.get("local_experience_bool")
+            if loc_exp is None or pd.isna(loc_exp):
+                loc_exp = exp.get("local_experience", 1)
+            local_exp_val = 1 if loc_exp in (True, 1, "1", "true", "True") or (pd.notna(loc_exp) and bool(loc_exp)) else 0
+
+            hid_gem = exp.get("hidden_gem_bool")
+            if hid_gem is None or pd.isna(hid_gem):
+                hid_gem = exp.get("hidden_gem", 0)
+            hidden_gem_val = 1 if hid_gem in (True, 1, "1", "true", "True") else 0
 
             rows.append({
                 "experience_id": str(exp.get("experience_id", "")),
