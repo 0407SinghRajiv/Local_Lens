@@ -195,7 +195,7 @@ class OptimizeItineraryRequest(BaseModel):
 
 class ItineraryChatOptimizeRequest(BaseModel):
     """
-    Payload for conversational itinerary optimization using Groq AI.
+    Payload for conversational itinerary optimization & guide details using Groq AI (LocalLens Saathi).
     """
     prompt: str
     destination: Optional[str] = "Mumbai"
@@ -203,13 +203,15 @@ class ItineraryChatOptimizeRequest(BaseModel):
     budget: Optional[float] = 5000.0
     duration_hours: Optional[float] = 6.0
     current_place_names: Optional[List[str]] = Field(default_factory=list)
+    places_details: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
 
 
 class ItineraryChatOptimizeResponse(BaseModel):
     """
-    Structured outcome returned by Groq AI optimizer.
+    Structured outcome returned by Groq AI optimizer & guide (LocalLens Saathi).
     """
     reply: str
+    is_info_query: bool = False
     remove_interests: List[str] = Field(default_factory=list)
     add_interests: List[str] = Field(default_factory=list)
     custom_notes: Optional[str] = None

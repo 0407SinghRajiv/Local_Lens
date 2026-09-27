@@ -1766,24 +1766,27 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
         // 2. THREE BUTTONS ROW (Optimize Itinerary, Opt for Ride, Save Itinerary)
         Row(
           children: [
-            // Optimize Itinerary Button (Opens AI Optimizer Chatbot)
+            // LocalLens Saathi Button (Opens AI Local Guide & Optimizer Chatbot)
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () => _openOptimizerChatbot(itinerary),
                 icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: LocalLensColors.primaryTeal),
                 label: Text(
-                  'Optimize',
+                  'LocalLens Saathi',
                   style: LocalLensTypography.caption.copyWith(
                     fontWeight: FontWeight.w800,
                     color: LocalLensColors.textPrimary,
+                    fontSize: 11,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
                   minimumSize: const Size.fromHeight(48),
-                  side: const BorderSide(color: LocalLensColors.border),
+                  side: const BorderSide(color: LocalLensColors.primaryTeal, width: 1.2),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                  backgroundColor: Colors.white,
+                  backgroundColor: LocalLensColors.primaryTealSoft.withValues(alpha: 0.15),
                 ),
               ),
             ),

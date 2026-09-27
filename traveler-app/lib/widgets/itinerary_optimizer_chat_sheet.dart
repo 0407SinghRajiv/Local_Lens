@@ -55,23 +55,30 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
   bool _isRegenerating = false;
 
   final List<String> _quickSuggestions = [
+    '🏛️ Tell me about my stops & history',
+    '🍛 What local food should I try nearby?',
     '🏖️ Change food with beaches so generate it',
-    '🚫 I don\'t need food, remove all food experiences',
-    '🌿 More nature & scenic views',
-    '🏰 Focus on heritage & history',
-    '⚡ Add adventure & trekking',
     '⏱️ Optimize route sequence only',
+    '🛕 Any hidden cultural gems nearby?',
+    '💰 Reduce budget by ₹1000',
   ];
 
   @override
   void initState() {
     super.initState();
-    // Welcome message from the AI assistant
+    // Welcome message from LocalLens Saathi
+    final destination = widget.currentItinerary.destination.isNotEmpty
+        ? widget.currentItinerary.destination
+        : 'your trip';
     _messages.add(
       _ChatMessage(
-        text: 'Hi there! 👋 I am your AI Itinerary Optimizer.\n\n'
-            'Tell me what changes you would like in your itinerary—for example: '
-            '"*I want to change food with beaches so generate it*", add more adventure, or optimize travel route!',
+        text: 'Namaste! 🙏 I am **LocalLens Saathi** (लोकललेंस साथी), your personal local travel guide & itinerary companion.\n\n'
+            'I can:\n'
+            '• 🏛️ Share stories, history, timings & details for any stop in $destination\n'
+            '• 🍛 Recommend authentic local street food & must-try delicacies\n'
+            '• ⚡ Customize your itinerary (e.g. "*change food with beaches so generate it*")\n'
+            '• ⏱️ Optimize your route for the fastest travel sequence\n\n'
+            'How can I guide you today, dost?',
         isUser: false,
         timestamp: DateTime.now(),
       ),
@@ -119,6 +126,14 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
 
     final state = ref.read(itineraryProvider);
     final placeNames = widget.currentItinerary.items.map((i) => i.name).toList();
+    final placeDetails = widget.currentItinerary.items.map((i) => {
+      'name': i.name,
+      'category': i.category,
+      'location': i.location,
+      'description': i.description,
+      'price_inr': i.price,
+      'time_window': i.timeWindow,
+    }).toList();
 
     // Prepare chat history for context
     final history = <Map<String, String>>[];
@@ -138,6 +153,7 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
         durationHours: state.durationHours,
         currentPlaceNames: placeNames,
         chatHistory: history,
+        placesDetails: placeDetails,
       );
 
       if (!mounted) return;
@@ -165,7 +181,7 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
       if (result.isRouteReorderOnly) {
         // Fast route optimization
         await _executeRouteOptimization();
-      } else if (result.shouldRegenerate && hasGenerateDirective) {
+      } else if (!result.isInfoQuery && result.shouldRegenerate && hasGenerateDirective) {
         // Delay slightly for natural conversational feel then trigger regeneration
         await Future.delayed(const Duration(milliseconds: 1400));
         if (mounted) {
@@ -392,7 +408,7 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
                     Row(
                       children: [
                         Text(
-                          'Optimize Itinerary',
+                          'LocalLens Saathi',
                           style: LocalLensTypography.titleMedium.copyWith(
                             fontWeight: FontWeight.w800,
                             color: LocalLensColors.textPrimary,
@@ -402,15 +418,15 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: LocalLensColors.primaryTealSoft,
+                            color: const Color(0xFFFF9933).withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: Text(
-                            'GROQ AI',
-                            style: LocalLensTypography.caption.copyWith(
+                          child: const Text(
+                            '🇮🇳 SAATHI AI',
+                            style: TextStyle(
                               fontSize: 10,
                               fontWeight: FontWeight.w800,
-                              color: LocalLensColors.primaryTeal,
+                              color: Color(0xFFD97706),
                             ),
                           ),
                         ),
@@ -418,7 +434,7 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Ask AI to swap categories, modify stops, or optimize route',
+                      'Your Indian Travel Guide & Companion • Ask place info & customize trip',
                       style: LocalLensTypography.caption.copyWith(
                         color: LocalLensColors.textSecondary,
                       ),
@@ -693,7 +709,7 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
                 ),
                 const SizedBox(width: 10),
                 Text(
-                  'Groq AI thinking...',
+                  'LocalLens Saathi is thinking...',
                   style: LocalLensTypography.caption.copyWith(
                     color: LocalLensColors.textSecondary,
                     fontStyle: FontStyle.italic,
@@ -759,7 +775,7 @@ class _ItineraryOptimizerChatSheetState extends ConsumerState<ItineraryOptimizer
                 enabled: !_isProcessing && !_isRegenerating,
                 style: LocalLensTypography.bodyMedium,
                 decoration: InputDecoration(
-                  hintText: 'e.g. Change food with beaches so generate it...',
+                  hintText: 'Ask Saathi: e.g. "tell me about Belapur Fort" or "swap food with beaches"...',
                   hintStyle: LocalLensTypography.caption.copyWith(
                     color: LocalLensColors.textMuted,
                   ),
