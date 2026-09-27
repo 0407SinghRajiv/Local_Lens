@@ -14,7 +14,7 @@ class SettingsScreen extends ConsumerWidget {
     final userProfile = ref.watch(currentUserProfileProvider);
     final emailDisplay = userProfile?.email.isNotEmpty == true
         ? userProfile!.email
-        : 'rajiv@example.com';
+        : 'traveler@example.com';
 
     return Scaffold(
       backgroundColor: LocalLensColors.background,

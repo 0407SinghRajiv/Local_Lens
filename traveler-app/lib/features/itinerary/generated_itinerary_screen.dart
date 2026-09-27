@@ -1974,7 +1974,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                       ],
                     ),
                     Text(
-                      'Validation & smart suggestions for Rajiv\'s ML itinerary',
+                      'Validation & smart suggestions for your itinerary',
                       style: LocalLensTypography.caption.copyWith(
                         color: LocalLensColors.textSecondary,
                         fontSize: 11,
