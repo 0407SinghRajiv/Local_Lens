@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabaseClient";
+import { ExperienceDatabaseRow } from "@/types/experience";
 
-// Server-side in-memory cache partitioned strictly by provider ID / email
-// Ensures zero data leaks across providers and instant persistence
-const serverProviderRegistry: Map<string, any[]> = new Map();
+// Server-side provider registry for instant fallback & multi-tenant caching
+const serverProviderRegistry: Map<string, ExperienceDatabaseRow[]> = new Map();
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const providerId = searchParams.get("provider_id")?.trim();
     const providerEmail = searchParams.get("email")?.trim();
 
-    // Multi-tenant isolation rule: if no provider identity is provided, return empty
+    // If no provider identity is provided, return empty for security & multi-tenant isolation
     if (!providerId && !providerEmail) {
       return NextResponse.json({ success: true, data: [] });
     }
@@ -25,13 +25,15 @@ export async function GET(request: Request) {
     try {
       const filters: string[] = [];
       if (cleanId) {
+        filters.push(`provider_id.eq.${cleanId}`);
+        filters.push(`user_id.eq.${cleanId}`);
         filters.push(`source_url.ilike.%/provider/${cleanId}%`);
         filters.push(`source_name.ilike.%${cleanId}%`);
         filters.push(`tags.ilike.%provider:${cleanId}%`);
       }
       if (cleanEmail && cleanEmail !== "provider@locallens.in") {
+        filters.push(`provider_email.eq.${cleanEmail}`);
         filters.push(`source_url.ilike.%${cleanEmail}%`);
-        filters.push(`source_name.ilike.%${cleanEmail}%`);
         filters.push(`tags.ilike.%provider_email:${cleanEmail}%`);
       }
 
@@ -77,153 +79,119 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as ExperienceDatabaseRow;
+
+    if (!body || !body.experience_name) {
+      return NextResponse.json(
+        { success: false, error: "Invalid experience data: name is required" },
+        { status: 400 }
+      );
+    }
 
     const providerId = (body.provider_id || "provider_default").trim();
     const providerEmail = (body.provider_email || "").trim();
     const cleanId = providerId.toLowerCase();
     const cleanEmail = providerEmail.toLowerCase();
 
-    // Prepare tags with provider ownership stamps
-    const existingTags = Array.isArray(body.tags)
-      ? body.tags
-      : typeof body.tags === "string"
-      ? body.tags.split(",").map((t: string) => t.trim()).filter(Boolean)
-      : [];
-
-    const enrichedTags = Array.from(
-      new Set([
-        ...existingTags,
-        `provider:${cleanId}`,
-        ...(cleanEmail ? [`provider_email:${cleanEmail}`] : []),
-      ])
-    ).join(", ");
-
-    // Map exact columns of Supabase experience table matching database schema
-    const experienceRecord = {
-      experience_id: body.experience_id || `EXP-${Date.now().toString(36).toUpperCase()}`,
-      experience_name: body.experience_name || "New Experience",
-      category: body.category || "Nature & Adventure",
-      sub_category: body.sub_category || "Guided Tour",
-      description: body.description || "",
+    // 1. Build the full 52-column record
+    const experienceRecord: ExperienceDatabaseRow = {
+      experience_id: body.experience_id || `LL-EXP-${Date.now().toString(36).toUpperCase()}`,
+      experience_name: body.experience_name.trim(),
       city: body.city || "Mumbai",
-      district: body.district || "Mumbai Suburban",
+      district: body.district || body.city || "Mumbai",
       state: body.state || "Maharashtra",
       region: body.region || "Konkan",
-      latitude: Number(body.latitude) || 19.131102,
-      longitude: Number(body.longitude) || 72.81541,
-      price_inr: typeof body.price_inr === "string" ? body.price_inr : `₹${body.price_inr || 1200}`,
-      price_inr_clean: Number(body.price_inr_clean) || 1200,
-      duration_hours:
-        typeof body.duration_hours === "string"
-          ? body.duration_hours
-          : `${body.duration_hours || 2} hours`,
-      rating: Number(body.rating) || 5.0,
-      review_count: Number(body.review_count) || 1,
-      tags: enrichedTags,
-      image_url:
-        body.image_url ||
-        (Array.isArray(body.images) && body.images[0]) ||
-        "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=800&q=80",
-      images: Array.isArray(body.images) && body.images.length > 0 ? body.images : [body.image_url],
-      source_name: `provider:${cleanId}`,
-      source_url: `https://locallens.in/provider/${cleanId}`,
-      last_verified: new Date().toISOString(),
-      booking_required: "Yes",
-      advance_booking_days: "1 day",
-      availability: body.availability || "Daily",
-      accessibility: body.accessibility || "Standard",
-      local_experience: body.local_experience || "Yes",
-      hidden_gem: body.hidden_gem || "Yes",
-      indoor_outdoor: body.indoor_outdoor || "Outdoor",
-      best_time: body.best_time || "Sunset 05:30 PM",
-      best_for: body.best_for || "Travelers & Explorers",
-      season: body.season || "All Year",
+      latitude: Number(body.latitude) || 19.076,
+      longitude: Number(body.longitude) || 72.8777,
+      category: body.category || "Adventure",
+      sub_category: body.sub_category || "Kayaking",
+      description: body.description || "",
+      tags: typeof body.tags === "string" ? body.tags : Array.isArray(body.tags) ? (body.tags as string[]).join(";") : "",
+      price_inr: String(body.price_inr || body.price_inr_clean || "0"),
+      duration_hours: String(body.duration_hours || body.duration_hours_clean || "2"),
+      best_for: body.best_for || "Travelers;Families",
       min_group_size: Number(body.min_group_size) || 1,
-      max_group_size: Number(body.max_group_size) || 8,
+      max_group_size: body.max_group_size !== undefined && body.max_group_size !== null ? Number(body.max_group_size) : null,
+      rating: null, // STRICT: No fake ratings
+      review_count: null, // STRICT: No fake review count
+      best_time: body.best_time || "Morning or evening",
+      season: body.season || "All",
+      indoor_outdoor: body.indoor_outdoor || "Outdoor",
+      booking_required: body.booking_required || "Yes",
+      advance_booking_days: String(body.advance_booking_days || "0"),
+      availability: body.availability || "Daily",
+      accessibility: body.accessibility || "Wheelchair accessible partially",
+      local_experience: body.local_experience || "Yes",
+      hidden_gem: body.hidden_gem || "No",
+      estimated_travel_time_from_city_center: body.estimated_travel_time_from_city_center || null,
+      estimated_travel_time_from_panvel: body.estimated_travel_time_from_panvel || null,
+      source_name: body.source_name || "LocalLens Provider",
+      source_url: body.source_url || null,
+      last_verified: body.last_verified || new Date().toISOString().slice(0, 7),
+      price_inr_clean: Number(body.price_inr_clean) || 0,
+      duration_hours_clean: Number(body.duration_hours_clean) || 2,
+      advance_booking_days_clean: Number(body.advance_booking_days_clean) || 0,
+      travel_time_city_center_min: body.travel_time_city_center_min !== undefined ? body.travel_time_city_center_min : null,
+      travel_time_panvel_hrs: body.travel_time_panvel_hrs !== undefined ? body.travel_time_panvel_hrs : null,
+      travel_dist_panvel_km: body.travel_dist_panvel_km !== undefined ? body.travel_dist_panvel_km : null,
+      local_experience_bool: body.local_experience_bool !== undefined ? Boolean(body.local_experience_bool) : true,
+      hidden_gem_bool: body.hidden_gem_bool !== undefined ? Boolean(body.hidden_gem_bool) : false,
+      booking_required_detail: body.booking_required_detail || body.booking_required || "Yes",
+      booking_required_bool: body.booking_required_bool !== undefined ? Boolean(body.booking_required_bool) : true,
+      indoor_outdoor_clean: body.indoor_outdoor_clean || body.indoor_outdoor || "Outdoor",
+      rating_missing: true,
+      review_count_missing: true,
+      max_group_size_missing: body.max_group_size === null || body.max_group_size === undefined,
+      image_url: body.image_url || "https://images.unsplash.com/photo-1544551763-46a013bb70d5",
+      image_note: body.image_note || null,
       provider_id: cleanId,
-      user_id: cleanId,
+      user_id: body.user_id || cleanId,
       provider_email: cleanEmail,
     };
 
-    // 1. Save to in-memory server registry partition for this provider
+    // 2. Persist in memory registry
     const existingForId = serverProviderRegistry.get(cleanId) || [];
     serverProviderRegistry.set(
       cleanId,
       [experienceRecord, ...existingForId.filter((x) => x.experience_id !== experienceRecord.experience_id)]
     );
-    if (cleanEmail && cleanEmail !== cleanId) {
-      const existingForEmail = serverProviderRegistry.get(cleanEmail) || [];
-      serverProviderRegistry.set(
-        cleanEmail,
-        [experienceRecord, ...existingForEmail.filter((x) => x.experience_id !== experienceRecord.experience_id)]
-      );
-    }
 
-    // 2. Persist to Supabase experience table (using exact 32 table columns)
+    // 3. Persist to Supabase public.experience table
     let dbSuccess = false;
     let dbWarning: string | null = null;
-    try {
-      const cleanDbPayload = {
-        experience_id: experienceRecord.experience_id,
-        experience_name: experienceRecord.experience_name,
-        city: experienceRecord.city,
-        district: experienceRecord.district,
-        state: experienceRecord.state,
-        region: experienceRecord.region,
-        latitude: experienceRecord.latitude,
-        longitude: experienceRecord.longitude,
-        category: experienceRecord.category,
-        sub_category: experienceRecord.sub_category,
-        description: experienceRecord.description,
-        tags: experienceRecord.tags,
-        price_inr: experienceRecord.price_inr,
-        duration_hours: experienceRecord.duration_hours,
-        best_for: experienceRecord.best_for,
-        min_group_size: experienceRecord.min_group_size,
-        max_group_size: experienceRecord.max_group_size,
-        rating: experienceRecord.rating,
-        review_count: experienceRecord.review_count,
-        best_time: experienceRecord.best_time,
-        season: experienceRecord.season,
-        indoor_outdoor: experienceRecord.indoor_outdoor,
-        booking_required: experienceRecord.booking_required,
-        advance_booking_days: experienceRecord.advance_booking_days,
-        availability: experienceRecord.availability,
-        accessibility: experienceRecord.accessibility,
-        local_experience: experienceRecord.local_experience,
-        hidden_gem: experienceRecord.hidden_gem,
-        image_url: experienceRecord.image_url,
-        source_name: experienceRecord.source_name,
-        source_url: experienceRecord.source_url,
-        provider_id: experienceRecord.provider_id,
-        user_id: experienceRecord.user_id,
-        provider_email: experienceRecord.provider_email,
-        last_verified: experienceRecord.last_verified,
-      };
+    let insertedRow: any = null;
 
+    try {
       const { data: existingRow } = await supabase
         .from("experience")
         .select("experience_id")
-        .eq("experience_id", cleanDbPayload.experience_id)
+        .eq("experience_id", experienceRecord.experience_id)
         .maybeSingle();
 
       if (existingRow) {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("experience")
-          .update(cleanDbPayload)
-          .eq("experience_id", cleanDbPayload.experience_id);
+          .update(experienceRecord)
+          .eq("experience_id", experienceRecord.experience_id)
+          .select()
+          .single();
         if (error) {
           dbWarning = error.message;
         } else {
           dbSuccess = true;
+          insertedRow = data;
         }
       } else {
-        const { error } = await supabase.from("experience").insert(cleanDbPayload);
+        const { data, error } = await supabase
+          .from("experience")
+          .insert([experienceRecord])
+          .select()
+          .single();
         if (error) {
           dbWarning = error.message;
         } else {
           dbSuccess = true;
+          insertedRow = data;
         }
       }
     } catch (dbErr: any) {
@@ -234,10 +202,9 @@ export async function POST(request: Request) {
       success: true,
       dbSuccess,
       warning: dbWarning,
-      record: experienceRecord,
+      record: insertedRow || experienceRecord,
     });
   } catch (err: any) {
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
-

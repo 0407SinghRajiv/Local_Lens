@@ -31,7 +31,7 @@ const LeafletPinDropper = dynamic(
 
 interface GoogleMapPinDropperProps {
   position: { lat: number; lng: number };
-  onPinSelected: (coords: { lat: number; lng: number }) => void;
+  onPinSelected: (coords: { lat: number; lng: number; address?: string; city?: string; district?: string; state?: string }) => void;
   venueName?: string;
   zoom?: number;
 }
