@@ -31,6 +31,9 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
   bool _isSaving = false;
   bool _isSaved = false;
 
+  String _selectedWeatherCondition = 'Live';
+  bool _isWeatherAdapting = false;
+
   final List<VehicleOption> _vehicles = VehicleOption.defaultOptions;
 
   @override
@@ -286,6 +289,11 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
 
               // LIVE BUDGET & EXPENSES TRACKER WITH DEMO SIMULATOR BUTTON
               _buildBudgetAndSimulatorBanner(itinerary, itineraryNotifier),
+
+              const SizedBox(height: 18),
+
+              // WEATHER FORECASTING & CONDITIONS CONTROLLER
+              _buildWeatherConditionsCard(itinerary, itineraryNotifier),
 
               // NUGEN AI VALIDATION & ENHANCEMENT LAYER
               if (itinerary.nugen != null && itinerary.nugen!.enabled) ...[
@@ -629,6 +637,8 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 6),
+                                    _buildExperienceWeatherBadge(item, _selectedWeatherCondition, itinerary),
                                   ],
                                 ),
                                 // Selection Checkbox
@@ -2207,5 +2217,522 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
         ],
       ),
     );
+  }
+
+  // ==========================================
+  // WEATHER CONDITIONS & METEOROLOGICAL INTELLIGENCE
+  // ==========================================
+  Widget _buildWeatherConditionsCard(Itinerary itinerary, ItineraryNotifier notifier) {
+    final liveWeather = itinerary.nugen?.weather;
+    final currentLiveCond = liveWeather?['condition']?.toString() ?? 'Clear Sky';
+    final currentLiveTemp = liveWeather?['temperature']?.toString() ?? '28°C';
+
+    final weatherScenarios = [
+      {
+        'id': 'Live',
+        'label': 'Live GPS',
+        'icon': Icons.my_location_rounded,
+        'temp': currentLiveTemp,
+        'cond': currentLiveCond,
+        'rain': '${liveWeather?['rainfall_mm'] ?? 0.0} mm',
+        'wind': liveWeather?['wind_speed_kmh']?.toString() ?? '8.5 km/h',
+        'humidity': '${liveWeather?['humidity_pct'] ?? 60}%',
+        'color': LocalLensColors.primaryTeal,
+      },
+      {
+        'id': 'Clear Sky',
+        'label': 'Clear & Sunny',
+        'icon': Icons.wb_sunny_rounded,
+        'temp': '29°C',
+        'cond': 'Clear & Sunny',
+        'rain': '0.0 mm',
+        'wind': '8.5 km/h',
+        'humidity': '42%',
+        'color': Colors.amber.shade700,
+      },
+      {
+        'id': 'Partly Cloudy',
+        'label': 'Partly Cloudy',
+        'icon': Icons.wb_cloudy_rounded,
+        'temp': '26°C',
+        'cond': 'Partly Cloudy',
+        'rain': '0.0 mm',
+        'wind': '11.0 km/h',
+        'humidity': '55%',
+        'color': Colors.blueGrey,
+      },
+      {
+        'id': 'Rain Showers',
+        'label': 'Rain Showers',
+        'icon': Icons.grain_rounded,
+        'temp': '22°C',
+        'cond': 'Rain Showers',
+        'rain': '12.5 mm',
+        'wind': '18.0 km/h',
+        'humidity': '89%',
+        'color': Colors.blue,
+      },
+      {
+        'id': 'Heavy Thunderstorm',
+        'label': 'Thunderstorm',
+        'icon': Icons.thunderstorm_rounded,
+        'temp': '19°C',
+        'cond': 'Heavy Thunderstorm',
+        'rain': '28.0 mm',
+        'wind': '34.0 km/h',
+        'humidity': '96%',
+        'color': Colors.deepPurple,
+      },
+      {
+        'id': 'Extreme Heat',
+        'label': 'Extreme Heat',
+        'icon': Icons.local_fire_department_rounded,
+        'temp': '38°C',
+        'cond': 'Extreme Heat',
+        'rain': '0.0 mm',
+        'wind': '6.0 km/h',
+        'humidity': '32%',
+        'color': Colors.deepOrange,
+      },
+      {
+        'id': 'Hazy / Foggy',
+        'label': 'Foggy / Haze',
+        'icon': Icons.cloud_queue_rounded,
+        'temp': '20°C',
+        'cond': 'Hazy / Foggy',
+        'rain': '0.0 mm',
+        'wind': '4.5 km/h',
+        'humidity': '82%',
+        'color': Colors.grey.shade700,
+      },
+    ];
+
+    final activeScenario = weatherScenarios.firstWhere(
+      (s) => s['id'] == _selectedWeatherCondition,
+      orElse: () => weatherScenarios.first,
+    );
+
+    final activeCondName = (_selectedWeatherCondition == 'Live' ? currentLiveCond : (activeScenario['cond'] as String)).toLowerCase();
+    final isRainOrStorm = activeCondName.contains('rain') || activeCondName.contains('storm');
+    final isExtremeHeat = activeCondName.contains('heat');
+
+    // Count outdoor vs indoor stops in the itinerary
+    final outdoorStops = itinerary.items.where((it) => it.isOutdoor).toList();
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isRainOrStorm
+              ? Colors.blue.withValues(alpha: 0.4)
+              : (isExtremeHeat ? Colors.deepOrange.withValues(alpha: 0.4) : LocalLensColors.border),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header Row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: (activeScenario['color'] as Color).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  activeScenario['icon'] as IconData,
+                  color: activeScenario['color'] as Color,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Weather & Environment',
+                          style: LocalLensTypography.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: LocalLensColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: _selectedWeatherCondition == 'Live'
+                                ? LocalLensColors.primaryTeal.withOpacity(0.1)
+                                : Colors.purple.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _selectedWeatherCondition == 'Live' ? 'Live Telemetry' : 'Scenario Mode',
+                            style: LocalLensTypography.caption.copyWith(
+                              color: _selectedWeatherCondition == 'Live'
+                                  ? LocalLensColors.primaryTeal
+                                  : Colors.purple,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Live meteorological condition & scenario-adapted itinerary',
+                      style: LocalLensTypography.caption.copyWith(
+                        color: LocalLensColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Weather Telemetry Metrics Pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: LocalLensColors.surfaceSecondary,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: LocalLensColors.borderLight),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildWeatherMetric(Icons.thermostat_rounded, '${activeScenario['temp']}'),
+                _buildWeatherMetric(Icons.water_drop_outlined, 'Rain: ${activeScenario['rain']}'),
+                _buildWeatherMetric(Icons.air_rounded, '${activeScenario['wind']}'),
+                _buildWeatherMetric(Icons.opacity_rounded, 'Hum: ${activeScenario['humidity']}'),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 14),
+
+          // Weather Condition Scenario Chips
+          Text(
+            'Select Weather Condition Scenario:',
+            style: LocalLensTypography.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: LocalLensColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: weatherScenarios.map((scenario) {
+                final isSelected = _selectedWeatherCondition == scenario['id'];
+                final chipColor = scenario['color'] as Color;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(20),
+                    onTap: () {
+                      setState(() {
+                        _selectedWeatherCondition = scenario['id'] as String;
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isSelected ? chipColor : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: isSelected ? chipColor : LocalLensColors.border,
+                          width: isSelected ? 1.5 : 1.0,
+                        ),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: chipColor.withValues(alpha: 0.3),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            scenario['icon'] as IconData,
+                            size: 13,
+                            color: isSelected ? Colors.white : chipColor,
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            scenario['label'] as String,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                              color: isSelected ? Colors.white : LocalLensColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // Weather Impact Alert & Action Box
+          if (isRainOrStorm) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.blue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.thunderstorm_rounded, size: 16, color: Colors.blue),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Weather Alert: ${activeScenario['cond']}',
+                        style: LocalLensTypography.caption.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    outdoorStops.isNotEmpty
+                        ? 'Found ${outdoorStops.length} open-air stops (${outdoorStops.take(2).map((e) => e.experienceName).join(', ')}). Rain/storm precipitation may disrupt outdoor visits. We recommend carrying rain protection or adapting your itinerary for sheltered indoor spots.'
+                        : 'All scheduled stops are sheltered indoor venues. Great plan for rainy conditions!',
+                    style: LocalLensTypography.caption.copyWith(
+                      color: LocalLensColors.textPrimary,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 38,
+                    child: ElevatedButton.icon(
+                      onPressed: _isWeatherAdapting
+                          ? null
+                          : () async {
+                              setState(() => _isWeatherAdapting = true);
+                              await notifier.adaptItineraryForWeather(_selectedWeatherCondition);
+                              if (mounted) {
+                                setState(() => _isWeatherAdapting = false);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Itinerary adapted for $_selectedWeatherCondition! Sheltered indoor stops prioritized.'),
+                                    backgroundColor: LocalLensColors.primaryTeal,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            },
+                      icon: _isWeatherAdapting
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.auto_fix_high_rounded, size: 16),
+                      label: Text(
+                        _isWeatherAdapting ? 'Adapting Itinerary...' : 'Adapt Itinerary for ${activeScenario['label']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blue.shade700,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else if (isExtremeHeat) ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.deepOrange.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.deepOrange.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wb_sunny_rounded, size: 16, color: Colors.deepOrange),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Extreme Heat (38°C): Stay hydrated. Outdoor stops are best visited before 11 AM or after 4 PM.',
+                      style: LocalLensTypography.caption.copyWith(
+                        color: Colors.deepOrange.shade900,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ] else ...[
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle_outline_rounded, size: 16, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Optimal weather! Excellent conditions for open-air sightseeing, beach visits, and walking tours.',
+                      style: LocalLensTypography.caption.copyWith(
+                        color: Colors.green.shade900,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherMetric(IconData icon, String value) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: LocalLensColors.textSecondary),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: LocalLensTypography.caption.copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: 11,
+            color: LocalLensColors.textPrimary,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExperienceWeatherBadge(
+    ItineraryItem item,
+    String activeWeather,
+    Itinerary itinerary,
+  ) {
+    final liveWeather = itinerary.nugen?.weather;
+    final currentCond = (activeWeather == 'Live'
+            ? (liveWeather?['condition']?.toString() ?? 'Clear Sky')
+            : activeWeather)
+        .toLowerCase();
+
+    final isRainOrStorm = currentCond.contains('rain') || currentCond.contains('storm');
+    final isExtremeHeat = currentCond.contains('heat');
+
+    if (isRainOrStorm) {
+      if (item.isOutdoor) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.amber.shade100,
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(color: Colors.amber.shade400, width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.umbrella_rounded, size: 10, color: Colors.deepOrange),
+              SizedBox(width: 3),
+              Text(
+                'Outdoor (Rain Risk)',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+              ),
+            ],
+          ),
+        );
+      } else {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(5),
+            border: Border.all(color: Colors.teal.shade200, width: 0.8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.shield_outlined, size: 10, color: LocalLensColors.primaryTeal),
+              SizedBox(width: 3),
+              Text(
+                'Sheltered Indoor',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: LocalLensColors.primaryTeal),
+              ),
+            ],
+          ),
+        );
+      }
+    } else if (isExtremeHeat && item.isOutdoor) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.orange.shade50,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: const Text(
+          '☀️ High UV',
+          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.deepOrange),
+        ),
+      );
+    } else if (item.isOutdoor) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.lightBlue.shade50,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: const Text(
+          '☀️ Outdoor Spot',
+          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue),
+        ),
+      );
+    }
+    return const SizedBox.shrink();
   }
 }

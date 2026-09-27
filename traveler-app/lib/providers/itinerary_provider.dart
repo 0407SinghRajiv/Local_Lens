@@ -44,6 +44,7 @@ class CreateItineraryState {
   final String? error;
   final Itinerary? generatedItinerary;
   final List<Itinerary> savedTrips;
+  final String activeWeatherCondition;
 
   const CreateItineraryState({
     this.locationMode = LocationMode.destination,
@@ -70,6 +71,7 @@ class CreateItineraryState {
     this.error,
     this.generatedItinerary,
     this.savedTrips = const [],
+    this.activeWeatherCondition = 'Live',
   });
 
   /// Form validation rule:
@@ -113,6 +115,7 @@ class CreateItineraryState {
     String? error,
     Itinerary? generatedItinerary,
     List<Itinerary>? savedTrips,
+    String? activeWeatherCondition,
   }) {
     return CreateItineraryState(
       locationMode: locationMode ?? this.locationMode,
@@ -139,6 +142,7 @@ class CreateItineraryState {
       error: error,
       generatedItinerary: generatedItinerary ?? this.generatedItinerary,
       savedTrips: savedTrips ?? this.savedTrips,
+      activeWeatherCondition: activeWeatherCondition ?? this.activeWeatherCondition,
     );
   }
 }
@@ -377,8 +381,41 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     }
   }
 
+  void setWeatherCondition(String condition) {
+    state = state.copyWith(activeWeatherCondition: condition);
+  }
+
+  /// Adapt current itinerary according to specified weather condition
+  Future<Itinerary?> adaptItineraryForWeather(String weatherCondition) async {
+    state = state.copyWith(activeWeatherCondition: weatherCondition);
+    final currentItin = state.generatedItinerary;
+    if (currentItin == null) return null;
+
+    final isRainOrStorm = weatherCondition.toLowerCase().contains('rain') ||
+        weatherCondition.toLowerCase().contains('storm');
+
+    // Adapt items ordering for weather
+    List<ItineraryItem> adaptedItems = List.from(currentItin.items);
+    if (isRainOrStorm) {
+      adaptedItems.sort((a, b) {
+        if (a.isShelteredIndoor && b.isOutdoor) return -1;
+        if (a.isOutdoor && b.isShelteredIndoor) return 1;
+        return 0;
+      });
+    }
+
+    try {
+      final updatedItin = await generateFinalItinerary(weatherOverride: weatherCondition);
+      return updatedItin ?? currentItin.copyWith(items: adaptedItems);
+    } catch (_) {
+      final fallbackAdapted = currentItin.copyWith(items: adaptedItems);
+      state = state.copyWith(generatedItinerary: fallbackAdapted);
+      return fallbackAdapted;
+    }
+  }
+
   /// STAGE 2: Generate Chronological Itinerary from selected experiences + start time
-  Future<Itinerary?> generateFinalItinerary() async {
+  Future<Itinerary?> generateFinalItinerary({String? weatherOverride}) async {
     state = state.copyWith(
       status: ItineraryFormStatus.generating,
       error: null,
@@ -406,6 +443,8 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
 
       debugPrint('[ItineraryProvider] Requested: $targetCount, Selected: ${selectedPlacesList.length}, Sent to backend: ${selectedList.length}');
 
+      final activeCondition = weatherOverride ?? (state.activeWeatherCondition != 'Live' ? state.activeWeatherCondition : null);
+
       final itinerary = await ItineraryApiService.generateItinerary(
         destination: dest,
         tripDate: state.tripDate,
@@ -419,6 +458,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         selectedPlacesModels: selectedPlacesList,
         travelerCount: state.travelerCount,
         travelerType: state.groupType,
+        weatherCondition: activeCondition,
       );
 
       debugPrint('[ItineraryProvider] Returned itinerary stops: ${itinerary.items.length}');
@@ -602,3 +642,6 @@ final itineraryProvider =
     StateNotifierProvider<ItineraryNotifier, CreateItineraryState>((ref) {
   return ItineraryNotifier();
 });
+
+/// Alias for backward compatibility
+final createItineraryProvider = itineraryProvider;

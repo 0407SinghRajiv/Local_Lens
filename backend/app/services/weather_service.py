@@ -45,8 +45,71 @@ WMO_CODE_MAP = {
 }
 
 
+WEATHER_CONDITION_PROFILES = {
+    "clear sky": {
+        "condition": "Clear & Sunny",
+        "temperature": "29°C",
+        "temperature_c": 29.0,
+        "rainfall_mm": 0.0,
+        "humidity_pct": 42,
+        "wind_speed_kmh": "8.5 km/h",
+        "summary": "Favorable dry conditions. Ideal for outdoor sightseeing and beach stops.",
+    },
+    "partly cloudy": {
+        "condition": "Partly Cloudy",
+        "temperature": "26°C",
+        "temperature_c": 26.0,
+        "rainfall_mm": 0.0,
+        "humidity_pct": 55,
+        "wind_speed_kmh": "11.0 km/h",
+        "summary": "Mild pleasant weather with partial cloud cover.",
+    },
+    "rain": {
+        "condition": "Rain Showers",
+        "temperature": "22°C",
+        "temperature_c": 22.0,
+        "rainfall_mm": 12.5,
+        "humidity_pct": 89,
+        "wind_speed_kmh": "18.0 km/h",
+        "summary": "Moderate precipitation. Outdoor stops require rain gear; indoor stops recommended.",
+    },
+    "thunderstorm": {
+        "condition": "Heavy Thunderstorm",
+        "temperature": "19°C",
+        "temperature_c": 19.0,
+        "rainfall_mm": 28.0,
+        "humidity_pct": 96,
+        "wind_speed_kmh": "34.0 km/h",
+        "summary": "Severe thunderstorm and strong winds. Avoid open water, beaches, and high viewpoints.",
+    },
+    "extreme heat": {
+        "condition": "Extreme Heat",
+        "temperature": "38°C",
+        "temperature_c": 38.0,
+        "rainfall_mm": 0.0,
+        "humidity_pct": 32,
+        "wind_speed_kmh": "6.0 km/h",
+        "summary": "High UV index. Schedule outdoor activities during early morning or sunset.",
+    },
+    "foggy": {
+        "condition": "Hazy / Foggy",
+        "temperature": "20°C",
+        "temperature_c": 20.0,
+        "rainfall_mm": 0.0,
+        "humidity_pct": 82,
+        "wind_speed_kmh": "4.5 km/h",
+        "summary": "Reduced visibility. Plan extra transit time between stops.",
+    },
+}
+
+
 class WeatherService:
     """Service layer for weather ingestion and condition assessment."""
+
+    @classmethod
+    def get_all_weather_conditions(cls) -> Dict[str, Dict[str, Any]]:
+        """Returns standard meteorological scenarios for simulation and planning."""
+        return WEATHER_CONDITION_PROFILES
 
     @classmethod
     async def get_weather_forecast(
@@ -54,9 +117,10 @@ class WeatherService:
         lat: Optional[float] = None,
         lon: Optional[float] = None,
         destination: Optional[str] = None,
+        override_condition: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Fetches external meteorological data from Open-Meteo API.
+        Fetches external meteorological data from Open-Meteo API or resolves a specified weather scenario.
         Non-blocking with fast timeout and fallback.
         """
         # Resolve coordinates
@@ -73,6 +137,19 @@ class WeatherService:
         if target_lat is None or target_lon is None:
             # Default to Mumbai / Navi Mumbai region
             target_lat, target_lon = 18.9894, 73.1175
+
+        # Check if caller requested a specific weather condition scenario
+        if override_condition:
+            norm_cond = override_condition.strip().lower()
+            for key, profile in WEATHER_CONDITION_PROFILES.items():
+                if key in norm_cond or norm_cond in key:
+                    return {
+                        **profile,
+                        "source": "simulated_scenario",
+                        "is_simulated": True,
+                        "latitude": target_lat,
+                        "longitude": target_lon,
+                    }
 
         try:
             url = (
@@ -98,6 +175,7 @@ class WeatherService:
                         "humidity_pct": 65,
                         "wind_speed_kmh": f"{wind} km/h",
                         "source": "open-meteo",
+                        "is_simulated": False,
                         "latitude": target_lat,
                         "longitude": target_lon,
                     }
@@ -113,6 +191,7 @@ class WeatherService:
             "humidity_pct": 60,
             "wind_speed_kmh": "12 km/h",
             "source": "local_estimate",
+            "is_simulated": False,
             "latitude": target_lat,
             "longitude": target_lon,
         }

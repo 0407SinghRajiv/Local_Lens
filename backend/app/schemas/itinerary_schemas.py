@@ -43,6 +43,10 @@ class ItineraryGenerateRequest(BaseModel):
     group_type: Optional[str] = Field(default=None, description="Group type (Solo, Couple, Friends, Family, Group)")
     traveler_type: Optional[str] = Field(default=None, description="Group type alias")
 
+    # Environmental & Weather Context
+    weather_condition: Optional[str] = Field(default=None, description="Simulated or active weather condition (e.g. 'Clear Sky', 'Rain Showers', 'Thunderstorm', 'Extreme Heat')")
+    weather_data: Optional[Dict[str, Any]] = Field(default=None, description="Custom meteorological data override")
+
     @model_validator(mode="after")
     def normalize_fields(self):
         if self.budget_inr is None and self.budget is not None:

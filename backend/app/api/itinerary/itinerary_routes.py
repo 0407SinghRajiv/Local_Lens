@@ -55,6 +55,7 @@ async def generate_itinerary(request: ItineraryGenerateRequest):
                         lat=request.user_lat or request.start_lat,
                         lon=request.user_lon or request.start_lon,
                         destination=request.destination,
+                        override_condition=request.weather_condition,
                     )
                 except Exception as w_err:
                     logger.debug(f"[NUGEN] Weather context fetch skipped: {w_err}")
@@ -289,3 +290,9 @@ Guidelines:
         should_regenerate=bool(remove_list or add_list or "generate" in lower),
         is_route_reorder_only=is_reorder,
     )
+
+
+@router.get("/weather/conditions")
+async def get_weather_conditions():
+    """Returns all available meteorological profiles for weather simulation and planning."""
+    return WeatherService.get_all_weather_conditions()

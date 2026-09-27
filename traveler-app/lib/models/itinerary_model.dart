@@ -89,6 +89,27 @@ class ItineraryItem {
 
   double get effectiveExpense => actualExpense ?? price;
 
+  bool get isOutdoor {
+    final cat = category.toLowerCase();
+    final name = experienceName.toLowerCase();
+    final desc = description.toLowerCase();
+    final combined = '$cat $name $desc';
+    return combined.contains('beach') ||
+        combined.contains('trek') ||
+        combined.contains('hike') ||
+        combined.contains('waterfall') ||
+        combined.contains('park') ||
+        combined.contains('garden') ||
+        combined.contains('viewpoint') ||
+        combined.contains('promenade') ||
+        combined.contains('lake') ||
+        combined.contains('outdoor') ||
+        combined.contains('coastal') ||
+        combined.contains('fort');
+  }
+
+  bool get isShelteredIndoor => !isOutdoor;
+
   ItineraryItem copyWith({
     String? id,
     String? experienceName,

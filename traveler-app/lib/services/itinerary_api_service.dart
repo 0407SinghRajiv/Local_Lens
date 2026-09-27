@@ -173,6 +173,7 @@ class ItineraryApiService {
     List<RecommendationModel>? selectedPlacesModels,
     required int travelerCount,
     required String travelerType,
+    String? weatherCondition,
   }) async {
     final activeBase = await resolveBaseUrl();
     final url = '$activeBase/api/itinerary/generate';
@@ -193,6 +194,7 @@ class ItineraryApiService {
       'traveler_count': travelerCount,
       'traveler_type': travelerType,
       'group_type': travelerType,
+      if (weatherCondition != null) 'weather_condition': weatherCondition,
     };
 
     try {

@@ -265,17 +265,60 @@ class NugenValidator:
                 ))
 
         # ----------------------------------------------------
-        # Weather Context (Optional non-destructive advisory)
+        # Weather Context (Section 20 Non-destructive advisory)
         # ----------------------------------------------------
         if weather:
             cond = str(weather.get("condition", "")).lower()
+            outdoor_stops = []
+            indoor_stops = []
+            for item in scheduled:
+                name = item.get("name") or item.get("experience_name", "")
+                cat = str(item.get("category", "")).lower()
+                desc = str(item.get("description", "")).lower()
+                combined_text = f"{name} {cat} {desc}".lower()
+                if any(k in combined_text for k in ["beach", "trek", "hike", "waterfall", "park", "garden", "viewpoint", "promenade", "lake", "outdoor", "coastal", "fort"]):
+                    outdoor_stops.append(name)
+                else:
+                    indoor_stops.append(name)
+
             if "rain" in cond or "storm" in cond:
-                enhancements.append(NugenEnhancement(
-                    type="weather_advisory",
-                    suggestion="Weather advisory: Precipitation forecast during trip hours. Carry rain protection or prioritize indoor sections.",
-                    reason=f"Current weather forecast: {weather.get('condition')}",
-                    based_on="weather_service",
-                ))
+                severity = "high" if "storm" in cond else "medium"
+                if outdoor_stops:
+                    issues.append(NugenIssue(
+                        type="weather_outdoor_alert",
+                        severity=severity,
+                        message=f"{weather.get('condition')} forecast: {len(outdoor_stops)} open-air activities ({', '.join(outdoor_stops[:2])}) may experience precipitation or transit delays.",
+                        affected_items=outdoor_stops,
+                    ))
+                    enhancements.append(NugenEnhancement(
+                        type="weather_adaptation",
+                        suggestion=f"Carry rain gear for {', '.join(outdoor_stops[:2])}. If rain intensifies, spend more time at sheltered indoor cultural stops.",
+                        reason=f"Forecast: {weather.get('condition')} ({weather.get('rainfall_mm', 0)} mm precipitation)",
+                        based_on="weather_forecast",
+                    ))
+                else:
+                    enhancements.append(NugenEnhancement(
+                        type="weather_alignment",
+                        suggestion="All stops are well-sheltered or indoor-friendly. Highly resilient against rain and storms!",
+                        reason=f"Forecast: {weather.get('condition')}",
+                        based_on="weather_forecast",
+                    ))
+            elif "heat" in cond:
+                if outdoor_stops:
+                    enhancements.append(NugenEnhancement(
+                        type="weather_heat_advisory",
+                        suggestion="High temperature forecast. Stay hydrated and schedule open-air stops in morning or sunset hours.",
+                        reason=f"Forecast: {weather.get('condition')} ({weather.get('temperature')})",
+                        based_on="weather_forecast",
+                    ))
+            elif "clear" in cond or "sunny" in cond:
+                if outdoor_stops:
+                    enhancements.append(NugenEnhancement(
+                        type="weather_favorable",
+                        suggestion="Optimal clear weather for outdoor exploration, coastal views, and sightseeing!",
+                        reason=f"Forecast: {weather.get('condition')}",
+                        based_on="weather_forecast",
+                    ))
 
         # ----------------------------------------------------
         # Final Advisory Recommendations (Source = nugen)
