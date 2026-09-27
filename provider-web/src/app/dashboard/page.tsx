@@ -87,8 +87,10 @@ function DashboardContent() {
 
   const handleLogout = async () => {
     if (typeof window !== "undefined") {
+      if (userEmail && userEmail !== "provider@locallens.in") {
+        localStorage.setItem("locallens_last_provider_email", userEmail);
+      }
       localStorage.removeItem("locallens_provider_session");
-      localStorage.removeItem("locallens_last_provider_email");
     }
     await signOut();
     window.location.href = "/login?logged_out=true";

@@ -349,14 +349,22 @@ export function saveProviderProfile(profile: Partial<ProviderProfile>): Provider
     current = DEFAULT_PROFILE;
   }
 
+  const rawEmail = (profile.email || current.email || "").trim().toLowerCase();
+  const emailSlug = rawEmail.replace(/[^a-z0-9]/g, "_");
+  const stableId = profile.id || (current.id && current.id !== "host_default_guest" ? current.id : (emailSlug ? `provider_${emailSlug}` : `provider_${Date.now()}`));
+
   const updated: ProviderProfile = {
     ...current,
     ...profile,
+    id: stableId,
     name: profile.fullName || profile.name || current.name,
   };
 
   try {
     localStorage.setItem("locallens_provider_session", JSON.stringify(updated));
+    if (rawEmail) {
+      localStorage.setItem("locallens_last_provider_email", rawEmail);
+    }
   } catch (_) {}
   return updated;
 }
