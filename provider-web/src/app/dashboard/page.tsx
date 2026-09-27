@@ -151,51 +151,98 @@ function DashboardContent() {
   const [storedListings, setStoredListings] = useState<any[]>([]);
   const [isLoadingListings, setIsLoadingListings] = useState<boolean>(true);
 
-  useEffect(() => {
+  const loadProviderExperiences = React.useCallback(async () => {
     if (!userId) return;
     setIsLoadingListings(true);
-    let cancelled = false;
 
-    const fetchExperiences = async () => {
-      try {
-        const filterClauses = [
-          `provider_id.eq.${userId}`,
-          `user_id.eq.${userId}`,
-          `source_url.ilike.%/provider/${userId}%`,
-          `source_name.ilike.%${userId}%`,
-          `tags.ilike.%provider:${userId}%`,
-        ];
-        if (userEmail && userEmail !== "provider@locallens.in") {
-          filterClauses.push(`provider_email.eq.${userEmail}`);
-          filterClauses.push(`source_url.ilike.%${userEmail}%`);
-          filterClauses.push(`source_name.ilike.%${userEmail}%`);
-          filterClauses.push(`tags.ilike.%provider_email:${userEmail}%`);
-        }
-        const { data, error } = await supabase
-          .from("experience")
-          .select("*")
-          .or(filterClauses.join(","));
+    try {
+      const combined: any[] = [];
+      const seenIds = new Set<string>();
 
-        if (!error && data) {
-          if (!cancelled) {
-            setStoredListings(data);
-          }
-        } else {
-          console.warn("Supabase fetch notice:", error);
-        }
-      } catch (err) {
-        console.warn("Supabase provider query error:", err);
-      } finally {
-        if (!cancelled) setIsLoadingListings(false);
+      // 1. Fetch directly from Supabase experience table
+      const filterClauses = [
+        `provider_id.eq.${userId}`,
+        `user_id.eq.${userId}`,
+        `source_url.ilike.%/provider/${userId}%`,
+        `source_name.ilike.%${userId}%`,
+        `tags.ilike.%provider:${userId}%`,
+      ];
+      if (userEmail && userEmail !== "provider@locallens.in") {
+        filterClauses.push(`provider_email.eq.${userEmail}`);
+        filterClauses.push(`source_url.ilike.%${userEmail}%`);
+        filterClauses.push(`source_name.ilike.%${userEmail}%`);
+        filterClauses.push(`tags.ilike.%provider_email:${userEmail}%`);
       }
-    };
 
-    fetchExperiences();
+      const { data, error } = await supabase
+        .from("experience")
+        .select("*")
+        .or(filterClauses.join(","));
+
+      if (!error && Array.isArray(data)) {
+        for (const item of data) {
+          const k = item.experience_id || item.experience_name;
+          if (k && !seenIds.has(k)) {
+            seenIds.add(k);
+            combined.push(item);
+          }
+        }
+      }
+
+      // 2. Fetch from Next.js server API endpoint
+      try {
+        const params = new URLSearchParams({
+          provider_id: userId,
+          ...(userEmail ? { email: userEmail } : {}),
+        });
+        const apiRes = await fetch(`/api/experiences?${params.toString()}`);
+        if (apiRes.ok) {
+          const apiJson = await apiRes.json();
+          if (apiJson.success && Array.isArray(apiJson.data)) {
+            for (const item of apiJson.data) {
+              const k = item.experience_id || item.experience_name;
+              if (k && !seenIds.has(k)) {
+                seenIds.add(k);
+                combined.push(item);
+              }
+            }
+          }
+        }
+      } catch (_) {}
+
+      // 3. Fallback to provider-isolated local storage partition
+      const localItems = getStoredExperiencesForProvider(userId, userEmail);
+      for (const item of localItems) {
+        const k = item.experience_id || item.experience_name;
+        if (k && !seenIds.has(k)) {
+          seenIds.add(k);
+          combined.push(item);
+        }
+      }
+
+      setStoredListings(combined);
+    } catch (err) {
+      console.warn("Supabase provider query error:", err);
+      const fallbackItems = getStoredExperiencesForProvider(userId, userEmail);
+      setStoredListings(fallbackItems);
+    } finally {
+      setIsLoadingListings(false);
+    }
+  }, [userId, userEmail]);
+
+  useEffect(() => {
+    loadProviderExperiences();
+
+    // Event listeners for instantaneous reactive updates
+    const handleUpdate = () => loadProviderExperiences();
+    window.addEventListener("locallens_experience_update", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
 
     return () => {
-      cancelled = true;
+      window.removeEventListener("locallens_experience_update", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
     };
-  }, [userId, userEmail]);
+  }, [loadProviderExperiences]);
 
   // Real database-driven bookings state for THIS provider only
   const [realBookings, setRealBookings] = useState<Booking[]>([]);

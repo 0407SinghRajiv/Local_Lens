@@ -431,6 +431,10 @@ export default function NewExperienceWizardPage() {
     saveStoredExperiencesForProvider(userId, updatedListings, userEmail);
     saveStoredExperiences(updatedListings);
 
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("locallens_experience_update", { detail: { providerId: userId } }));
+    }
+
     try {
       localStorage.removeItem("locallens_experience_draft");
     } catch {}
