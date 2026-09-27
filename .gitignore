@@ -93,3 +93,5 @@ Thumbs.db
 *.swp
 *.swo
 *.tsbuildinfo
+scratch/
+hs_err_pid*

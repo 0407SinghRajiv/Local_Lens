@@ -9,6 +9,8 @@ import {
   Search,
   Globe,
   Settings,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import {
   getStoredWeatherPause,
@@ -18,15 +20,33 @@ import {
 } from "@/services/mockExperiences";
 import { useI18n } from "@/lib/i18n";
 import { LanguageSelector } from "@/components/settings/LanguageSelector";
+import { getProviderProfile, ProviderProfile } from "@/lib/authSession";
+import { AadhaarOcrVerificationModal } from "@/components/modals/AadhaarOcrVerificationModal";
 
 export const ProviderNavbar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useI18n();
   const [weatherPaused, setWeatherPaused] = useState(false);
+  const [profile, setProfile] = useState<ProviderProfile | null>(null);
+  const [isAadhaarModalOpen, setIsAadhaarModalOpen] = useState(false);
 
   useEffect(() => {
     setWeatherPaused(getStoredWeatherPause());
+    getProviderProfile().then((p) => setProfile(p));
+
+    const handleProfileUpdate = (e: any) => {
+      if (e.detail) {
+        setProfile(e.detail);
+      } else {
+        getProviderProfile().then((p) => setProfile(p));
+      }
+    };
+
+    window.addEventListener("locallens_profile_updated", handleProfileUpdate);
+    return () => {
+      window.removeEventListener("locallens_profile_updated", handleProfileUpdate);
+    };
   }, []);
 
   const handleToggleSevereWeather = () => {
@@ -146,6 +166,24 @@ export const ProviderNavbar: React.FC = () => {
             </span>
           </button>
 
+          {/* Aadhaar Verification Indicator */}
+          {profile?.verified && profile?.aadhaarVerified ? (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-sm">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Aadhaar Verified</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsAadhaarModalOpen(true)}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold shadow-sm transition-all animate-pulse"
+              title="Aadhaar OCR Verification Required"
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Verify Aadhaar</span>
+            </button>
+          )}
+
           {/* Settings link */}
           <Link
             href="/settings"
@@ -186,6 +224,13 @@ export const ProviderNavbar: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Aadhaar OCR Verification Modal */}
+      <AadhaarOcrVerificationModal
+        isOpen={isAadhaarModalOpen}
+        onClose={() => setIsAadhaarModalOpen(false)}
+        onVerified={(updated) => setProfile(updated)}
+      />
     </header>
   );
 };

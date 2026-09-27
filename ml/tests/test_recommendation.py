@@ -78,3 +78,42 @@ def test_recommend_hard_filters_rejects_overbudget(engine):
     for r in results:
         assert r["price_inr"] <= 50.0
         assert r["duration_hours"] <= 1.0
+
+
+def test_recommend_mumbai_city_fetches_correct_photos(engine):
+    """Test that querying Mumbai returns Mumbai experiences with strictly valid location images."""
+    results = engine.recommend(
+        budget_inr=5000.0,
+        available_time_hours=8.0,
+        traveler_count=2,
+        group_type="Couple",
+        interests="Heritage | Food | Culture",
+        city="Mumbai",
+        top_n=10,
+    )
+    assert len(results) > 0
+    for r in results:
+        assert r["city"].lower() == "mumbai" or "mumbai" in str(r.get("location", "")).lower()
+        assert r["image_url"] is not None
+        assert r["image_url"].startswith("http")
+        # Ensure no cross-state mismatched photo was assigned
+        assert "Red%20Fort%20Delhi" not in r["image_url"]
+
+
+def test_recommend_panvel_city_fetches_correct_photos(engine):
+    """Test that querying Panvel returns Panvel experiences with location-specific images."""
+    results = engine.recommend(
+        budget_inr=3000.0,
+        available_time_hours=6.0,
+        traveler_count=2,
+        group_type="Friends",
+        interests="Nature | Adventure",
+        city="Panvel",
+        top_n=5,
+    )
+    assert len(results) > 0
+    for r in results:
+        assert "panvel" in str(r["city"]).lower() or "panvel" in str(r.get("location", "")).lower()
+        assert r["image_url"] is not None
+        assert r["image_url"].startswith("http")
+

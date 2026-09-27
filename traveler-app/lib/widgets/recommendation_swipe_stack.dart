@@ -48,13 +48,13 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     super.initState();
     _animationController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 320),
+      duration: const Duration(milliseconds: 240),
     );
     _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuad),
     );
     _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(
-      CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic),
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuad),
     );
   }
 
@@ -63,6 +63,17 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     _animationController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(RecommendationSwipeStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.candidates != oldWidget.candidates && !_isAnimating && !_isDragging) {
+      _dragOffset = Offset.zero;
+      _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+      _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+      _animationController.reset();
+    }
   }
 
   /// Trigger programmed swipe right (Select) via button or keyboard
@@ -81,38 +92,51 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     if (_isAnimating || widget.candidates.isEmpty) return;
     _isAnimating = true;
 
-    final targetX = direction == SwipeDirection.right ? 600.0 : -600.0;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final targetX = direction == SwipeDirection.right ? screenWidth * 1.5 : -screenWidth * 1.5;
     final targetRotation = direction == SwipeDirection.right ? 0.35 : -0.35;
 
     _slideAnimation = Tween<Offset>(
       begin: _dragOffset,
-      end: Offset(targetX, _dragOffset.dy),
+      end: Offset(targetX, _dragOffset.dy * 0.3),
     ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuad));
 
     _rotationAnimation = Tween<double>(
-      begin: _dragOffset.dx / 400.0,
+      begin: (_dragOffset.dx / (screenWidth > 0 ? screenWidth : 360.0)) * 0.35,
       end: targetRotation,
     ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutQuad));
 
     _animationController.forward(from: 0.0).then((_) {
-      final swipedCard = widget.candidates.first;
-      _dragOffset = Offset.zero;
-      _animationController.reset();
-      _isAnimating = false;
+      if (!mounted) return;
+      if (widget.candidates.isNotEmpty) {
+        final swipedCard = widget.candidates.first;
+        _dragOffset = Offset.zero;
+        _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+        _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+        _animationController.reset();
+        _isDragging = false;
+        _isAnimating = false;
 
-      if (direction == SwipeDirection.right) {
-        widget.onSwipeRight(swipedCard);
+        if (direction == SwipeDirection.right) {
+          widget.onSwipeRight(swipedCard);
+        } else {
+          widget.onSwipeLeft(swipedCard);
+        }
       } else {
-        widget.onSwipeLeft(swipedCard);
+        _dragOffset = Offset.zero;
+        _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+        _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+        _animationController.reset();
+        _isAnimating = false;
+        _isDragging = false;
       }
     });
   }
 
   void _onPanStart(DragStartDetails details) {
     if (_isAnimating || widget.candidates.isEmpty) return;
-    setState(() {
-      _isDragging = true;
-    });
+    _isDragging = true;
+    _dragOffset = Offset.zero;
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
@@ -127,29 +151,50 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     _isDragging = false;
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final threshold = screenWidth * 0.28;
+    final threshold = min(screenWidth > 0 ? screenWidth * 0.24 : 90.0, 100.0);
 
-    if (_dragOffset.dx > threshold) {
+    // Check velocity and offset for intuitive swipe
+    final velocityX = details.velocity.pixelsPerSecond.dx;
+    if (_dragOffset.dx > threshold || velocityX > 350) {
       _executeSwipe(SwipeDirection.right);
-    } else if (_dragOffset.dx < -threshold) {
+    } else if (_dragOffset.dx < -threshold || velocityX < -350) {
       _executeSwipe(SwipeDirection.left);
     } else {
-      // Spring back to center
+      // Smoothly spring back to center
+      _isAnimating = true;
       _slideAnimation = Tween<Offset>(
         begin: _dragOffset,
         end: Offset.zero,
-      ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack));
+      ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
 
       _rotationAnimation = Tween<double>(
-        begin: _dragOffset.dx / 400.0,
+        begin: (_dragOffset.dx / screenWidth) * 0.35,
         end: 0.0,
-      ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack));
+      ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
 
       _animationController.forward(from: 0.0).then((_) {
-        setState(() {
-          _dragOffset = Offset.zero;
-          _animationController.reset();
-        });
+        if (mounted) {
+          setState(() {
+            _dragOffset = Offset.zero;
+            _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+            _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+            _animationController.reset();
+            _isAnimating = false;
+          });
+        }
+      });
+    }
+  }
+
+  void _onPanCancel() {
+    if (_isAnimating) return;
+    if (mounted) {
+      setState(() {
+        _isDragging = false;
+        _dragOffset = Offset.zero;
+        _slideAnimation = Tween<Offset>(begin: Offset.zero, end: Offset.zero).animate(_animationController);
+        _rotationAnimation = Tween<double>(begin: 0.0, end: 0.0).animate(_animationController);
+        _animationController.reset();
       });
     }
   }
@@ -172,7 +217,7 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
     }
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final threshold = screenWidth * 0.28;
+    final threshold = min(screenWidth > 0 ? screenWidth * 0.24 : 90.0, 100.0);
     final dragDx = _isDragging ? _dragOffset.dx : _slideAnimation.value.dx;
     final rightSelectOpacity = (dragDx / threshold).clamp(0.0, 1.0);
     final leftSkipOpacity = (-dragDx / threshold).clamp(0.0, 1.0);
@@ -210,31 +255,38 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                     if (reverseIndex == 0) {
                       // TOP ACTIVE CARD WITH GESTURE & TRANSFORMS
                       return AnimatedBuilder(
+                        key: ValueKey('active_card_${candidate.experienceId}'),
                         animation: _animationController,
                         builder: (context, child) {
                           final currentOffset = _isDragging ? _dragOffset : _slideAnimation.value;
                           final currentRotation = _isDragging
-                              ? (_dragOffset.dx / screenWidth) * 0.35
+                              ? (_dragOffset.dx / (screenWidth > 0 ? screenWidth : 360.0)) * 0.35
                               : _rotationAnimation.value;
+                          final currentDragDx = _isDragging ? _dragOffset.dx : _slideAnimation.value.dx;
+                          final dynamicRightSelectOpacity = (currentDragDx / threshold).clamp(0.0, 1.0);
+                          final dynamicLeftSkipOpacity = (-currentDragDx / threshold).clamp(0.0, 1.0);
 
                           return Transform.translate(
                             offset: currentOffset,
                             child: Transform.rotate(
                               angle: currentRotation,
-                              child: GestureDetector(
-                                onPanStart: _onPanStart,
-                                onPanUpdate: _onPanUpdate,
-                                onPanEnd: _onPanEnd,
-                                child: Stack(
-                                  children: [
-                                    _buildCard(
-                                      candidate: candidate,
-                                      width: cardWidth,
-                                      height: cardHeight,
-                                      isTopCard: true,
-                                    ),
+                              child: MouseRegion(
+                                cursor: _isDragging ? SystemMouseCursors.grabbing : SystemMouseCursors.grab,
+                                child: GestureDetector(
+                                  onPanStart: _onPanStart,
+                                  onPanUpdate: _onPanUpdate,
+                                  onPanEnd: _onPanEnd,
+                                  onPanCancel: _onPanCancel,
+                                  child: Stack(
+                                    children: [
+                                      _buildCard(
+                                        candidate: candidate,
+                                        width: cardWidth,
+                                        height: cardHeight,
+                                        isTopCard: true,
+                                      ),
                                     // SELECT BADGE OVERLAY
-                                    if (rightSelectOpacity > 0.05)
+                                    if (dynamicRightSelectOpacity > 0.05)
                                       Positioned(
                                         top: 24,
                                         left: 24,
@@ -271,12 +323,12 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                                         ),
                                       ),
                                     // SKIP BADGE OVERLAY
-                                    if (leftSkipOpacity > 0.05)
+                                    if (dynamicLeftSkipOpacity > 0.05)
                                       Positioned(
                                         top: 24,
                                         right: 24,
                                         child: Opacity(
-                                          opacity: leftSkipOpacity,
+                                          opacity: dynamicLeftSkipOpacity,
                                           child: Transform.rotate(
                                             angle: 0.2,
                                             child: Container(
@@ -311,10 +363,11 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                                 ),
                               ),
                             ),
-                          );
-                        },
-                      );
-                    }
+                          ),
+                        );
+                      },
+                    );
+                  }
 
                     // LAYERED BACKGROUND CARDS IN DECK
                     final scale = 1.0 - (reverseIndex * 0.05);
@@ -658,12 +711,15 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                       children: [
                         const Icon(Icons.swipe_rounded, size: 14, color: LocalLensColors.textMuted),
                         const SizedBox(width: 6),
-                        Text(
-                          'Swipe Right to Keep • Swipe Left to Skip',
-                          style: LocalLensTypography.caption.copyWith(
-                            color: LocalLensColors.textMuted,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            'Swipe Right to Keep • Swipe Left to Skip',
+                            style: LocalLensTypography.caption.copyWith(
+                              color: LocalLensColors.textMuted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],

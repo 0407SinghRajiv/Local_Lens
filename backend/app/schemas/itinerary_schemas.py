@@ -130,3 +130,54 @@ class ItineraryGenerateResponse(BaseModel):
     scheduled_experiences: List[ScheduledExperience]
     itinerary: List[ScheduledExperience]  # alias for prompt format
     skipped_experiences: List[SkippedExperience] = []
+
+
+class SaveItineraryRequest(BaseModel):
+    """
+    Payload for saving an itinerary into the database.
+    """
+    itinerary_id: Optional[str] = None
+    destination: str
+    trip_date: str
+    start_time: str
+    end_time: Optional[str] = None
+    start_lat: Optional[float] = None
+    start_lon: Optional[float] = None
+    start_location: Optional[str] = None
+    total_duration_minutes: Optional[int] = 0
+    total_cost: Optional[float] = 0.0
+    total_experience_cost: Optional[float] = 0.0
+    estimated_transport_cost: Optional[float] = 0.0
+    traveler_count: Optional[int] = 1
+    group_type: Optional[str] = "Solo"
+    scheduled_experiences: List[Dict[str, Any]] = Field(default_factory=list)
+    items: Optional[List[Dict[str, Any]]] = None
+    notes: Optional[str] = None
+
+
+class SaveItineraryResponse(BaseModel):
+    """
+    Response returned when an itinerary is saved into the database.
+    """
+    success: bool = True
+    itinerary_id: str
+    message: str = "Itinerary saved successfully"
+    saved_at: str
+    destination: str
+    total_stops: int
+    total_cost: float
+
+
+class OptimizeItineraryRequest(BaseModel):
+    """
+    Payload for re-optimizing the route/sequence of an existing itinerary.
+    """
+    destination: Optional[str] = ""
+    trip_date: str = "2026-09-26"
+    start_time: str = "10:30 AM"
+    start_lat: Optional[float] = None
+    start_lon: Optional[float] = None
+    budget_inr: Optional[float] = 5000.0
+    available_time_hours: Optional[float] = 6.0
+    selected_experience_ids: List[str] = Field(default_factory=list)
+    scheduled_experiences: Optional[List[Dict[str, Any]]] = None

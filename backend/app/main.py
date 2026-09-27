@@ -2,6 +2,16 @@
 LocalLens Backend Application Entrypoint.
 Intelligent Discovery, ML Recommendation, and Itinerary Generation Service.
 """
+import sys
+from pathlib import Path
+
+_backend_dir = Path(__file__).resolve().parent.parent
+_workspace_root = _backend_dir.parent
+if str(_workspace_root) not in sys.path:
+    sys.path.insert(0, str(_workspace_root))
+if str(_backend_dir) not in sys.path:
+    sys.path.insert(0, str(_backend_dir))
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -39,3 +49,11 @@ async def health_check():
     Health check endpoint for container probes and service verification.
     """
     return {"status": "ok"}
+
+
+# Include API Routers
+app.include_router(recommendation_router, prefix="/api/recommendations")
+app.include_router(recommendation_router, prefix=f"{settings.API_V1_STR}/recommendations")
+app.include_router(itinerary_router, prefix="/api/itinerary")
+app.include_router(itinerary_router, prefix=f"{settings.API_V1_STR}/itinerary")
+

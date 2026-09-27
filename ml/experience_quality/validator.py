@@ -147,6 +147,36 @@ class ExperienceValidator:
         else:
             max_grp = None
 
+        # Compulsory image validation (image of shop or experience listing)
+        raw_image = (
+            submission.get("image_url")
+            or submission.get("shop_image")
+            or submission.get("image")
+            or submission.get("images")
+            or submission.get("photos")
+            or submission.get("photo")
+        )
+        image_str = ""
+        if isinstance(raw_image, list):
+            valid_imgs = [str(x).strip() for x in raw_image if str(x).strip()]
+            if valid_imgs:
+                image_str = valid_imgs[0]
+        elif isinstance(raw_image, str):
+            image_str = raw_image.strip()
+
+        if not image_str:
+            errors.append("An image of the shop or experience listing is compulsory.")
+
+        # AI quality check score validation (minimum 50 required to publish/register)
+        raw_quality = submission.get("quality_score", submission.get("ai_quality_score", submission.get("health_score")))
+        if raw_quality is not None:
+            try:
+                q_score = float(raw_quality)
+                if q_score < 50.0:
+                    errors.append(f"AI quality check score ({q_score:.0f}) is below 50. Minimum 50 required to publish listing.")
+            except (ValueError, TypeError):
+                errors.append("quality_score must be a valid numeric score (0-100).")
+
         if errors:
             raise ValidationError(f"Validation failed: {'; '.join(errors)}")
 
@@ -185,6 +215,9 @@ class ExperienceValidator:
             "booking_required_bool": bool(submission.get("booking_required_bool", False)),
             "advance_booking_days": int(submission.get("advance_booking_days", 0)),
             "advance_booking_days_clean": float(submission.get("advance_booking_days_clean", 0.0)),
+            "image_url": image_str,
+            "shop_image": image_str,
+            "images": [str(x).strip() for x in raw_image if str(x).strip()] if isinstance(raw_image, list) and len(raw_image) > 0 else ([image_str] if image_str else []),
         }
         return sanitized
 
@@ -205,10 +238,11 @@ class ExperienceValidator:
             existing_ids = current_df["experience_id"].dropna().astype(str).tolist()
             matching_nums: List[int] = []
             for eid in existing_ids:
-                parts = eid.split("-")
-                if len(parts) >= 2 and parts[-1].isdigit():
-                    matching_nums.append(int(parts[-1]))
-            next_num = (max(matching_nums) + 1) if matching_nums else len(existing_ids) + 1
+                if eid.startswith(f"{prefix}-"):
+                    parts = eid.split("-")
+                    if len(parts) >= 2 and parts[-1].isdigit():
+                        matching_nums.append(int(parts[-1]))
+            next_num = (max(matching_nums) + 1) if matching_nums else 1
         else:
             next_num = 1
 
@@ -221,7 +255,7 @@ class ExperienceValidator:
     ) -> Dict[str, Any]:
         """
         Validate submission, generate unique ID, update in-memory engine,
-        and append to CSV dataset.
+        and append to CSV dataset preserving all schema columns.
         """
         sanitized = self.validate_submission(submission)
 
@@ -237,11 +271,13 @@ class ExperienceValidator:
                 experience_id = self.generate_experience_id(sanitized["city"], df)
             sanitized["experience_id"] = experience_id
 
-            # Align columns to existing CSV schema
+            # Align columns to existing CSV schema without dropping any sanitized columns
             if not df.empty:
-                full_row = {}
-                for col in df.columns:
-                    full_row[col] = sanitized.get(col, np.nan)
+                all_cols = list(dict.fromkeys(list(df.columns) + list(sanitized.keys())))
+                for col in all_cols:
+                    if col not in df.columns:
+                        df[col] = np.nan
+                full_row = {col: sanitized.get(col, np.nan) for col in all_cols}
                 row_df = pd.DataFrame([full_row])
                 updated_df = pd.concat([df, row_df], ignore_index=True)
             else:

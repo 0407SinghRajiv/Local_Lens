@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/>
+<meta content="mobile_tab" name="shell-type"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    @layer base {
+      html, body { width: 100vw; margin: 0; padding: 0; }
+      body { overscroll-behavior: none; }
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+      .pt-safe { padding-top: env(safe-area-inset-top, 0px); }
+      main > :first-child { margin-top: 0 !important; }
+      main > :last-child { margin-bottom: 0 !important; }
+    }
+    ::-webkit-scrollbar { display: none; }
+    body { min-height: max(884px, 100dvh); }
+  </style>
+<script src="https://cdn.tailwindcss.com"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "surface-container": "#f0eded",
+            "surface-container-high": "#eae7e7",
+            "background": "#fcf9f8",
+            "outline": "#8e7069",
+            "surface-container-low": "#f6f3f2",
+            "surface-dim": "#dcd9d9",
+            "surface-container-highest": "#e5e2e1",
+            "surface": "#fcf9f8",
+            "primary-fixed-dim": "#ffb4a2",
+            "on-secondary-fixed": "#082014",
+            "on-tertiary": "#ffffff",
+            "surface-variant": "#e5e2e1",
+            "on-error-container": "#93000a",
+            "surface-container-lowest": "#ffffff",
+            "on-tertiary-fixed": "#2c1600",
+            "on-primary-container": "#fffbff",
+            "primary-fixed": "#ffdbd2",
+            "primary-container": "#d2411a",
+            "tertiary-fixed": "#ffdcbd",
+            "on-primary-fixed-variant": "#891e00",
+            "secondary-fixed-dim": "#b2cdba",
+            "inverse-surface": "#313030",
+            "secondary-container": "#cbe6d3",
+            "tertiary-container": "#966c41",
+            "inverse-on-surface": "#f3f0ef",
+            "error-container": "#ffdad6",
+            "error": "#ba1a1a",
+            "secondary": "#4b6454",
+            "on-tertiary-fixed-variant": "#623f18",
+            "on-secondary": "#ffffff",
+            "surface-bright": "#fcf9f8",
+            "secondary-fixed": "#cee9d6",
+            "on-background": "#1c1b1b",
+            "on-surface-variant": "#5a413a",
+            "tertiary": "#7b542b",
+            "surface-tint": "#b32b01",
+            "outline-variant": "#e3beb6",
+            "tertiary-fixed-dim": "#f0bd8b",
+            "inverse-primary": "#ffb4a2",
+            "on-primary-fixed": "#3c0800",
+            "on-primary": "#ffffff",
+            "on-secondary-fixed-variant": "#344c3e",
+            "on-surface": "#1c1b1b",
+            "on-secondary-container": "#4f6859",
+            "primary": "#af2900",
+            "on-tertiary-container": "#fffbff",
+            "on-error": "#ffffff"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "margin": "1.5rem",
+            "space-sm": "0.5rem",
+            "space-xl": "2rem",
+            "margin-mobile": "1.25rem",
+            "space-lg": "1.5rem",
+            "space-md": "1rem",
+            "gutter-mobile": "0.75rem",
+            "space-xs": "0.25rem",
+            "gutter": "1rem"
+          },
+          "fontFamily": {
+            "headline-md": ["Plus Jakarta Sans"],
+            "label-sm": ["Inter"],
+            "label-md": ["Inter"],
+            "display-hero-mobile": ["Plus Jakarta Sans"],
+            "headline-sm": ["Plus Jakarta Sans"],
+            "label-lg": ["Inter"],
+            "display-hero": ["Plus Jakarta Sans"],
+            "body-sm": ["Inter"],
+            "body-lg": ["Inter"],
+            "headline-lg": ["Plus Jakarta Sans"],
+            "body-md": ["Inter"]
+          },
+          "fontSize": {
+            "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.015em", "fontWeight": "600" }],
+            "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "600" }],
+            "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+            "display-hero-mobile": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.025em", "fontWeight": "700" }],
+            "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+            "label-lg": ["14px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "600" }],
+            "display-hero": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "700" }],
+            "body-sm": ["12px", { "lineHeight": "18px", "letterSpacing": "0.005em", "fontWeight": "400" }],
+            "body-lg": ["16px", { "lineHeight": "26px", "letterSpacing": "-0.005em", "fontWeight": "400" }],
+            "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+            "body-md": ["14px", { "lineHeight": "22px", "letterSpacing": "0", "fontWeight": "400" }]
+          }
+        }
+      }
+    };
+  </script>
+</head>
+<body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen">
+<header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(26,26,26,0.04)]">
+<div class="h-16 px-margin-mobile flex items-center justify-between">
+<div class="flex items-center gap-space-sm">
+<img alt="Wander Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5j_99Dp4SDDnluNeyE5-jdzAY5go3NrCiLihHvoI1eiH0ZjuTmDe8i3szfIHPN7zO4cJrFiggLctrq8EaTZhafbilXdr_LC53x6G4yuvvcK6Ia7ipV7ldJf8sZJV4V0Fet2qisHjeV1CgomWyKN8vVeYY4Sy8pUrdMadHY-100PRmJuu9VFRJtB0s_H5yB80EjLZ01OhrZE9WtsWWBSCF0akvWKssSWx891AafZ1D7LMMViTDya7h5Q"/>
+<span class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Wander</span>
+</div>
+<div class="flex items-center gap-space-sm">
+<h1 class="font-label-lg text-label-lg text-on-surface-variant font-medium">Traveler Profile</h1>
+<a aria-label="Traveler Profile" class="w-11 h-11 flex items-center justify-center rounded-full hover:opacity-90 active:scale-95 transition-all" data-path="traveler-profile" href="#">
+<img alt="Traveler Avatar" class="w-8 h-8 rounded-full object-cover ring-1 ring-outline-variant/30" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDX-Woy_utSc_ERkUUmGmB8ezxwW-NB7nhZChKttIPEPzNA4hEDA1-PsAZB77QqH4Y_KlwX1bPka-BXJQIXgrDJYXqVQ__6XR5XV-N4t-z0-AhGG2FHvbApBbmMD5yzqJDwVPBnNvR7PTrf5c6hXN6cQQBorORJ1GOaUN9DuVlxmOXK2zh2sJU5aZcXGq1RJpUF6Ls39JO-Nm0OWwX9aA0kzx4DZqJcNeP2fwo95c0RYXeyLekX3Js8Cg"/>
+</a>
+</div>
+</div>
+</header>
+<main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full px-margin-mobile pb-space-xl gap-space-lg">
+<!-- Top Profile Card -->
+<section class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm relative overflow-hidden flex flex-col gap-space-md">
+<div class="absolute -right-12 -top-12 w-40 h-40 bg-gradient-to-br from-primary-fixed/40 via-secondary-fixed/20 to-transparent rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex items-center gap-space-md relative z-10">
+<div class="relative">
+<img class="w-20 h-20 rounded-full object-cover shadow-sm" data-alt="Editorial warm daylight portrait of Elena Rostova, a sophisticated smiling female solo traveler wearing an unbuttoned linen overshirt and delicate gold jewelry against a warm sunlit stone courtyard in Lisbon." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCCZXMS1NvGfjh06uljAQpnYHGZ2HhX0B_K3gWVaMtLSknXABEtxn3C6R3PvKTg8DZxxC99tzX1vGe91ocRofYVy__Si5ykBBWt9gj5k5bCJn5W4q6vV_RPxiktB7wCqRWbnG1x-8nmYiQNMAaMxxg5aKVwsVN6X49pUvmFNqhdk1nd9FemF0J1Is7G9FMExtt8BzbJiLYHR9m2aiJKk_JYImEq7my6SpuWamzqE0hRJuWRKJ_uQbeznw"/>
+<div class="absolute -bottom-1 -right-1 bg-primary text-on-primary rounded-full p-1 shadow-sm flex items-center justify-center">
+<span class="material-symbols-outlined text-[14px]" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5 flex-wrap">
+<h2 class="font-headline-sm text-headline-sm text-on-surface truncate">Elena Rostova</h2>
+</div>
+<p class="font-label-md text-label-md text-on-surface-variant font-medium">@elena_wanderer</p>
+<div class="mt-1.5 inline-flex items-center gap-1 px-2.5 py-1 bg-secondary-container rounded-full w-fit">
+<span class="material-symbols-outlined text-[13px] text-on-secondary-container" style="font-variation-settings: 'FILL' 1;">award_star</span>
+<span class="font-label-sm text-label-sm text-on-secondary-container font-semibold">Curator Level 4 · 18 Cities</span>
+</div>
+</div>
+</div>
+<!-- Quick Stats Grid -->
+<div class="grid grid-cols-3 gap-2 pt-space-xs bg-surface-container-low rounded-lg p-space-sm text-center">
+<div class="flex flex-col items-center">
+<span class="font-headline-sm text-headline-sm text-primary">3</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant leading-tight mt-0.5">Trips Planned</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-headline-sm text-headline-sm text-on-surface">24</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant leading-tight mt-0.5">Saved Spots</span>
+</div>
+<div class="flex flex-col items-center">
+<span class="font-headline-sm text-headline-sm text-on-surface">12</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant leading-tight mt-0.5">Story Reviews</span>
+</div>
+</div>
+</section>
+<!-- Travel Personality DNA Card -->
+<section class="bg-surface-container-lowest rounded-xl p-space-md shadow-sm flex flex-col gap-space-md relative overflow-hidden">
+<div class="flex items-start justify-between">
+<div class="flex flex-col">
+<div class="flex items-center gap-1.5 text-primary">
+<span class="material-symbols-outlined text-[18px]">psychology_alt</span>
+<span class="font-label-sm text-label-sm uppercase tracking-wider font-semibold">Travel DNA</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mt-1">The Cultured Flâneur &amp; Foodie</h3>
+</div>
+<button class="px-3 py-1.5 rounded-full bg-surface-container-low hover:bg-surface-container text-on-surface font-label-md text-label-md flex items-center gap-1 transition-all active:scale-95" id="editPersonalityBtn">
+<span>Fine-tune</span>
+<span class="material-symbols-outlined text-[14px]">tune</span>
+</button>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">
+      You savor slow-paced explorations, lingering over terrace espresso, ancient tile craft, and candid sunset panoramas.
+    </p>
+<!-- Personality DNA Attributes with Animated Bars -->
+<div class="flex flex-col gap-space-sm pt-1">
+<!-- Trait 1 -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-label-md font-label-md">
+<span class="text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-tertiary">museum</span>
+            Culture &amp; Heritage
+          </span>
+<span class="text-on-surface font-semibold">92%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-primary rounded-full transition-all duration-1000 ease-out" style="width: 92%;"></div>
+</div>
+</div>
+<!-- Trait 2 -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-label-md font-label-md">
+<span class="text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-secondary">bakery_dining</span>
+            Street Food &amp; Artisan Cafes
+          </span>
+<span class="text-on-surface font-semibold">85%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-secondary rounded-full transition-all duration-1000 ease-out" style="width: 85%;"></div>
+</div>
+</div>
+<!-- Trait 3 -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-label-md font-label-md">
+<span class="text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-tertiary-container">photo_camera</span>
+            Photography &amp; Golden Hour
+          </span>
+<span class="text-on-surface font-semibold">80%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-tertiary-container rounded-full transition-all duration-1000 ease-out" style="width: 80%;"></div>
+</div>
+</div>
+<!-- Trait 4 -->
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-center text-label-md font-label-md">
+<span class="text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant">hiking</span>
+            Adventure &amp; Nightlife
+          </span>
+<span class="text-on-surface-variant font-medium">35%</span>
+</div>
+<div class="w-full h-2 rounded-full bg-surface-container overflow-hidden">
+<div class="h-full bg-outline-variant rounded-full transition-all duration-1000 ease-out" style="width: 35%;"></div>
+</div>
+</div>
+</div>
+<!-- Editorial Archetype Insight Quote -->
+<div class="flex items-center gap-2 p-2.5 bg-tertiary-fixed/30 rounded-lg">
+<span class="material-symbols-outlined text-tertiary text-[20px]">auto_awesome</span>
+<span class="font-body-sm text-body-sm text-on-surface">Matches curated itineraries in <strong>Florence</strong>, <strong>Oaxaca</strong>, and <strong>Kyoto</strong>.</span>
+</div>
+</section>
+<!-- Active Pass & Milestone Spotlight -->
+<section class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-1">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Active Pass &amp; Milestones</h3>
+<span class="font-label-sm text-label-sm text-primary uppercase font-bold tracking-wider">Live</span>
+</div>
+<!-- Ticket/Pass Styled Component -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col relative">
+<div class="bg-gradient-to-r from-primary to-primary-container p-space-md text-on-primary flex justify-between items-start">
+<div>
+<span class="font-label-sm text-label-sm uppercase tracking-wider text-on-primary/80">Heritage Pass</span>
+<h4 class="font-headline-md text-headline-md text-on-primary">Jaipur Explorer Pass</h4>
+<p class="font-body-sm text-body-sm text-on-primary/90 mt-0.5">Access to Hawa Mahal, Amer Fort &amp; City Palace</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-on-primary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-[22px]">confirmation_number</span>
+</div>
+</div>
+<!-- Ticket Perforation Effect -->
+<div class="relative h-4 bg-surface-container-lowest flex items-center justify-between px-2">
+<div class="w-4 h-4 rounded-full bg-surface -ml-4"></div>
+<div class="flex-1 border-t-2 border-dashed border-surface-container mx-2"></div>
+<div class="w-4 h-4 rounded-full bg-surface -mr-4"></div>
+</div>
+<!-- Pass Details and Quick QR Preview -->
+<div class="p-space-md pt-1 flex items-center justify-between">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-1.5 text-secondary">
+<span class="material-symbols-outlined text-[16px]">schedule</span>
+<span class="font-label-md text-label-md font-semibold">Valid till Oct 16, 2025</span>
+</div>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Fast-track admission + audio story included</span>
+</div>
+<button class="p-2.5 bg-surface-container-low rounded-xl active:scale-95 transition-transform flex flex-col items-center gap-1 text-on-surface" id="viewPassModal">
+<!-- Stylized QR Code SVG Representation -->
+<svg class="w-10 h-10 text-on-surface" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewbox="0 0 24 24">
+<rect height="7" width="7" x="3" y="3"></rect>
+<rect height="7" width="7" x="14" y="3"></rect>
+<rect height="7" width="7" x="14" y="14"></rect>
+<rect height="7" width="7" x="3" y="14"></rect>
+<line x1="7" x2="7.01" y1="7" y2="7"></line>
+<line x1="17" x2="17.01" y1="7" y2="7"></line>
+<line x1="7" x2="7.01" y1="17" y2="17"></line>
+<line x1="17" x2="17.01" y1="17" y2="17"></line>
+</svg>
+<span class="font-label-sm text-label-sm font-semibold">Enlarge</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Navigation Menu List -->
+<section class="flex flex-col gap-space-xs">
+<h3 class="font-headline-sm text-headline-sm text-on-surface px-1">Traveler Hub</h3>
+<div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden flex flex-col">
+<!-- Item 1: Booked Experiences -->
+<a class="flex items-center justify-between p-space-md hover:bg-surface-container-low transition-colors active:bg-surface-container" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">My Booked Experiences</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Hotels, guided walks &amp; tables</span>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<span class="px-2 py-0.5 rounded-full bg-primary text-on-primary font-label-sm text-label-sm font-bold">2 upcoming</span>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+</div>
+</a>
+<!-- Item 2: Lens Ride Receipts & Carbon Offset -->
+<a class="flex items-center justify-between p-space-md hover:bg-surface-container-low transition-colors active:bg-surface-container" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined text-[20px]">nature_people</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">Lens Ride Receipts &amp; Offset</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">320 kg CO₂ balanced this year</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+</a>
+<!-- Item 3: Local Storyteller Connections -->
+<a class="flex items-center justify-between p-space-md hover:bg-surface-container-low transition-colors active:bg-surface-container" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed">
+<span class="material-symbols-outlined text-[20px]">record_voice_over</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">Local Storyteller Connections</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Direct messages with city docents</span>
+</div>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+</div>
+</a>
+<!-- Item 4: App Settings & Offline Maps -->
+<a class="flex items-center justify-between p-space-md hover:bg-surface-container-low transition-colors active:bg-surface-container" href="#">
+<div class="flex items-center gap-space-md">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface">
+<span class="material-symbols-outlined text-[20px]">offline_pin</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-lg text-label-lg text-on-surface font-semibold">App Settings &amp; Offline Maps</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">3 regional packs downloaded (1.4 GB)</span>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">chevron_right</span>
+</a>
+</div>
+</section>
+<!-- Visual Memory Gallery Snippet -->
+<section class="flex flex-col gap-space-xs">
+<div class="flex items-center justify-between px-1">
+<h3 class="font-headline-sm text-headline-sm text-on-surface">Elena's Captured Moments</h3>
+<a class="font-label-md text-label-md text-primary font-semibold" href="#">View All</a>
+</div>
+<div class="grid grid-cols-2 gap-space-sm">
+<div class="relative rounded-xl overflow-hidden shadow-sm aspect-square bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Sunlit hand holding a fresh terracotta chai cup against the intricate pink sandstone facade of Hawa Mahal in Jaipur during morning golden hour." src="https://lh3.googleusercontent.com/aida-public/AB6AXuChXHeYRqPmb8s0MVbv9F0EosvxXAktdxzZWMdWttnXBG3mF148TV8jfStlz1kiEBG0hd4e2SdiSSiS2NhfX7JSqWzl-pckRISG_asCPldOayZ4CCuYP3i7zVEmRVf6NjBCF7D39qK5WRgSBBvEDF4H57V3Jvt4hB0KxwnhC4Ng0lNmICA-y1QhLJcz75eThzGKNm20R8ntaaDg1TUu_XT3m6fV8RcxJR5HRivoXONEjpD9RoWu8ikwsw"/>
+<div class="absolute inset-0 bg-gradient-to-t from-inverse-surface/80 via-transparent to-transparent flex items-end p-2.5">
+<span class="font-label-sm text-label-sm text-inverse-on-surface font-semibold">Jaipur Morning Chai</span>
+</div>
+</div>
+<div class="relative rounded-xl overflow-hidden shadow-sm aspect-square bg-surface-container">
+<img class="w-full h-full object-cover" data-alt="Warm atmospheric interior of a quiet artisanal bookshop cafe in Kyoto with steam rising from a ceramic matcha bowl and sunbeams through shoji screens." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3lrEQ108ux0pX0Epeh5pEexXwAEDRiUYVGFg6PfyapkezrMOjTVV7olOhZrbBD3IUlf4IpBxSO8ZhZVkrH3uxozH_LjcN9_RCfx1wJCpdhXuYkQExyHBkSqWfykdHLPDxDXLsEoVpvpj-qz6pbJasDoMWpeCODpBTV23ZL30XNWCfKvvQ91Wss6oZtWgTJw6CLpIjxBMfgY4QXXGWFml-gJDcBvjDbssJvuMKYT6TYNVbnfQ1wFdkJg"/>
+<div class="absolute inset-0 bg-gradient-to-t from-inverse-surface/80 via-transparent to-transparent flex items-end p-2.5">
+<span class="font-label-sm text-label-sm text-inverse-on-surface font-semibold">Kyoto Quiet Reading</span>
+</div>
+</div>
+</div>
+</section>
+<!-- Interactive Modal Bottom Sheet for Pass / QR Preview -->
+<div class="fixed inset-0 z-50 bg-inverse-surface/50 backdrop-blur-sm hidden flex items-end justify-center transition-opacity opacity-0" id="passModalBackdrop">
+<div class="w-full max-w-md bg-surface-container-lowest rounded-t-[28px] p-space-lg flex flex-col items-center gap-space-md shadow-xl transform translate-y-full transition-transform duration-300" id="passModalSheet">
+<div class="w-9 h-1 rounded-full bg-outline-variant"></div>
+<div class="text-center flex flex-col items-center">
+<span class="font-label-sm text-label-sm text-primary uppercase font-bold tracking-wider">Official Entry Pass</span>
+<h3 class="font-headline-md text-headline-md text-on-surface mt-0.5">Jaipur Explorer Pass</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Hold near the validator gate at Hawa Mahal</p>
+</div>
+<!-- High Contrast Large QR Simulated Matrix -->
+<div class="p-6 bg-surface-container-lowest rounded-xl shadow-md flex items-center justify-center">
+<svg class="w-48 h-48 text-on-surface" fill="currentColor" viewbox="0 0 100 100">
+<path d="M5 5h30v30H5V5zm6 6v18h18V11H11zm5 5h8v8h-8v-8zM65 5h30v30H65V5zm6 6v18h18V11H71zm5 5h8v8h-8v-8zM5 65h30v30H5V65zm6 6v18h18V71H11zm5 5h8v8h-8v-8zM42 10h6v6h-6zm10 0h6v6h-6zm0 10h6v6h-6zm-10 6h6v6h-6zm16 6h6v6h-6zm-6 10h6v6h-6zm-10 0h6v6h-6zm20 6h6v6h-6zm-14 10h6v6h-6zm10 6h6v6h-6zm-16 6h6v6h-6zm26-20h6v6h-6zm0 10h6v6h-6zm10-10h6v6h-6zm-4 16h6v6h-6zm10 0h6v6h-6zm-6 10h6v6h-6zm10 0h6v6h-6zm-20 6h6v6h-6zm10 6h6v6h-6z"></path>
+</svg>
+</div>
+<div class="flex items-center justify-between w-full p-space-sm bg-surface-container-low rounded-lg">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Pass Holder</span>
+<span class="font-label-md text-label-md text-on-surface font-semibold">Elena Rostova</span>
+</div>
+<div class="flex flex-col text-right">
+<span class="font-label-sm text-label-sm text-on-surface-variant">Status</span>
+<span class="font-label-md text-label-md text-secondary font-bold">Active &amp; Verified</span>
+</div>
+</div>
+<button class="w-full h-[52px] bg-primary text-on-primary font-label-lg text-label-lg rounded-xl flex items-center justify-center font-semibold active:scale-[0.98] transition-transform" id="closePassModal">
+        Done
+      </button>
+</div>
+</div>
+</div>
+<script>
+  (function() {
+    // QR Pass Modal toggle logic
+    const openBtn = document.getElementById('viewPassModal');
+    const closeBtn = document.getElementById('closePassModal');
+    const backdrop = document.getElementById('passModalBackdrop');
+    const sheet = document.getElementById('passModalSheet');
+
+    function openModal() {
+      backdrop.classList.remove('hidden');
+      setTimeout(() => {
+        backdrop.classList.remove('opacity-0');
+        sheet.classList.remove('translate-y-full');
+      }, 10);
+    }
+
+    function closeModal() {
+      sheet.classList.add('translate-y-full');
+      backdrop.classList.add('opacity-0');
+      setTimeout(() => {
+        backdrop.classList.add('hidden');
+      }, 300);
+    }
+
+    if (openBtn && closeBtn && backdrop && sheet) {
+      openBtn.addEventListener('click', openModal);
+      closeBtn.addEventListener('click', closeModal);
+      backdrop.addEventListener('click', (e) => {
+        if (e.target === backdrop) closeModal();
+      });
+    }
+
+    // Personality DNA button delight micro-interaction
+    const editBtn = document.getElementById('editPersonalityBtn');
+    if (editBtn) {
+      editBtn.addEventListener('click', () => {
+        const textSpan = editBtn.querySelector('span');
+        if (textSpan) {
+          const originalText = textSpan.innerText;
+          textSpan.innerText = 'Recalibrating...';
+          setTimeout(() => {
+            textSpan.innerText = 'Updated!';
+            setTimeout(() => {
+              textSpan.innerText = originalText;
+            }, 1200);
+          }, 600);
+        }
+      });
+    }
+  })();
+</script></main>
+<nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/85 backdrop-blur-xl shadow-[0_-4px_24px_rgba(26,26,26,0.04)]" data-active-classes="text-primary font-semibold relative after:content-[''] after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:absolute after:bottom-1">
+<div class="flex justify-around items-center h-16 px-space-xs">
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="explore" href="#">
+<span class="material-symbols-outlined text-[24px]">explore</span>
+<span class="font-label-sm text-label-sm mt-0.5">Explore</span>
+</a>
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="trips" href="#">
+<span class="material-symbols-outlined text-[24px]">luggage</span>
+<span class="font-label-sm text-label-sm mt-0.5">Trips</span>
+</a>
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="map" href="#">
+<span class="material-symbols-outlined text-[24px]">map</span>
+<span class="font-label-sm text-label-sm mt-0.5">Map</span>
+</a>
+<a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="saved" href="#">
+<span class="material-symbols-outlined text-[24px]">bookmark</span>
+<span class="font-label-sm text-label-sm mt-0.5">Saved</span>
+</a>
+<a aria-current="page" class="flex flex-col items-center justify-center w-14 h-14 transition-colors text-primary font-semibold relative after:content-[''] after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:absolute after:bottom-1" data-path="traveler-profile" href="#">
+<span class="material-symbols-outlined text-[24px]">account_circle</span>
+<span class="font-label-sm text-label-sm mt-0.5">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

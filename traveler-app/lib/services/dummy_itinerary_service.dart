@@ -18,6 +18,7 @@ class DummyItineraryService {
     required int travelerCount,
     required List<String> interests,
     String? preferences,
+    int? placesToVisit,
   }) async {
     // 1. Simulate AI processing / recommendation synthesis delay (1.4s)
     await Future.delayed(const Duration(milliseconds: 1400));
@@ -34,6 +35,7 @@ class DummyItineraryService {
       interests: interests,
       groupType: groupType,
       preferences: preferences,
+      placesToVisit: placesToVisit,
     );
 
     // 3. Compute total cost and duration
@@ -60,6 +62,7 @@ class DummyItineraryService {
     required List<String> interests,
     required String groupType,
     String? preferences,
+    int? placesToVisit,
   }) {
     final lowerInterests = interests.map((e) => e.toLowerCase()).toList();
 
@@ -170,20 +173,13 @@ class DummyItineraryService {
     // Sort by relevance score descending
     scoredPool.sort((a, b) => b.score.compareTo(a.score));
 
-    // Determine how many items to return based on available time
-    // e.g. < 180 min (3h) -> 2-3 items
-    // 180 - 360 min (3h - 6h) -> 3-4 items
-    // > 360 min (6h+) -> 4-5 items
-    int maxItems;
-    if (availableTimeMinutes <= 120) {
-      maxItems = 2;
-    } else if (availableTimeMinutes <= 240) {
-      maxItems = 3;
-    } else if (availableTimeMinutes <= 480) {
-      maxItems = 4;
-    } else {
-      maxItems = 5;
-    }
+    // Determine how many items to return based on placesToVisit or available time
+    int maxItems = placesToVisit ?? (
+      availableTimeMinutes <= 120 ? 3 :
+      availableTimeMinutes <= 240 ? 4 :
+      availableTimeMinutes <= 480 ? 5 : 6
+    );
+    maxItems = maxItems.clamp(1, scoredPool.length);
 
     final selectedTemplates = scoredPool.take(maxItems).map((e) => e.template).toList();
 

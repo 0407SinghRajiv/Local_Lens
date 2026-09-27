@@ -15,12 +15,14 @@ try:
         RecommendationRequest,
         RecommendationResponse,
     )
+    from backend.app.services.place_image_resolver import PlaceImageResolver
 except ImportError:
     from app.schemas.recommendation_schemas import (
         RecommendationItem,
         RecommendationRequest,
         RecommendationResponse,
     )
+    from app.services.place_image_resolver import PlaceImageResolver
 
 logger = logging.getLogger(__name__)
 
@@ -44,11 +46,11 @@ class RecommendationService:
             model_dir = Path(os.getenv("MODEL_DIR", ml_dir / "models"))
             dataset_dir = Path(os.getenv("DATASET_DIR", ml_dir / "datasets"))
 
-            logger.info(f"Initializing RecommendationEngine with all_experiences_with_images.csv: model_dir={model_dir}, dataset_dir={dataset_dir}")
+            logger.info(f"Initializing RecommendationEngine with all_experiences_with_photos.csv: model_dir={model_dir}, dataset_dir={dataset_dir}")
             cls._engine_instance = RecommendationEngine(
                 model_dir=model_dir,
                 dataset_dir=dataset_dir,
-                dataset_filename="all_experiences_with_images.csv",
+                dataset_filename="all_experiences_with_photos.csv",
             )
 
         return cls._engine_instance
@@ -185,13 +187,23 @@ class RecommendationService:
 
         reason = " • ".join(reason_parts) if reason_parts else f"Recommended for {request.group_type or 'you'}"
 
-        image_url = raw.get("image_url")
-        if not image_url or not str(image_url).startswith("http"):
-            image_url = "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80"
+        exp_id = str(raw.get("experience_id", ""))
+        exp_name = str(raw.get("experience_name", "Local Experience"))
 
         loc_str = str(raw.get("location") or raw.get("city") or "")
         if raw.get("district") and str(raw.get("district")) != "nan" and str(raw.get("district")) != "None":
             loc_str = f"{raw.get('district')}, {loc_str}"
+
+        # Resolve authentic CSV Image
+        image_url = raw.get("image_url")
+        if not image_url or not str(image_url).startswith("http") or "unsplash.com" in str(image_url).lower():
+            resolved_csv_img = PlaceImageResolver.get_instance().resolve_image(
+                place_id=exp_id,
+                name=exp_name,
+                location=loc_str,
+                category=category,
+            )
+            image_url = resolved_csv_img or image_url
 
         # Parse tags
         raw_tags = raw.get("tags")
@@ -200,8 +212,6 @@ class RecommendationService:
             tag_list = [str(t).strip() for t in raw_tags if str(t).strip()]
         elif isinstance(raw_tags, str) and raw_tags.strip():
             tag_list = [t.strip() for t in raw_tags.split(";") if t.strip()]
-
-        exp_name = str(raw.get("experience_name", "Local Experience"))
 
         return RecommendationItem(
             experience_id=str(raw.get("experience_id", "")),

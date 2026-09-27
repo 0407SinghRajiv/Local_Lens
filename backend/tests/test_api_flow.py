@@ -105,4 +105,5 @@ def test_itinerary_duration_and_budget_constraints():
     assert data["success"] is True
     assert data["budget_exceeded"] is True
     assert data["budget_warning"] is not None
-    assert len(data["skipped_experiences"]) > 0
+    # All 4 user-selected experiences must be scheduled
+    assert len(data["scheduled_experiences"]) == 4

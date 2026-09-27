@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_tab" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{width:100vw;margin:0;padding:0;}body{overscroll-behavior:none;}.pb-safe{padding-bottom:env(safe-area-inset-bottom,0px);}.pt-safe{padding-top:env(safe-area-inset-top,0px);}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "tertiary-container": "#966c41", "inverse-surface": "#313030", "inverse-on-surface": "#f3f0ef", "primary": "#af2900", "surface-tint": "#b32b01", "surface-container-high": "#eae7e7", "on-primary-container": "#fffbff", "on-primary-fixed-variant": "#891e00", "on-primary": "#ffffff", "on-surface": "#1c1b1b", "surface-variant": "#e5e2e1", "on-surface-variant": "#5a413a", "tertiary-fixed": "#ffdcbd", "tertiary-fixed-dim": "#f0bd8b", "on-tertiary-fixed-variant": "#623f18", "on-secondary": "#ffffff", "surface-container-lowest": "#ffffff", "on-tertiary": "#ffffff", "on-background": "#1c1b1b", "on-tertiary-container": "#fffbff", "surface-dim": "#dcd9d9", "secondary": "#4b6454", "surface-bright": "#fcf9f8", "on-tertiary-fixed": "#2c1600", "surface-container-low": "#f6f3f2", "inverse-primary": "#ffb4a2", "primary-container": "#d2411a", "error": "#ba1a1a", "outline-variant": "#e3beb6", "on-secondary-fixed": "#082014", "primary-fixed": "#ffdbd2", "on-error-container": "#93000a", "surface-container": "#f0eded", "on-primary-fixed": "#3c0800", "secondary-fixed": "#cee9d6", "surface": "#fcf9f8", "background": "#fcf9f8", "secondary-fixed-dim": "#b2cdba", "tertiary": "#7b542b", "secondary-container": "#cbe6d3", "surface-container-highest": "#e5e2e1", "primary-fixed-dim": "#ffb4a2", "on-secondary-fixed-variant": "#344c3e", "error-container": "#ffdad6", "on-error": "#ffffff", "on-secondary-container": "#4f6859", "outline": "#8e7069" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "space-xl": "2rem", "space-md": "1rem", "margin": "1.5rem", "space-sm": "0.5rem", "gutter": "1rem", "space-xs": "0.25rem", "gutter-mobile": "0.75rem", "margin-mobile": "1.25rem" }, "fontFamily": { "headline-sm": ["Plus Jakarta Sans"], "display-hero": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "display-hero-mobile": ["Plus Jakarta Sans"], "label-lg": ["Inter"], "body-md": ["Inter"], "body-lg": ["Inter"], "body-sm": ["Inter"], "label-md": ["Inter"], "headline-lg": ["Plus Jakarta Sans"], "label-sm": ["Inter"] }, "fontSize": { "headline-sm": ["18px", { "lineHeight": "24px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "display-hero": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.03em", "fontWeight": "700" }], "headline-md": ["22px", { "lineHeight": "28px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "display-hero-mobile": ["32px", { "lineHeight": "38px", "letterSpacing": "-0.025em", "fontWeight": "700" }], "label-lg": ["14px", { "lineHeight": "18px", "letterSpacing": "0.01em", "fontWeight": "600" }], "body-md": ["14px", { "lineHeight": "22px", "letterSpacing": "0", "fontWeight": "400" }], "body-lg": ["16px", { "lineHeight": "26px", "letterSpacing": "-0.005em", "fontWeight": "400" }], "body-sm": ["12px", { "lineHeight": "18px", "letterSpacing": "0.005em", "fontWeight": "400" }], "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-lg": ["28px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }], "label-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "600" }] } } } };</script><style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head><body class="bg-surface font-body-md text-body-md text-on-surface flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 pt-safe bg-surface/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(26,26,26,0.04)]"><div class="h-16 px-margin-mobile flex items-center justify-between"><div class="flex items-center gap-space-sm"><img alt="Wander Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA5j_99Dp4SDDnluNeyE5-jdzAY5go3NrCiLihHvoI1eiH0ZjuTmDe8i3szfIHPN7zO4cJrFiggLctrq8EaTZhafbilXdr_LC53x6G4yuvvcK6Ia7ipV7ldJf8sZJV4V0Fet2qisHjeV1CgomWyKN8vVeYY4Sy8pUrdMadHY-100PRmJuu9VFRJtB0s_H5yB80EjLZ01OhrZE9WtsWWBSCF0akvWKssSWx891AafZ1D7LMMViTDya7h5Q"/><span class="font-headline-sm text-headline-sm text-on-surface tracking-tight">Wander</span></div><div class="flex items-center gap-space-sm"><h1 class="font-label-lg text-label-lg text-on-surface-variant">Explore</h1><button aria-label="Profile" class="w-11 h-11 flex items-center justify-center"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDX-Woy_utSc_ERkUUmGmB8ezxwW-NB7nhZChKttIPEPzNA4hEDA1-PsAZB77QqH4Y_KlwX1bPka-BXJQIXgrDJYXqVQ__6XR5XV-N4t-z0-AhGG2FHvbApBbmMD5yzqJDwVPBnNvR7PTrf5c6hXN6cQQBorORJ1GOaUN9DuVlxmOXK2zh2sJU5aZcXGq1RJpUF6Ls39JO-Nm0OWwX9aA0kzx4DZqJcNeP2fwo95c0RYXeyLekX3Js8Cg"/></button></div></div></header><main class="flex flex-col relative w-full pt-16 pb-24 bg-surface min-h-screen"><div class="flex flex-col w-full relative select-none">
+<!-- Immersive Cinematic Visual Canvas -->
+<div class="relative w-full h-[620px] overflow-hidden">
+<!-- Full-bleed background view from user image -->
+<div class="absolute inset-0 bg-cover bg-center transition-transform duration-1000 scale-100" id="cinematicCanvas" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBeSNOlMDx5ztao8TYb8yFufdhsIJK-wlmww5acVpBCAKJ0elhanGbccqFaf2Nk5J3_jQ1beUrYG-vqOfur7XrPr9bLhO-PLgGIcD3nlHAst5GNGhkFQkM122U-7wKWsnJUMDJyesHHASk_-_IWIkTEDIjifXn0poNCP5QW7qu8Qa7_YQ4Wxh7xIX5kaV-5Oa31v9V6GqI5wv3f27H5jMIiBQ_DcixiObQ8G_s174wTgxJGcjbUPkUshw');"></div>
+<!-- Warm Cinematic Vignette & Atmospheric Scrim -->
+<div class="absolute inset-0 bg-gradient-to-t from-on-surface via-transparent to-on-surface/40 pointer-events-none"></div>
+<div class="absolute inset-0 bg-radial from-transparent via-transparent to-on-surface/50 pointer-events-none"></div>
+<!-- Floating Top Destination Bar & Audio Ambience Dock -->
+<div class="absolute top-4 left-margin-mobile right-margin-mobile flex flex-col gap-space-xs z-30">
+<div class="flex items-center justify-between">
+<!-- Back Navigation Pill -->
+<button aria-label="Go Back" class="w-10 h-10 rounded-full bg-surface/70 backdrop-blur-xl flex items-center justify-center text-on-surface shadow-md active:scale-95 transition-transform" type="button">
+<span class="material-symbols-outlined text-[20px]">arrow_back</span>
+</button>
+<!-- Destination & Weather Pill -->
+<div class="px-space-md py-1.5 rounded-full bg-surface/75 backdrop-blur-xl flex items-center gap-space-xs shadow-md">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+<span class="font-headline-sm text-label-md text-on-surface">Jaipur</span>
+<span class="text-on-surface-variant font-body-sm">· Golden Hour 28°C</span>
+</div>
+<!-- Bookmark / Save Icon Button -->
+<button aria-label="Save Destination" class="w-10 h-10 rounded-full bg-surface/70 backdrop-blur-xl flex items-center justify-center text-on-surface shadow-md active:scale-95 transition-transform" id="bookmarkBtn" onclick="toggleBookmark()" type="button">
+<span class="material-symbols-outlined text-[20px] text-primary" id="bookmarkIcon">bookmark_border</span>
+</button>
+</div>
+<!-- Soundscape Micro-Pill -->
+<div class="self-center mt-1">
+<button class="px-space-md py-1 rounded-full bg-on-surface/70 backdrop-blur-md flex items-center gap-space-xs shadow-sm text-surface active:scale-95 transition-all text-label-sm font-label-sm" id="audioToggle" onclick="toggleAudio()">
+<span class="material-symbols-outlined text-[16px] text-primary-fixed" id="audioWave">graphic_eq</span>
+<span id="audioStatusText">Desert Winds &amp; Sitar</span>
+<span class="text-primary-fixed-dim text-[9px] uppercase tracking-wider ml-0.5">· LIVE</span>
+</button>
+</div>
+</div>
+<!-- Dynamic 3D Spatial Hotspots on Cityscape -->
+<!-- Hotspot 1: Nahargarh Fort (Top Hill Ridge) -->
+<div class="absolute top-[165px] right-[24%] z-20 group">
+<button aria-label="Nahargarh Fort Pin" class="relative flex items-center justify-center w-8 h-8 rounded-full bg-primary/20 backdrop-blur-sm active:scale-90 transition-all focus:outline-none" onclick="highlightSpot('nahargarh')">
+<span class="absolute w-7 h-7 rounded-full bg-primary/40 animate-ping"></span>
+<span class="w-3.5 h-3.5 rounded-full bg-primary shadow-[0_0_12px_#d2411a]"></span>
+</button>
+<div class="absolute -bottom-8 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-inverse-surface/85 backdrop-blur-md shadow-md pointer-events-none whitespace-nowrap">
+<p class="font-label-sm text-label-sm text-inverse-on-surface flex items-center gap-1">
+<span>Nahargarh Fort</span>
+<span class="text-primary-fixed text-[9px]">4.8 km</span>
+</p>
+</div>
+</div>
+<!-- Hotspot 2: Johari Bazaar (Lower Market Street) -->
+<div class="absolute bottom-[230px] left-[15%] z-20 group">
+<button aria-label="Johari Bazaar Pin" class="relative flex items-center justify-center w-8 h-8 rounded-full bg-secondary/20 backdrop-blur-sm active:scale-90 transition-all focus:outline-none" onclick="highlightSpot('johari')">
+<span class="absolute w-6 h-6 rounded-full bg-secondary/30 animate-pulse"></span>
+<span class="w-3.5 h-3.5 rounded-full bg-secondary shadow-[0_0_10px_#4b6454]"></span>
+</button>
+<div class="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-md bg-inverse-surface/85 backdrop-blur-md shadow-md pointer-events-none whitespace-nowrap">
+<p class="font-label-sm text-label-sm text-inverse-on-surface">Johari Bazaar · 800m</p>
+</div>
+</div>
+<!-- Hotspot 3: Hawa Mahal (Main Focus, Center Facade) with rich micro-card -->
+<div class="absolute top-[280px] left-1/2 -translate-x-1/2 z-30 flex flex-col items-center">
+<!-- Pulsing Beacon -->
+<button aria-label="Hawa Mahal Details" class="relative flex items-center justify-center w-10 h-10 rounded-full bg-primary/30 backdrop-blur-sm active:scale-90 transition-transform mb-1.5 focus:outline-none" onclick="highlightSpot('hawamahal')">
+<span class="absolute w-9 h-9 rounded-full bg-primary/40 animate-ping"></span>
+<span class="w-4 h-4 rounded-full bg-primary shadow-[0_0_16px_#ffb4a2] flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-[11px]">lens</span>
+</span>
+</button>
+<!-- Glass Micro Card attached to POI -->
+<div class="w-[260px] bg-surface/90 backdrop-blur-2xl rounded-xl p-3 shadow-2xl transition-all duration-300 transform scale-100" id="poiCard">
+<div class="flex items-start justify-between">
+<div>
+<div class="flex items-center gap-1.5">
+<span class="font-headline-sm text-headline-sm text-on-surface">Hawa Mahal</span>
+<span class="material-symbols-outlined text-[15px] text-primary" style="font-variation-settings: 'FILL' 1;">verified</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Palace of 953 Windows</p>
+</div>
+<div class="flex items-center bg-secondary-container px-1.5 py-0.5 rounded text-on-secondary-container font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-[12px] mr-0.5" style="font-variation-settings: 'FILL' 1;">star</span>
+            4.9
+          </div>
+</div>
+<div class="mt-2.5 pt-2 flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<span class="flex items-center gap-1 text-secondary font-medium">
+<span class="material-symbols-outlined text-[14px]">cloud_download</span>
+            15m live queue
+          </span>
+<button class="text-primary font-semibold flex items-center gap-0.5 active:opacity-70" onclick="triggerStoryScroll()">
+<span>Story</span>
+<span class="material-symbols-outlined text-[14px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- 360 Orientation Indicator Chip -->
+<div class="absolute bottom-6 right-margin-mobile z-20">
+<div class="px-2.5 py-1 rounded-full bg-on-surface/60 backdrop-blur-md flex items-center gap-1.5 text-surface font-label-sm text-label-sm shadow-md">
+<span class="material-symbols-outlined text-[15px] text-tertiary-fixed animate-spin" style="animation-duration: 8s;">explore</span>
+<span>Compass Facing 114° SE</span>
+</div>
+</div>
+</div>
+<!-- Editorial Layered Container Overlapping Cinematic Canvas -->
+<div class="relative -mt-4 bg-surface rounded-t-[28px] px-margin-mobile pt-3 pb-8 z-30 shadow-[0_-12px_36px_rgba(26,26,26,0.08)]">
+<!-- Bottom Sheet Subtle Grab Handle -->
+<div class="w-9 h-1 rounded-full bg-outline-variant/60 mx-auto mb-4"></div>
+<!-- Storyteller Quote with Avatar -->
+<div class="bg-surface-container-low rounded-xl p-3.5 mb-5 flex items-center gap-3">
+<div class="relative flex-shrink-0">
+<img class="w-12 h-12 rounded-full object-cover shadow-sm" data-alt="Editorial portrait of a stylish female travel curator wearing handcrafted terracotta-toned linen scarf in sunlight, cinematic natural lighting, shallow depth of field, high-end travel magazine aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDOP08nLRzdF-I3Ugq9BtVyC8_ScfpDPsLJwrcnfd1AQJo_iC7s0y6WZJjsOiKHyIYAS2mVfySLGK1EjhH4yHJrf7BdHjIPr-ROrGCnOqg50b7M47jO-1ZXomocMQpPIyEHNU9KSOY9v9QDYyplgyquPP2SNk1HYrtfPBfF2yT6Z8tQ0HTYukBhZpcKVMtBdjlMcdBrs8Sq1eSEvI2fCdUEkZ7Kj-bnSi3P2tqalkENV2jtHBMLTfA8Dw"/>
+<div class="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined text-[10px]">auto_awesome</span>
+</div>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-1.5">
+<span class="font-headline-sm text-label-md text-on-surface">Meera Varma</span>
+<span class="font-label-sm text-[10px] text-primary bg-primary-fixed px-1.5 py-0.2 rounded-full">Local Expert</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant italic truncate mt-0.5">
+          "The sunlight through stained glass at 4:30 PM is pure poetry."
+        </p>
+</div>
+</div>
+<!-- Carousel Header: Reel Moments -->
+<div class="flex items-center justify-between mb-3">
+<div>
+<h2 class="font-headline-md text-headline-sm text-on-surface tracking-tight">Curated Jaipur Moments</h2>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Handcrafted by wandering storytellers</p>
+</div>
+<div class="flex items-center gap-1">
+<span class="font-label-sm text-label-sm text-primary">3 Moments</span>
+</div>
+</div>
+<!-- Horizontal Swipeable Moments Carousel -->
+<div class="flex gap-space-md overflow-x-auto snap-x snap-mandatory pb-2 -mx-margin-mobile px-margin-mobile" id="storyTrack">
+<!-- Moment Card 1 -->
+<div class="w-[220px] flex-shrink-0 snap-start bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm flex flex-col group">
+<div class="relative h-28 w-full overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Warm atmospheric courtyard of City Palace in Jaipur Rajasthan with carved pink sandstone arches, golden lanterns, and patterned marble floor during sunset hour" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBG7DqjIzEqgw3P94G3-4QlEJPnZxjmtdmDDH9NUF_352fYeX50jSDC9UKPSmn80ujFbN2ZMWuTuSpUYI6EGfCC3tf6G4D_de14U2WTr41774mX8oDs38-ua-eKuJ48xNnAcEpm6ySZwGcIxLXR3ADlke0plzxK-t9AL-44mhal0eZAQ2Ms46W39NX1QmFr5NgeSExAwqmWMhNecR7Ep3z6TnUpgX1jp-LUfQp2VcHWvmrHqszFbZNaVA"/>
+<div class="absolute top-2 left-2 bg-inverse-surface/70 backdrop-blur-md px-2 py-0.5 rounded-full text-inverse-on-surface font-label-sm text-[10px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-tertiary-fixed">lock_clock</span>
+            Quiet Hour
+          </div>
+</div>
+<div class="p-3 flex flex-col justify-between flex-grow">
+<div>
+<h3 class="font-headline-sm text-label-lg text-on-surface">Hidden Courtyards</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 line-clamp-2">Pritam Niwas Chowk's iconic peacock gates before midday crowds.</p>
+</div>
+<div class="flex items-center justify-between mt-3 pt-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="text-secondary flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">schedule</span> 8:30 AM
+            </span>
+<button class="text-primary font-semibold text-[11px] active:underline">Save</button>
+</div>
+</div>
+</div>
+<!-- Moment Card 2 -->
+<div class="w-[220px] flex-shrink-0 snap-start bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm flex flex-col group">
+<div class="relative h-28 w-full overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Rooftop cafe in Jaipur overlooking the illuminated pink facade of Hawa Mahal at twilight with traditional clay chai cups on wooden table and fairy lights" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCzq-XW2_cQIrPyJa7kHIxaBcvZGzSps2YLBz7AAYsRq89hveecD9cm0X3rriGRqcLQZcjoWflgQJK-6g9IVKzOzrvGavtH1nFF2OuP9COvHw6GKQybOKCwgo088xRDW8D5Jshx_xLV1BW24pXY22ilT6Lm7N8YmiGGl_AthjASIr4e6tGUmYKR002xxh9bAHUGGx0dqk9Q9LBMu_bH5PV21noaAQiM2pVFzUToS4dBHkGWF1yHmhZw9g"/>
+<div class="absolute top-2 left-2 bg-inverse-surface/70 backdrop-blur-md px-2 py-0.5 rounded-full text-inverse-on-surface font-label-sm text-[10px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-primary-fixed">local_cafe</span>
+            Sunset View
+          </div>
+</div>
+<div class="p-3 flex flex-col justify-between flex-grow">
+<div>
+<h3 class="font-headline-sm text-label-lg text-on-surface">Rooftop Chai at 6 PM</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 line-clamp-2">Tattoo Cafe vantage point across the street for glowing honeycomb views.</p>
+</div>
+<div class="flex items-center justify-between mt-3 pt-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="text-secondary flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">schedule</span> 6:00 PM
+            </span>
+<button class="text-primary font-semibold text-[11px] active:underline">Save</button>
+</div>
+</div>
+</div>
+<!-- Moment Card 3 -->
+<div class="w-[220px] flex-shrink-0 snap-start bg-surface-container-lowest rounded-xl overflow-hidden shadow-sm flex flex-col group">
+<div class="relative h-28 w-full overflow-hidden">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Artisan hands in Sanganer Jaipur printing indigo and madder red natural dyes on cotton fabric using carved teak wooden blocks, warm sunlight studio setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC7AokoEumfvvIah14EMVmbNqvwpXe2anX6agrBi3njTZ2b2Gc86eaTpbiWaEvd7rZaYgnMKwv64qF8RukQjDuq7WOtP50_rOnRVW36dVJQIaSovqTXWLC3wIf5NwAtsW6ze42N8cmh7pD23WSDRhJ7R3pODCdH3WT7KVwWpVJOY6ivITiMQhPAfzqt_kqNnswS6Bx85RvD2t64AqHFs0xns80T4mohy5g16B-TohIkKVC2h0WS7KUrjg"/>
+<div class="absolute top-2 left-2 bg-inverse-surface/70 backdrop-blur-md px-2 py-0.5 rounded-full text-inverse-on-surface font-label-sm text-[10px] flex items-center gap-1">
+<span class="material-symbols-outlined text-[12px] text-secondary-fixed-dim">palette</span>
+            Artisan Atelier
+          </div>
+</div>
+<div class="p-3 flex flex-col justify-between flex-grow">
+<div>
+<h3 class="font-headline-sm text-label-lg text-on-surface">Block Print Workshop</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-0.5 line-clamp-2">Learn 300-year-old botanical dye stamping with Master craftsman Govind.</p>
+</div>
+<div class="flex items-center justify-between mt-3 pt-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="text-secondary flex items-center gap-0.5">
+<span class="material-symbols-outlined text-[13px]">schedule</span> 11:00 AM
+            </span>
+<button class="text-primary font-semibold text-[11px] active:underline">Save</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Quick Location Capsule -->
+<div class="mt-5 p-3.5 rounded-xl bg-surface-container flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-surface-container-lowest flex items-center justify-center text-primary shadow-sm">
+<span class="material-symbols-outlined text-[22px]">explore</span>
+</div>
+<div>
+<p class="font-headline-sm text-label-md text-on-surface">Old City Heritage Quadrant</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Badi Choupad, Pink City District</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant">chevron_right</span>
+</div>
+<!-- Interactive Bottom Action Dock -->
+<div class="mt-6 flex items-center gap-space-sm pt-2">
+<!-- 360 AR View Button -->
+<button class="h-[52px] px-4 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-label-lg text-label-lg flex items-center justify-center gap-2 active:scale-95 transition-all shadow-sm" id="arBtn" onclick="toggleAR()" type="button">
+<span class="material-symbols-outlined text-[20px] text-tertiary">view_in_ar</span>
+<span class="whitespace-nowrap">360° AR</span>
+</button>
+<!-- Primary Glowing Itinerary CTA -->
+<button class="flex-1 h-[52px] rounded-xl bg-primary text-on-primary font-headline-sm text-label-lg flex items-center justify-center gap-2 shadow-[0_8px_24px_rgba(175,41,0,0.3)] active:scale-98 transition-all overflow-hidden relative" id="itineraryBtn" onclick="addToItinerary()" type="button">
+<span class="material-symbols-outlined text-[20px]" id="btnIcon">add_circle</span>
+<span id="btnText">Add to Jaipur Trip</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+<!-- Flash Ripple Feedback Element -->
+<span class="absolute inset-0 bg-on-primary/20 opacity-0 pointer-events-none transition-opacity duration-300" id="ripple"></span>
+</button>
+</div>
+<!-- Itinerary Feedback Notification Toast (Hidden by default) -->
+<div class="mt-3 py-2 px-3 bg-secondary-container text-on-secondary-container rounded-lg flex items-center justify-between opacity-0 translate-y-2 pointer-events-none transition-all duration-300" id="feedbackToast">
+<div class="flex items-center gap-2 font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px] text-secondary">check_circle</span>
+<span>Hawa Mahal added to Day 1 Morning</span>
+</div>
+<span class="font-label-sm text-[11px] underline cursor-pointer">View Plan</span>
+</div>
+</div>
+</div>
+<script>
+  let isBookmarked = false;
+  let isAudioPlaying = true;
+  let isAddedToTrip = false;
+  let arActive = false;
+
+  function toggleBookmark() {
+    isBookmarked = !isBookmarked;
+    const icon = document.getElementById('bookmarkIcon');
+    if (isBookmarked) {
+      icon.innerText = 'bookmark';
+      icon.style.fontVariationSettings = "'FILL' 1";
+    } else {
+      icon.innerText = 'bookmark_border';
+      icon.style.fontVariationSettings = "'FILL' 0";
+    }
+  }
+
+  function toggleAudio() {
+    isAudioPlaying = !isAudioPlaying;
+    const wave = document.getElementById('audioWave');
+    const text = document.getElementById('audioStatusText');
+    if (isAudioPlaying) {
+      wave.innerText = 'graphic_eq';
+      text.innerText = 'Desert Winds & Sitar';
+    } else {
+      wave.innerText = 'volume_off';
+      text.innerText = 'Ambience Muted';
+    }
+  }
+
+  function highlightSpot(spot) {
+    const canvas = document.getElementById('cinematicCanvas');
+    const poiCard = document.getElementById('poiCard');
+    
+    if (spot === 'nahargarh') {
+      canvas.style.transform = 'scale(1.08) translateY(20px)';
+      poiCard.style.opacity = '0.5';
+    } else if (spot === 'johari') {
+      canvas.style.transform = 'scale(1.06) translateY(-20px)';
+      poiCard.style.opacity = '0.5';
+    } else {
+      canvas.style.transform = 'scale(1.0)';
+      poiCard.style.opacity = '1';
+    }
+    
+    setTimeout(() => {
+      canvas.style.transform = 'scale(1.0)';
+      poiCard.style.opacity = '1';
+    }, 2400);
+  }
+
+  function triggerStoryScroll() {
+    const track = document.getElementById('storyTrack');
+    if (track) {
+      track.scrollBy({ left: 240, behavior: 'smooth' });
+    }
+  }
+
+  function toggleAR() {
+    arActive = !arActive;
+    const btn = document.getElementById('arBtn');
+    if (arActive) {
+      btn.classList.add('bg-secondary', 'text-on-secondary');
+      btn.classList.remove('bg-surface-container-high', 'text-on-surface');
+    } else {
+      btn.classList.remove('bg-secondary', 'text-on-secondary');
+      btn.classList.add('bg-surface-container-high', 'text-on-surface');
+    }
+  }
+
+  function addToItinerary() {
+    const toast = document.getElementById('feedbackToast');
+    const btnText = document.getElementById('btnText');
+    const btnIcon = document.getElementById('btnIcon');
+    const ripple = document.getElementById('ripple');
+
+    ripple.classList.remove('opacity-0');
+    ripple.classList.add('opacity-100');
+    setTimeout(() => ripple.classList.remove('opacity-100'), 250);
+
+    isAddedToTrip = !isAddedToTrip;
+    if (isAddedToTrip) {
+      btnText.innerText = 'Added (1 Stop)';
+      btnIcon.innerText = 'task_alt';
+      toast.classList.remove('opacity-0', 'translate-y-2', 'pointer-events-none');
+      toast.classList.add('opacity-100', 'translate-y-0');
+    } else {
+      btnText.innerText = 'Add to Jaipur Trip';
+      btnIcon.innerText = 'add_circle';
+      toast.classList.add('opacity-0', 'translate-y-2', 'pointer-events-none');
+      toast.classList.remove('opacity-100', 'translate-y-0');
+    }
+  }
+</script></main><nav class="fixed bottom-0 w-full z-50 pb-safe bg-surface/85 backdrop-blur-xl shadow-[0_-4px_24px_rgba(26,26,26,0.04)]" data-active-classes="text-primary font-semibold relative after:content-[''] after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:absolute after:bottom-1"><div class="flex justify-around items-center h-16 px-space-xs"><a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="explore" href="#"><span class="material-symbols-outlined text-[24px]">explore</span><span class="font-label-sm text-label-sm mt-0.5">Explore</span></a><a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="trips" href="#"><span class="material-symbols-outlined text-[24px]">luggage</span><span class="font-label-sm text-label-sm mt-0.5">Trips</span></a><a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="map" href="#"><span class="material-symbols-outlined text-[24px]">map</span><span class="font-label-sm text-label-sm mt-0.5">Map</span></a><a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="bookings" href="#"><span class="material-symbols-outlined text-[24px]">confirmation_number</span><span class="font-label-sm text-label-sm mt-0.5">Bookings</span></a><a class="flex flex-col items-center justify-center w-14 h-14 text-on-surface-variant hover:text-on-surface transition-colors" data-path="profile" href="#"><span class="material-symbols-outlined text-[24px]">account_circle</span><span class="font-label-sm text-label-sm mt-0.5">Profile</span></a></div></nav></body></html>

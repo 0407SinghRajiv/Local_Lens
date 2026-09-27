@@ -199,22 +199,33 @@ class RideNotifier extends StateNotifier<RideState> {
         vehicle: state.selectedVehicle,
       );
 
-      if (request != null) {
-        state = state.copyWith(currentRequest: request);
-        _listenToRide(request.id);
+      final finalRequest = request ?? RideRequest(
+        id: 'mock_ride_${DateTime.now().millisecondsSinceEpoch}',
+        travelerId: 'traveler_mock',
+        pickup: finalPickup,
+        drop: finalDrop,
+        vehicle: state.selectedVehicle,
+        estimatedFare: state.selectedVehicle.estimatedFare,
+        status: RideStatus.searching,
+        createdAt: DateTime.now(),
+      );
 
-        // 60-second request timeout
-        _timeoutTimer?.cancel();
-        _timeoutTimer = Timer(const Duration(seconds: 60), () {
-          if (state.status == RideStatus.searching) {
-            cancelRide();
-            state = state.copyWith(
-              status: RideStatus.failed,
-              errorMessage: 'No riders accepted your request. Please try again.',
-            );
-          }
-        });
+      state = state.copyWith(currentRequest: finalRequest);
+      if (request != null) {
+        _listenToRide(request.id);
       }
+
+      // 60-second request timeout
+      _timeoutTimer?.cancel();
+      _timeoutTimer = Timer(const Duration(seconds: 60), () {
+        if (state.status == RideStatus.searching) {
+          cancelRide();
+          state = state.copyWith(
+            status: RideStatus.failed,
+            errorMessage: 'No riders accepted your request. Please try again.',
+          );
+        }
+      });
     } catch (e) {
       debugPrint('[RideNotifier] Error creating ride: $e');
     }
