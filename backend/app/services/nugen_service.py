@@ -44,9 +44,10 @@ class NugenService:
         user_constraints: Dict[str, Any],
         generated_itinerary: Dict[str, Any],
         weather: Optional[Dict[str, Any]] = None,
+        live_weather: Optional[Dict[str, Any]] = None,
     ) -> Optional[NugenEnhancementResponse]:
         """
-        Enhance and validate Rajiv's generated itinerary.
+        Enhance and validate generated itinerary.
         Returns structured NugenEnhancementResponse or None if disabled.
         """
         # Master feature flag check
@@ -111,6 +112,7 @@ class NugenService:
                             original_itinerary=generated_itinerary,
                             user_constraints=user_constraints,
                             weather=weather,
+                            live_weather=live_weather,
                         )
                         logger.info("[NUGEN] Response validated")
                         logger.info("[NUGEN] Enhancement completed")
@@ -131,15 +133,17 @@ class NugenService:
                 original_itinerary=generated_itinerary,
                 user_constraints=user_constraints,
                 weather=weather,
+                live_weather=live_weather,
             )
             logger.info("[NUGEN] Enhancement completed")
             return result
 
         except Exception as e:
             logger.error(f"[NUGEN] Unexpected enhancement error: {e}. Falling back gracefully.", exc_info=True)
-            # Section 15 Resilience Principle: Never break Rajiv's itinerary
             return NugenEnhancementResponse(
                 enabled=True,
                 status="unavailable",
                 metadata={"error": "Nugen validation temporarily unavailable"},
+                weather=weather,
+                live_weather=live_weather,
             )

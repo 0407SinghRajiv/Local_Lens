@@ -160,6 +160,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       latitude: lat,
       longitude: lng,
       displayAddress: address,
+      activeWeatherCondition: 'Live',
     );
   }
 
@@ -443,7 +444,8 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
 
       debugPrint('[ItineraryProvider] Requested: $targetCount, Selected: ${selectedPlacesList.length}, Sent to backend: ${selectedList.length}');
 
-      final activeCondition = weatherOverride ?? (state.activeWeatherCondition != 'Live' ? state.activeWeatherCondition : null);
+      final requestedCond = weatherOverride ?? state.activeWeatherCondition;
+      final activeCondition = (requestedCond == 'Live' || requestedCond == 'Live GPS') ? null : requestedCond;
 
       final itinerary = await ItineraryApiService.generateItinerary(
         destination: dest,

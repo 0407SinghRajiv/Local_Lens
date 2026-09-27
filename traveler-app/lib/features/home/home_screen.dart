@@ -211,9 +211,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             _weatherDesc = 'Heavy Rain & Thunderstorm';
             _weatherIcon = Icons.thunderstorm_rounded;
             _stormController.repeat();
+            ref.read(itineraryProvider.notifier).setWeatherCondition('Heavy Thunderstorm');
           } else {
             _fetchWeather();
             _stormController.stop();
+            ref.read(itineraryProvider.notifier).setWeatherCondition('Live');
           }
         });
       },
@@ -483,7 +485,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           ),
                           TextButton.icon(
                             onPressed: () {
-                              ref.read(createItineraryProvider.notifier).setWeatherCondition('Live');
+                              ref.read(itineraryProvider.notifier).setWeatherCondition('Live');
+                              setState(() {
+                                _isStormyDemo = false;
+                                _fetchWeather();
+                                _stormController.stop();
+                              });
                               Navigator.pop(ctx);
                               context.push(AppRoutes.travelerCreateItinerary);
                             },

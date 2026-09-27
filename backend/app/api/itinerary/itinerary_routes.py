@@ -50,13 +50,26 @@ async def generate_itinerary(request: ItineraryGenerateRequest):
             try:
                 # Environmental & Weather Context Ingestion (Section 20 Digital-Twin compatibility)
                 weather_context = None
+                live_gps_context = None
                 try:
-                    weather_context = await WeatherService.get_weather_forecast(
+                    # Always fetch true, unsimulated live GPS meteorological conditions
+                    live_gps_context = await WeatherService.get_weather_forecast(
                         lat=request.user_lat or request.start_lat,
                         lon=request.user_lon or request.start_lon,
                         destination=request.destination,
-                        override_condition=request.weather_condition,
+                        override_condition=None,
                     )
+
+                    # If request specifies a simulated scenario, evaluate it; otherwise use live GPS
+                    if request.weather_condition and request.weather_condition.strip().lower() not in ("live", "live gps", "current"):
+                        weather_context = await WeatherService.get_weather_forecast(
+                            lat=request.user_lat or request.start_lat,
+                            lon=request.user_lon or request.start_lon,
+                            destination=request.destination,
+                            override_condition=request.weather_condition,
+                        )
+                    else:
+                        weather_context = live_gps_context
                 except Exception as w_err:
                     logger.debug(f"[NUGEN] Weather context fetch skipped: {w_err}")
 
@@ -73,6 +86,7 @@ async def generate_itinerary(request: ItineraryGenerateRequest):
                     user_constraints=user_constraints,
                     generated_itinerary=response.model_dump(),
                     weather=weather_context,
+                    live_weather=live_gps_context,
                 )
                 if nugen_insights:
                     response.nugen = nugen_insights

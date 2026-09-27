@@ -2223,9 +2223,14 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
   // WEATHER CONDITIONS & METEOROLOGICAL INTELLIGENCE
   // ==========================================
   Widget _buildWeatherConditionsCard(Itinerary itinerary, ItineraryNotifier notifier) {
-    final liveWeather = itinerary.nugen?.weather;
-    final currentLiveCond = liveWeather?['condition']?.toString() ?? 'Clear Sky';
-    final currentLiveTemp = liveWeather?['temperature']?.toString() ?? '28°C';
+    final activeWeather = itinerary.nugen?.weather;
+    final liveGpsWeather = itinerary.nugen?.currentLiveGpsWeather;
+
+    final currentLiveCond = liveGpsWeather?['condition']?.toString() ?? 'Clear Sky';
+    final currentLiveTemp = liveGpsWeather?['temperature']?.toString() ?? '28°C';
+    final currentLiveRain = '${liveGpsWeather?['rainfall_mm'] ?? 0.0} mm';
+    final currentLiveWind = liveGpsWeather?['wind_speed_kmh']?.toString() ?? '10.0 km/h';
+    final currentLiveHumidity = '${liveGpsWeather?['humidity_pct'] ?? 58}%';
 
     final weatherScenarios = [
       {
@@ -2234,9 +2239,9 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
         'icon': Icons.my_location_rounded,
         'temp': currentLiveTemp,
         'cond': currentLiveCond,
-        'rain': '${liveWeather?['rainfall_mm'] ?? 0.0} mm',
-        'wind': liveWeather?['wind_speed_kmh']?.toString() ?? '8.5 km/h',
-        'humidity': '${liveWeather?['humidity_pct'] ?? 60}%',
+        'rain': currentLiveRain,
+        'wind': currentLiveWind,
+        'humidity': currentLiveHumidity,
         'color': LocalLensColors.primaryTeal,
       },
       {
@@ -2448,10 +2453,25 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                   padding: const EdgeInsets.only(right: 8),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(20),
-                    onTap: () {
+                    onTap: () async {
+                      final targetId = scenario['id'] as String;
                       setState(() {
-                        _selectedWeatherCondition = scenario['id'] as String;
+                        _selectedWeatherCondition = targetId;
                       });
+                      if (targetId == 'Live' && activeWeather?['is_simulated'] == true) {
+                        setState(() => _isWeatherAdapting = true);
+                        await notifier.adaptItineraryForWeather('Live');
+                        if (mounted) {
+                          setState(() => _isWeatherAdapting = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Restored itinerary to Current Live GPS weather!'),
+                              backgroundColor: LocalLensColors.primaryTeal,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      }
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),

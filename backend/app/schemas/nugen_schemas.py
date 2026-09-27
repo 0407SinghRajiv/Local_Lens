@@ -66,3 +66,4 @@ class NugenEnhancementResponse(BaseModel):
     final_recommendations: List[NugenRecommendation] = Field(default_factory=list)
     metadata: Optional[Dict[str, Any]] = None
     weather: Optional[Dict[str, Any]] = None
+    live_weather: Optional[Dict[str, Any]] = None
