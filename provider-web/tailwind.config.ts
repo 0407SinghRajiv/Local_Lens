@@ -10,11 +10,11 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        heading: ["Anton", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "Inter", "sans-serif"],
-        display: ["Anton", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "Inter", "sans-serif"],
-        anton: ["Anton", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "Inter", "sans-serif"],
-        sans: ["Inter", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "sans-serif"],
-        body: ["Inter", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "sans-serif"],
+        heading: ["'Plus Jakarta Sans'", "Outfit", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "Inter", "sans-serif"],
+        display: ["'Plus Jakarta Sans'", "Outfit", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "Inter", "sans-serif"],
+        anton: ["'Plus Jakarta Sans'", "Outfit", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "Inter", "sans-serif"],
+        sans: ["'Plus Jakarta Sans'", "Inter", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "sans-serif"],
+        body: ["'Plus Jakarta Sans'", "Inter", "'Noto Sans Devanagari'", "'Noto Sans Bengali'", "sans-serif"],
       },
       colors: {
         background: "var(--background)",

@@ -124,9 +124,10 @@ function BookingsPageContent() {
           <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
-              className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
+              <span>Back to Dashboard</span>
             </Link>
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-[#00875A] text-white flex items-center justify-center shadow-xs">

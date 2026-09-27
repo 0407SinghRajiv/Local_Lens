@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   X,
+  ArrowLeft,
   Star,
   MapPin,
   Clock,
@@ -27,6 +28,7 @@ import {
   ExternalLink,
   ChevronRight,
   Info,
+  ListFilter,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { useI18n } from "@/lib/i18n";
@@ -115,10 +117,24 @@ export default function BoostYourListingPage() {
       // 1. Fetch from mock/local experiences service
       const localExps = getStoredExperiencesForProvider(pid, pEmail);
 
-      // 2. Fetch from Supabase experience table
+      // 2. Fetch from Supabase experience table matching ONLY this provider
       let dbExps: any[] = [];
       try {
-        const { data } = await supabase.from("experience").select("*").limit(15);
+        const filterClauses: string[] = [
+          `source_name.eq.provider:${pid}`,
+          `source_url.ilike.%/provider/${pid}%`,
+          `tags.ilike.%provider:${pid}%`,
+        ];
+        if (pEmail && pEmail !== "provider@locallens.in") {
+          filterClauses.push(`source_url.ilike.%${pEmail}%`);
+          filterClauses.push(`tags.ilike.%provider_email:${pEmail}%`);
+        }
+
+        const { data } = await supabase
+          .from("experience")
+          .select("*")
+          .or(filterClauses.join(","))
+          .limit(25);
         if (data && Array.isArray(data)) {
           dbExps = data;
         }
@@ -457,32 +473,42 @@ export default function BoostYourListingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans pb-24">
+    <div className="min-h-screen relative text-[#0F172A] font-sans pb-24 selection:bg-[#ECFDF5] selection:text-[#059669]">
+      {/* Fixed Fullscreen Light Background Image */}
+      <div
+        className="fixed inset-0 pointer-events-none z-0 bg-cover bg-center bg-no-repeat transition-opacity duration-700"
+        style={{
+          backgroundImage: "url('/images/sponsor-bg.jpg')",
+          opacity: 0.18,
+        }}
+      />
+      {/* Soft Light Diffuse Gradient Overlay for high text readability */}
+      <div className="fixed inset-0 pointer-events-none z-0 bg-gradient-to-b from-[#f8fafc]/90 via-[#f8fafc]/80 to-[#f8fafc]/95" />
+
       {/* Top Header */}
-      <div className="max-w-6xl mx-auto px-6 pt-8 pb-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
+      <div className="max-w-6xl mx-auto px-6 pt-8 pb-4 relative z-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <Link
               href="/dashboard"
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-800 hover:bg-slate-200/60 transition-colors"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white/90 backdrop-blur-sm hover:bg-slate-50 text-xs font-bold text-[#0F172A] shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
             >
-              <X className="w-6 h-6" />
+              <ArrowLeft className="w-4 h-4 text-[#059669]" />
+              <span>Back to Dashboard</span>
             </Link>
+            <div className="h-4 w-px bg-slate-200 hidden sm:block" />
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-heading font-anton text-slate-900 tracking-tight">
-                  {t("boost.title", "Sponsor & Boost Campaigns")}
+                <h1 className="text-xl sm:text-2xl font-black text-[#0F172A] tracking-tight">
+                  <span>Sponsor &amp; Boost</span> <span className="text-[#059669]">Campaigns</span>
                 </h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-600" />
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#ECFDF5] text-[#059669] border border-emerald-200 flex items-center gap-1 shadow-2xs">
+                  <Sparkles className="w-3 h-3 text-[#059669]" />
                   Supabase Live Feed
                 </span>
               </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                {t(
-                  "boost.subtitle",
-                  "Promote real experiences with verified payment. Syncs to the Supabase traveler discovery feed."
-                )}
+              <p className="text-xs font-medium text-slate-500 mt-0.5">
+                Gain up to 4.5x more booking visibility across the LocalLens mobile app and web discovery feed.
               </p>
             </div>
           </div>
@@ -490,45 +516,93 @@ export default function BoostYourListingPage() {
           <LanguageSelector variant="navbar" />
         </div>
 
-        {/* View Switcher Tabs */}
-        <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-200/80">
+        {/* View Switcher Tabs matching reference image */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5 pt-3 border-t border-slate-200/80">
+          {/* Tab 1: Configure & Launch */}
           <button
             type="button"
             onClick={() => setActiveTab("configure")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`p-3 rounded-2xl text-left transition-all cursor-pointer flex items-center gap-3 ${
               activeTab === "configure"
-                ? "bg-slate-900 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                ? "bg-[#064E3B] text-white shadow-md ring-1 ring-emerald-900"
+                : "bg-white/90 hover:bg-white text-slate-700 border border-slate-200/90 shadow-2xs"
             }`}
           >
-            1. Configure & Launch Campaign
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
+                activeTab === "configure"
+                  ? "bg-white text-[#064E3B]"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              1
+            </div>
+            <div className="min-w-0">
+              <div className={`text-[12.5px] font-bold truncate ${activeTab === "configure" ? "text-white" : "text-[#0F172A]"}`}>
+                Configure &amp; Launch Campaign
+              </div>
+              <div className={`text-[11px] truncate ${activeTab === "configure" ? "text-emerald-200/85" : "text-slate-500"}`}>
+                Select listing &amp; set up campaign
+              </div>
+            </div>
           </button>
+
+          {/* Tab 2: Live Traveler Feed Preview */}
           <button
             type="button"
             onClick={() => setActiveTab("preview_live")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`p-3 rounded-2xl text-left transition-all cursor-pointer flex items-center gap-3 ${
               activeTab === "preview_live"
-                ? "bg-[#0e8a5b] text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                ? "bg-[#064E3B] text-white shadow-md ring-1 ring-emerald-900"
+                : "bg-white/90 hover:bg-white text-slate-700 border border-slate-200/90 shadow-2xs"
             }`}
           >
-            <Eye className="w-3.5 h-3.5" />
-            <span>2. Live Traveler App Feed Preview</span>
-            {paymentVerified && (
-              <span className="w-2 h-2 rounded-full bg-emerald-300 animate-ping" />
-            )}
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
+                activeTab === "preview_live"
+                  ? "bg-white text-[#064E3B]"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              2
+            </div>
+            <div className="min-w-0">
+              <div className={`text-[12.5px] font-bold truncate ${activeTab === "preview_live" ? "text-white" : "text-[#0F172A]"}`}>
+                Live Traveler App Feed Preview
+              </div>
+              <div className={`text-[11px] truncate ${activeTab === "preview_live" ? "text-emerald-200/85" : "text-slate-500"}`}>
+                See how it looks to travelers
+              </div>
+            </div>
           </button>
+
+          {/* Tab 3: Campaign History */}
           <button
             type="button"
             onClick={() => setActiveTab("history")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`p-3 rounded-2xl text-left transition-all cursor-pointer flex items-center gap-3 ${
               activeTab === "history"
-                ? "bg-indigo-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+                ? "bg-[#064E3B] text-white shadow-md ring-1 ring-emerald-900"
+                : "bg-white/90 hover:bg-white text-slate-700 border border-slate-200/90 shadow-2xs"
             }`}
           >
-            <Clock className="w-3.5 h-3.5" />
-            <span>Campaign History & Status</span>
+            <div
+              className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-xs shrink-0 ${
+                activeTab === "history"
+                  ? "bg-white text-[#064E3B]"
+                  : "bg-slate-100 text-slate-700"
+              }`}
+            >
+              3
+            </div>
+            <div className="min-w-0">
+              <div className={`text-[12.5px] font-bold truncate ${activeTab === "history" ? "text-white" : "text-[#0F172A]"}`}>
+                Campaign History &amp; Status
+              </div>
+              <div className={`text-[11px] truncate ${activeTab === "history" ? "text-emerald-200/85" : "text-slate-500"}`}>
+                Track performance &amp; results
+              </div>
+            </div>
           </button>
         </div>
       </div>
@@ -563,18 +637,22 @@ export default function BoostYourListingPage() {
       )}
 
       {/* Main Container */}
-      <main className="max-w-6xl mx-auto px-6 pt-2">
+      <main className="max-w-6xl mx-auto px-6 pt-2 relative z-10">
         {activeTab === "configure" ? (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
             {/* Left Column (8 cols): 5-Step Selection */}
             <div className="lg:col-span-8 space-y-6">
               {/* 1. Select Your Listing (From Real Database Experiences) */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    1. Select Real Listing / Experience
-                  </h2>
-                  <span className="text-[11px] text-[#0e8a5b] font-bold">
+              <div className="bg-white/95 p-6 rounded-3xl border border-slate-200/90 shadow-2xs space-y-3.5">
+                <div className="flex items-center justify-between pb-1">
+                  <div className="flex items-center gap-2">
+                    <ListFilter className="w-4 h-4 text-[#059669]" />
+                    <h2 className="text-xs font-black text-[#059669] uppercase tracking-wider">
+                      1. SELECT REAL LISTING / EXPERIENCE
+                    </h2>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-[#ECFDF5] text-[#059669] border border-emerald-200 shadow-2xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#059669]" />
                     Referenced by actual listing_id &bull; No Duplicates
                   </span>
                 </div>
@@ -593,17 +671,17 @@ export default function BoostYourListingPage() {
                     ))}
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     {availableListings.map((item, idx) => {
                       const isSelected = selectedListingIndex === idx;
                       return (
                         <div
                           key={item.id}
                           onClick={() => setSelectedListingIndex(idx)}
-                          className={`flex items-center justify-between p-3.5 rounded-2xl border-2 cursor-pointer transition-all ${
+                          className={`flex items-center justify-between p-3.5 rounded-2xl transition-all cursor-pointer ${
                             isSelected
-                              ? "border-[#0e8a5b] bg-emerald-50/20 shadow-xs"
-                              : "border-slate-200 hover:border-slate-300 bg-white"
+                              ? "border-2 border-[#059669] bg-white shadow-xs"
+                              : "border border-slate-200 hover:border-slate-300 bg-white/90"
                           }`}
                         >
                           <div className="flex items-center gap-3 min-w-0">
@@ -631,13 +709,13 @@ export default function BoostYourListingPage() {
 
                           <div className="shrink-0 pl-3">
                             <div
-                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
                                 isSelected
-                                  ? "border-[#0e8a5b] bg-[#0e8a5b] text-white"
-                                  : "border-slate-300"
+                                  ? "border-[#059669] bg-white"
+                                  : "border-slate-300 bg-white"
                               }`}
                             >
-                              {isSelected && <Check className="w-3 h-3" />}
+                              {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-[#059669]" />}
                             </div>
                           </div>
                         </div>
@@ -649,8 +727,8 @@ export default function BoostYourListingPage() {
 
               {/* 2. Choose Sponsor / Boost Package */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
-                <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                  2. Choose Boost Package
+                <h2 className="text-xs font-black text-[#090D16] uppercase tracking-wider">
+                  <span>2. Choose Boost</span> <span className="text-[#0e8a5b]">Package</span>
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -664,15 +742,15 @@ export default function BoostYourListingPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-slate-800">Weekend Spark</div>
+                      <div className="text-xs font-black text-[#090D16]">Weekend Spark</div>
                       <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-[#0e8a5b]">
                         <Zap className="w-3.5 h-3.5" />
                       </div>
                     </div>
-                    <div className="text-xl font-heading font-anton text-slate-900 tracking-tight mt-1">
-                      ₹499
+                    <div className="text-2xl font-black text-[#090D16] tracking-tight mt-1">
+                      <span className="text-[#0e8a5b]">₹</span>499
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-1">3 Days High-Visibility</div>
+                    <div className="text-[11px] font-semibold text-slate-500 mt-1">3 Days High-Visibility</div>
                   </div>
 
                   {/* Package 2: Weekly Push */}
@@ -688,15 +766,15 @@ export default function BoostYourListingPage() {
                       Popular
                     </span>
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-slate-800">Weekly Push</div>
+                      <div className="text-xs font-black text-[#090D16]">Weekly Push</div>
                       <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-[#0e8a5b]">
                         <Flame className="w-3.5 h-3.5" />
                       </div>
                     </div>
-                    <div className="text-xl font-heading font-anton text-slate-900 tracking-tight mt-1">
-                      ₹999
+                    <div className="text-2xl font-black text-[#090D16] tracking-tight mt-1">
+                      <span className="text-[#0e8a5b]">₹</span>999
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-1">7 Days Top Placement</div>
+                    <div className="text-[11px] font-semibold text-slate-500 mt-1">7 Days Top Placement</div>
                   </div>
 
                   {/* Package 3: Festival Surge */}
@@ -709,15 +787,15 @@ export default function BoostYourListingPage() {
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-bold text-slate-800">Festival Surge</div>
+                      <div className="text-xs font-black text-[#090D16]">Festival Surge</div>
                       <div className="w-6 h-6 rounded-lg bg-emerald-100 flex items-center justify-center text-[#0e8a5b]">
                         <ShieldCheck className="w-3.5 h-3.5" />
                       </div>
                     </div>
-                    <div className="text-xl font-heading font-anton text-slate-900 tracking-tight mt-1">
-                      ₹1,999
+                    <div className="text-2xl font-black text-[#090D16] tracking-tight mt-1">
+                      <span className="text-[#0e8a5b]">₹</span>1,999
                     </div>
-                    <div className="text-[11px] text-slate-500 mt-1">14 Days Max Reach</div>
+                    <div className="text-[11px] font-semibold text-slate-500 mt-1">14 Days Max Reach</div>
                   </div>
                 </div>
               </div>
@@ -725,8 +803,8 @@ export default function BoostYourListingPage() {
               {/* 3. Configure Special Offer / Discount */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    3. Configure Traveler Offer
+                  <h2 className="text-xs font-black text-[#090D16] uppercase tracking-wider">
+                    <span>3. Configure Traveler</span> <span className="text-[#0e8a5b]">Offer &amp; Discount</span>
                   </h2>
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
                     <button
@@ -833,8 +911,8 @@ export default function BoostYourListingPage() {
               {/* 4. Schedule & Campaign Timing */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    4. Start Timing & Schedule
+                  <h2 className="text-xs font-black text-[#090D16] uppercase tracking-wider">
+                    <span>4. Start Timing</span> <span className="text-[#0e8a5b]">&amp; Schedule</span>
                   </h2>
                   <span
                     className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ${
@@ -864,7 +942,7 @@ export default function BoostYourListingPage() {
                       className="mt-0.5 text-[#0e8a5b] focus:ring-[#0e8a5b]"
                     />
                     <div>
-                      <div className="text-xs font-extrabold text-slate-900">Start Immediately</div>
+                      <div className="text-xs font-extrabold text-[#090D16]">Start Immediately</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         Go live right after verified payment
                       </div>
@@ -887,7 +965,7 @@ export default function BoostYourListingPage() {
                       className="mt-0.5 text-[#0e8a5b] focus:ring-[#0e8a5b]"
                     />
                     <div>
-                      <div className="text-xs font-extrabold text-slate-900">Schedule for Later</div>
+                      <div className="text-xs font-extrabold text-[#090D16]">Schedule for Later</div>
                       <div className="text-[11px] text-slate-500 mt-0.5">
                         Set a future start date & time
                       </div>
@@ -929,8 +1007,8 @@ export default function BoostYourListingPage() {
               {/* 5. Verified Payment Method Selection */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                    5. Verified Payment Method
+                  <h2 className="text-xs font-black text-[#090D16] uppercase tracking-wider">
+                    <span>5. Verified Payment</span> <span className="text-[#0e8a5b]">Method</span>
                   </h2>
                   <span className="text-[11px] text-slate-400 font-medium">
                     Strict Backend Verification Flow
@@ -1010,13 +1088,16 @@ export default function BoostYourListingPage() {
             {/* Right Column (4 cols): Preview in Traveler App & Checkout Summary */}
             <div className="lg:col-span-4 space-y-5">
               {/* Preview in Traveler App Card */}
-              <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                    Traveler App Feed Preview
-                  </h3>
-                  <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
-                    Live Mobile UI
+              <div className="bg-white/95 p-5 rounded-3xl border border-slate-200/90 shadow-2xs space-y-3.5">
+                <div className="flex items-center justify-between pb-1">
+                  <div className="flex items-center gap-2">
+                    <Eye className="w-4 h-4 text-[#059669]" />
+                    <h3 className="text-xs font-black text-[#0F172A] uppercase tracking-wider">
+                      TRAVELER APP FEED PREVIEW
+                    </h3>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200 shadow-2xs">
+                    <span>📱</span> Live Mobile UI
                   </span>
                 </div>
 
@@ -1140,7 +1221,7 @@ export default function BoostYourListingPage() {
                 >
                   <Zap className="w-4 h-4 fill-white" />
                   <span>
-                    {isProcessingPayment ? "Initializing Campaign..." : `Proceed to Pay ₹${currentPkg.amount} 🚀`}
+                    {isProcessingPayment ? "Initializing Campaign..." : `Proceed to Pay ₹${currentPkg.amount}`}
                   </span>
                 </button>
 

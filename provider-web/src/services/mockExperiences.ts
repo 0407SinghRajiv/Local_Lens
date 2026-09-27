@@ -390,7 +390,14 @@ export function saveStoredExperiencesForProvider(
 
     // Also update global store with provider stamps preserved
     const globalRaw = localStorage.getItem(STORAGE_KEY_EXPERIENCES);
-    const existing: ExperienceListing[] = globalRaw ? JSON.parse(globalRaw) : [];
+    let existing: ExperienceListing[] = [];
+    try {
+      if (globalRaw && globalRaw.trim() && globalRaw !== "undefined" && globalRaw !== "null") {
+        existing = JSON.parse(globalRaw);
+      }
+    } catch (_) {
+      existing = [];
+    }
     const others = existing.filter((exp: any) => {
       const pId = (exp.provider_id || "").toLowerCase();
       const pEmail = (exp.provider_email || "").toLowerCase();

@@ -58,6 +58,7 @@ htmlcov/
 *.tflite
 *.bin
 *.weights
+*.traineddata
 
 # Datasets & Uploads
 datasets/raw/*

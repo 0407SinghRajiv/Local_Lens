@@ -137,10 +137,12 @@ export async function POST(request: Request) {
       hidden_gem: body.hidden_gem || "Yes",
       indoor_outdoor: body.indoor_outdoor || "Outdoor",
       best_time: body.best_time || "Sunset 05:30 PM",
+      best_for: body.best_for || "Travelers & Explorers",
       season: body.season || "All Year",
       min_group_size: Number(body.min_group_size) || 1,
       max_group_size: Number(body.max_group_size) || 8,
       provider_id: cleanId,
+      user_id: cleanId,
       provider_email: cleanEmail,
     };
 
@@ -158,15 +160,71 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. Persist to Supabase experience table
+    // 2. Persist to Supabase experience table (using exact 32 table columns)
     let dbSuccess = false;
     let dbWarning: string | null = null;
     try {
-      const { data, error } = await supabase.from("experience").insert(experienceRecord).select();
-      if (error) {
-        dbWarning = error.message;
+      const cleanDbPayload = {
+        experience_id: experienceRecord.experience_id,
+        experience_name: experienceRecord.experience_name,
+        city: experienceRecord.city,
+        district: experienceRecord.district,
+        state: experienceRecord.state,
+        region: experienceRecord.region,
+        latitude: experienceRecord.latitude,
+        longitude: experienceRecord.longitude,
+        category: experienceRecord.category,
+        sub_category: experienceRecord.sub_category,
+        description: experienceRecord.description,
+        tags: experienceRecord.tags,
+        price_inr: experienceRecord.price_inr,
+        duration_hours: experienceRecord.duration_hours,
+        best_for: experienceRecord.best_for,
+        min_group_size: experienceRecord.min_group_size,
+        max_group_size: experienceRecord.max_group_size,
+        rating: experienceRecord.rating,
+        review_count: experienceRecord.review_count,
+        best_time: experienceRecord.best_time,
+        season: experienceRecord.season,
+        indoor_outdoor: experienceRecord.indoor_outdoor,
+        booking_required: experienceRecord.booking_required,
+        advance_booking_days: experienceRecord.advance_booking_days,
+        availability: experienceRecord.availability,
+        accessibility: experienceRecord.accessibility,
+        local_experience: experienceRecord.local_experience,
+        hidden_gem: experienceRecord.hidden_gem,
+        image_url: experienceRecord.image_url,
+        source_name: experienceRecord.source_name,
+        source_url: experienceRecord.source_url,
+        provider_id: experienceRecord.provider_id,
+        user_id: experienceRecord.user_id,
+        provider_email: experienceRecord.provider_email,
+        last_verified: experienceRecord.last_verified,
+      };
+
+      const { data: existingRow } = await supabase
+        .from("experience")
+        .select("experience_id")
+        .eq("experience_id", cleanDbPayload.experience_id)
+        .maybeSingle();
+
+      if (existingRow) {
+        const { error } = await supabase
+          .from("experience")
+          .update(cleanDbPayload)
+          .eq("experience_id", cleanDbPayload.experience_id);
+        if (error) {
+          dbWarning = error.message;
+        } else {
+          dbSuccess = true;
+        }
       } else {
-        dbSuccess = true;
+        const { error } = await supabase.from("experience").insert(cleanDbPayload);
+        if (error) {
+          dbWarning = error.message;
+        } else {
+          dbSuccess = true;
+        }
       }
     } catch (dbErr: any) {
       dbWarning = dbErr.message;

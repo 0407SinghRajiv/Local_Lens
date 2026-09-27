@@ -12,15 +12,20 @@ export function useAuth() {
     if (typeof window !== "undefined") {
       try {
         const saved = localStorage.getItem("locallens_provider_session");
-        if (saved) return JSON.parse(saved);
-      } catch (e) {}
+        if (saved && saved.trim() && saved !== "undefined" && saved !== "null") {
+          return JSON.parse(saved);
+        }
+      } catch (e) {
+        try { localStorage.removeItem("locallens_provider_session"); } catch (_) {}
+      }
     }
     return null;
   });
   const [loading, setLoading] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       try {
-        if (localStorage.getItem("locallens_provider_session")) return false;
+        const saved = localStorage.getItem("locallens_provider_session");
+        if (saved && saved.trim() && saved !== "undefined" && saved !== "null") return false;
       } catch (e) {}
     }
     return true;
@@ -32,13 +37,15 @@ export function useAuth() {
     // Synchronize localStorage immediately
     try {
       const saved = localStorage.getItem("locallens_provider_session");
-      if (saved) {
+      if (saved && saved.trim() && saved !== "undefined" && saved !== "null") {
         setProfile(JSON.parse(saved));
       }
-    } catch (e) {}
+    } catch (e) {
+      try { localStorage.removeItem("locallens_provider_session"); } catch (_) {}
+    }
 
     // 1. Initial Supabase check
-    supabase.auth.getSession().then(({ data: { session: initialSession }, error }) => {
+    supabase.auth.getSession().then(({ data: { session: initialSession } }) => {
       if (!isMounted) return;
       if (initialSession?.user) {
         setSession(initialSession);
@@ -51,7 +58,7 @@ export function useAuth() {
       } else {
         try {
           const saved = localStorage.getItem("locallens_provider_session");
-          if (saved) {
+          if (saved && saved.trim() && saved !== "undefined" && saved !== "null") {
             setProfile(JSON.parse(saved));
           }
         } catch (e) {}

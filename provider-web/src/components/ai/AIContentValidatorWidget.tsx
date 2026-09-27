@@ -10,12 +10,16 @@ import {
   ChevronUp,
   Wand2,
   MapPin,
+  XCircle,
 } from "lucide-react";
 import {
   checkProfanity,
+  checkFakeClaims,
   checkClarity,
   validateExperienceLocations,
+  validateFullListing,
   ShowLocationData,
+  FullValidationResult,
 } from "@/lib/aiValidator";
 
 interface AIContentValidatorWidgetProps {
@@ -24,6 +28,8 @@ interface AIContentValidatorWidgetProps {
   onApplyPolish?: (polishedText: string) => void;
   show1: ShowLocationData;
   show2?: ShowLocationData | null;
+  /** Called whenever validation state changes — parent uses this to enable/disable Publish */
+  onValidationChange?: (result: { canPublish: boolean; blockingReason: string | null }) => void;
 }
 
 export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> = ({
@@ -32,41 +38,25 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
   onApplyPolish,
   show1,
   show2,
+  onValidationChange,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  // Memoized checks for fast performance without lagging re-renders
-  const profanityResult = useMemo(
-    () => checkProfanity(`${title} ${description}`),
-    [title, description]
-  );
+  // Run all checks together via the combined validator
+  const validation: FullValidationResult = useMemo(() => {
+    const result = validateFullListing(title, description, show1, show2);
+    onValidationChange?.({ canPublish: result.canPublish, blockingReason: result.blockingReason });
+    return result;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, description, show1, show2]);
 
-  const clarityResult = useMemo(
-    () => checkClarity(title, description),
-    [title, description]
-  );
+  const { overallScore, blockingReason, profanity, fakeClaims, clarity, location } = validation;
 
-  const locationResult = useMemo(
-    () => validateExperienceLocations(show1, show2),
-    [show1, show2]
-  );
-
-  // Overall Score calculation (0 - 100)
-  const overallScore = useMemo(() => {
-    let score = clarityResult.score;
-    if (profanityResult.hasBadWords) score = Math.min(score, 20);
-    if (!locationResult.isValid) score = Math.min(score, 45);
-    if (locationResult.hasMultiShow && locationResult.isValid) {
-      score = Math.min(100, score + 5);
-    }
-    return Math.max(0, Math.min(100, score));
-  }, [clarityResult, profanityResult, locationResult]);
-
-  const hasIssues = profanityResult.hasBadWords || !locationResult.isValid || clarityResult.score < 50;
+  const hasIssues = !validation.canPublish;
 
   return (
     <div className="rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-xs shadow-2xs overflow-hidden transition-all duration-200">
-      {/* Small Collapsible Header Bar (Default Visible) */}
+      {/* ── Compact Header Bar ──────────────────────────────────────────── */}
       <div className="px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-7 h-7 rounded-lg bg-emerald-50 text-[#0e8a5b] flex items-center justify-center shrink-0 border border-emerald-200/60">
@@ -79,7 +69,7 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
               className={`font-black text-xs px-2 py-0.5 rounded-full ${
                 overallScore >= 80
                   ? "bg-emerald-50 text-[#0e8a5b]"
-                  : overallScore >= 60
+                  : overallScore >= 55
                   ? "bg-amber-50 text-amber-700"
                   : "bg-rose-50 text-rose-700"
               }`}
@@ -87,19 +77,17 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
               {overallScore}/100
             </span>
             <span className="text-[11px] text-slate-500 hidden sm:inline truncate">
-              {hasIssues
-                ? "Suggestions available"
-                : "All safety & clarity checks passed"}
+              {hasIssues ? "Action required before publishing" : "All checks passed ✓"}
             </span>
           </div>
         </div>
 
-        {/* Action Button: Auto-Polish + Expand/Collapse */}
+        {/* Action Buttons */}
         <div className="flex items-center gap-2 shrink-0">
-          {onApplyPolish && clarityResult.aiPolishedText && (
+          {onApplyPolish && clarity.aiPolishedText && (
             <button
               type="button"
-              onClick={() => onApplyPolish(clarityResult.aiPolishedText!)}
+              onClick={() => onApplyPolish(clarity.aiPolishedText!)}
               className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-[#0e8a5b] text-[10.5px] font-bold border border-emerald-200 cursor-pointer transition-colors"
             >
               <Wand2 className="w-3 h-3" />
@@ -122,57 +110,99 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
         </div>
       </div>
 
-      {/* Collapsible Details Body */}
+      {/* ── Hard-Block Banner (visible when canPublish = false) ─────────── */}
+      {blockingReason && (
+        <div className="mx-4 mb-2.5 p-2.5 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2 text-xs text-rose-800">
+          <XCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-extrabold block text-[11px] uppercase tracking-wide text-rose-700 mb-0.5">
+              Publishing Blocked
+            </span>
+            <span className="leading-snug">{blockingReason}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Expandable Detail Panels ───────────────────────────────────── */}
       {isExpanded && (
-        <div className="px-4 pb-3.5 pt-1 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-2.5 text-xs animate-in fade-in duration-150">
-          {/* Item 1: Content Safety */}
+        <div className="px-4 pb-3.5 pt-1 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-2.5 text-xs animate-in fade-in duration-150">
+
+          {/* Panel 1: Content Safety */}
           <div
             className={`p-2.5 rounded-xl border ${
-              profanityResult.hasBadWords
+              profanity.hasBadWords
                 ? "bg-rose-50/70 border-rose-200 text-rose-800"
                 : "bg-slate-50/80 border-slate-200/80 text-slate-700"
             }`}
           >
             <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-[11px] flex items-center gap-1.5">
-                {profanityResult.hasBadWords ? (
+                {profanity.hasBadWords ? (
                   <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
                 ) : (
                   <ShieldCheck className="w-3.5 h-3.5 text-[#0e8a5b]" />
                 )}
                 Safety Guard
               </span>
-              <span className="text-[10px] font-extrabold uppercase">
-                {profanityResult.hasBadWords ? "Action Required" : "Passed"}
+              <span className={`text-[10px] font-extrabold uppercase ${profanity.hasBadWords ? "text-rose-700" : "text-emerald-700"}`}>
+                {profanity.hasBadWords ? "Blocked" : "Passed"}
               </span>
             </div>
-            <p className="text-[10.5px] text-slate-500 leading-snug">
-              {profanityResult.hasBadWords
-                ? `Flagged words: ${profanityResult.badWordsFound.join(", ")}`
-                : "Content is clean, welcoming, and traveler safe."}
+            <p className="text-[10.5px] leading-snug text-slate-500">
+              {profanity.hasBadWords
+                ? `Flagged: "${profanity.badWordsFound.join('", "')}"`
+                : "Content is clean and traveler-safe."}
             </p>
           </div>
 
-          {/* Item 2: Clarity */}
+          {/* Panel 2: Integrity Check */}
+          <div
+            className={`p-2.5 rounded-xl border ${
+              fakeClaims.hasFakeClaims
+                ? "bg-amber-50/70 border-amber-200 text-amber-800"
+                : "bg-slate-50/80 border-slate-200/80 text-slate-700"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-[11px] flex items-center gap-1.5">
+                {fakeClaims.hasFakeClaims ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-[#0e8a5b]" />
+                )}
+                Integrity
+              </span>
+              <span className={`text-[10px] font-extrabold uppercase ${fakeClaims.hasFakeClaims ? "text-amber-700" : "text-emerald-700"}`}>
+                {fakeClaims.hasFakeClaims ? "Issue" : "Passed"}
+              </span>
+            </div>
+            <p className="text-[10.5px] leading-snug text-slate-500">
+              {fakeClaims.hasFakeClaims
+                ? fakeClaims.claimsFound[0]
+                : "No misleading or false claims found."}
+            </p>
+          </div>
+
+          {/* Panel 3: Clarity */}
           <div className="p-2.5 rounded-xl border bg-slate-50/80 border-slate-200/80 text-slate-700">
             <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-[11px] flex items-center gap-1.5">
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#0e8a5b]" />
-                Clarity: {clarityResult.level}
+                Clarity: {clarity.level}
               </span>
               <span className="text-[10px] text-slate-400 font-medium">
-                {clarityResult.wordCount} words
+                {clarity.wordCount} words
               </span>
             </div>
             <p className="text-[10.5px] text-slate-500 leading-snug">
-              {clarityResult.issues.length > 0
-                ? clarityResult.issues[0]
+              {clarity.issues.length > 0
+                ? clarity.issues[0]
                 : "Description is clear and engaging for travelers."}
             </p>
-            {onApplyPolish && clarityResult.aiPolishedText && (
+            {onApplyPolish && clarity.aiPolishedText && (
               <button
                 type="button"
-                onClick={() => onApplyPolish(clarityResult.aiPolishedText!)}
+                onClick={() => onApplyPolish(clarity.aiPolishedText!)}
                 className="mt-1.5 text-[10px] text-[#0e8a5b] font-bold hover:underline flex items-center gap-1 cursor-pointer"
               >
                 <Wand2 className="w-2.5 h-2.5" />
@@ -181,15 +211,15 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
             )}
           </div>
 
-          {/* Item 3: Location */}
+          {/* Panel 4: Location */}
           <div className="p-2.5 rounded-xl border bg-slate-50/80 border-slate-200/80 text-slate-700">
             <div className="flex items-center justify-between mb-1">
               <span className="font-bold text-[11px] flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5 text-[#0e8a5b]" />
-                Location &amp; Pin
+                Location & Pin
               </span>
-              <span className="text-[10px] font-extrabold uppercase text-[#0e8a5b]">
-                {locationResult.isValid ? "Verified" : "Check Pin"}
+              <span className={`text-[10px] font-extrabold uppercase ${location.isValid ? "text-emerald-700" : "text-rose-600"}`}>
+                {location.isValid ? "Verified" : "Missing"}
               </span>
             </div>
             <p className="text-[10.5px] text-slate-500 leading-snug">
@@ -202,3 +232,4 @@ export const AIContentValidatorWidget: React.FC<AIContentValidatorWidgetProps> =
     </div>
   );
 };
+

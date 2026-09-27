@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Save,
+  Check,
   CheckCircle2,
   AlertCircle,
   UploadCloud,
@@ -25,6 +26,8 @@ import {
   Eye,
   Rocket,
   ShieldCheck,
+  ShieldAlert,
+  Lock,
   Star,
   Users,
   Layers,
@@ -123,12 +126,25 @@ export default function SimplifiedExperienceCreationPage() {
 
         setCurrentProviderId(uid);
         setCurrentProviderEmail(uemail);
+
+        if (typeof window !== "undefined") {
+          const verified = localStorage.getItem("locallens_aadhaar_verified") === "true";
+          setIsAadhaarVerified(verified);
+        }
       } catch (e) {
         console.warn("Provider identity notice:", e);
       }
     }
     initProviderIdentity();
   }, []);
+
+  // Host Aadhaar Verification Gate (Must be verified to create/list experiences)
+  const [isAadhaarVerified, setIsAadhaarVerified] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("locallens_aadhaar_verified") === "true";
+    }
+    return false;
+  });
 
   // -------------------------------------------------------------
   // 1. Wizard Step State: 1 (Details), 2 (Location), 3 (Pricing)
@@ -203,6 +219,10 @@ export default function SimplifiedExperienceCreationPage() {
   const [saveToast, setSaveToast] = useState<{ message: string; type: "success" | "info" } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [publishedListing, setPublishedListing] = useState<ExperienceListing | null>(null);
+
+  // AI Validation Gate — updated live by the widget
+  const [aiCanPublish, setAiCanPublish] = useState(true);
+  const [aiBlockReason, setAiBlockReason] = useState<string | null>(null);
 
   // Multi-show objects for validation & saving
   const show1Data = useMemo(
@@ -376,10 +396,17 @@ export default function SimplifiedExperienceCreationPage() {
   };
 
   const handleNextFromStep1 = () => {
-    if (validateStep1()) {
-      setStep(2);
+    if (!validateStep1()) return;
+
+    // AI content check — block step navigation if title/description has bad words or fake claims
+    if (!aiCanPublish && aiBlockReason) {
+      setFormError(`AI Validation blocked: ${aiBlockReason}`);
       window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
     }
+
+    setStep(2);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handleNextFromStep2 = () => {
@@ -388,6 +415,7 @@ export default function SimplifiedExperienceCreationPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
+
 
   // -------------------------------------------------------------
   // -------------------------------------------------------------
@@ -478,10 +506,23 @@ export default function SimplifiedExperienceCreationPage() {
         image_url: photos[0] || "",
         source_name: `provider:${currentProviderId}`,
         source_url: `https://locallens.in/provider/${currentProviderId}`,
+        provider_id: currentProviderId,
+        user_id: currentProviderId,
+        provider_email: currentProviderEmail,
         last_verified: new Date().toISOString(),
       };
 
-      await supabase.from("experience").insert(payload);
+      const { data: existingDraft } = await supabase
+        .from("experience")
+        .select("experience_id")
+        .eq("experience_id", payload.experience_id)
+        .maybeSingle();
+
+      if (existingDraft) {
+        await supabase.from("experience").update(payload).eq("experience_id", payload.experience_id);
+      } else {
+        await supabase.from("experience").insert(payload);
+      }
 
       fetch("/api/experiences", {
         method: "POST",
@@ -506,6 +547,20 @@ export default function SimplifiedExperienceCreationPage() {
 
     if (priceInr <= 0) {
       setFormError("Please enter a valid price per guest (greater than 0).");
+      return;
+    }
+
+    // Strict Aadhaar KYC Gate: unverified providers cannot publish listings
+    const verified = isAadhaarVerified || (typeof window !== "undefined" && localStorage.getItem("locallens_aadhaar_verified") === "true");
+    if (!verified) {
+      setFormError("Aadhaar KYC Verification Required: You must verify your Aadhaar card in Settings before you can publish an experience.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    // AI hard-block: abusive language, fake claims, or poor content
+    if (!aiCanPublish && aiBlockReason) {
+      setFormError(`AI Validation Failed — ${aiBlockReason}`);
       return;
     }
 
@@ -576,7 +631,6 @@ export default function SimplifiedExperienceCreationPage() {
       description: newListing.description,
       tags: highlights.concat([`provider:${currentProviderId}`, `provider_email:${currentProviderEmail}`]).join(", "),
       price_inr: `₹${newListing.price_inr_clean}`,
-      price_inr_clean: newListing.price_inr_clean,
       duration_hours: `${newListing.duration_hours_clean} hours`,
       best_for: "Travelers & Explorers",
       min_group_size: newListing.min_group_size,
@@ -593,14 +647,31 @@ export default function SimplifiedExperienceCreationPage() {
       local_experience: isAuthenticLocal ? "Yes" : "No",
       hidden_gem: isHiddenGem ? "Yes" : "No",
       image_url: photos[0] || "",
-      images: photos.length > 0 ? photos : SAMPLE_PHOTOS,
       source_name: `provider:${currentProviderId}`,
       source_url: `https://locallens.in/provider/${currentProviderId}`,
+      provider_id: currentProviderId,
+      user_id: currentProviderId,
+      provider_email: currentProviderEmail,
       last_verified: new Date().toISOString(),
     };
 
     try {
-      await supabase.from("experience").insert(payload);
+      const { data: existingExp } = await supabase
+        .from("experience")
+        .select("experience_id")
+        .eq("experience_id", payload.experience_id)
+        .maybeSingle();
+
+      if (existingExp) {
+        const { error: updateErr } = await supabase
+          .from("experience")
+          .update(payload)
+          .eq("experience_id", payload.experience_id);
+        if (updateErr) console.warn("Supabase update notice:", updateErr.message);
+      } else {
+        const { error: insertErr } = await supabase.from("experience").insert(payload);
+        if (insertErr) console.warn("Supabase insert notice:", insertErr.message);
+      }
     } catch (dbErr) {
       console.warn("Supabase insert note:", dbErr);
     }
@@ -652,85 +723,112 @@ export default function SimplifiedExperienceCreationPage() {
           </Link>
 
           {/* 3 Step Interactive Indicator */}
-          <div className="flex items-center gap-2 sm:gap-6">
+          <div className="flex items-center gap-2 sm:gap-4">
             {/* Step 1 Pill */}
             <button
               type="button"
-              onClick={() => setStep(1)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                step === 1
-                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold"
+              onClick={() => isAadhaarVerified && setStep(1)}
+              disabled={!isAadhaarVerified}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
+                !isAadhaarVerified
+                  ? "opacity-60 cursor-not-allowed text-slate-400"
+                  : step === 1
+                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold cursor-pointer"
                   : step > 1
-                  ? "text-slate-700 hover:bg-slate-50 font-semibold"
+                  ? "text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
                   : "text-slate-400"
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  step > 1
+                  !isAadhaarVerified
+                    ? "bg-slate-200 text-slate-400"
+                    : step > 1
                     ? "bg-[#0e8a5b] text-white"
                     : step === 1
                     ? "bg-[#0e8a5b] text-white"
                     : "bg-slate-200 text-slate-500"
                 }`}
               >
-                {step > 1 ? "✓" : "1"}
+                {!isAadhaarVerified ? (
+                  <Lock className="w-3 h-3 text-slate-400" />
+                ) : step > 1 ? (
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                ) : (
+                  "1"
+                )}
               </div>
               <div className="text-left hidden sm:block">
                 <div className="text-xs leading-none">{t("experienceForm.step1", "Step 1: Details")}</div>
               </div>
             </button>
 
-            <div className="h-[1px] w-4 sm:w-6 bg-slate-300" />
+            <div className={`h-[2px] w-4 sm:w-6 transition-colors ${step > 1 && isAadhaarVerified ? "bg-[#0e8a5b]" : "bg-slate-200"}`} />
 
             {/* Step 2 Pill */}
             <button
               type="button"
-              onClick={() => validateStep1() && setStep(2)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                step === 2
-                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold"
+              onClick={() => isAadhaarVerified && validateStep1() && setStep(2)}
+              disabled={!isAadhaarVerified}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
+                !isAadhaarVerified
+                  ? "opacity-60 cursor-not-allowed text-slate-400"
+                  : step === 2
+                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold cursor-pointer"
                   : step > 2
-                  ? "text-slate-700 hover:bg-slate-50 font-semibold"
+                  ? "text-slate-700 hover:bg-slate-50 font-semibold cursor-pointer"
                   : "text-slate-400"
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  step > 2
+                  !isAadhaarVerified
+                    ? "bg-slate-200 text-slate-400"
+                    : step > 2
                     ? "bg-[#0e8a5b] text-white"
                     : step === 2
                     ? "bg-[#0e8a5b] text-white"
                     : "bg-slate-200 text-slate-500"
                 }`}
               >
-                {step > 2 ? "✓" : "2"}
+                {!isAadhaarVerified ? (
+                  <Lock className="w-3 h-3 text-slate-400" />
+                ) : step > 2 ? (
+                  <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                ) : (
+                  "2"
+                )}
               </div>
               <div className="text-left hidden sm:block">
                 <div className="text-xs leading-none">{t("experienceForm.step2", "Step 2: Location & Schedule")}</div>
               </div>
             </button>
 
-            <div className="h-[1px] w-4 sm:w-6 bg-slate-300" />
+            <div className={`h-[2px] w-4 sm:w-6 transition-colors ${step > 2 && isAadhaarVerified ? "bg-[#0e8a5b]" : "bg-slate-200"}`} />
 
             {/* Step 3 Pill */}
             <button
               type="button"
-              onClick={() => validateStep1() && validateStep2() && setStep(3)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all cursor-pointer ${
-                step === 3
-                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold"
-                  : "text-slate-400 hover:text-slate-600"
+              onClick={() => isAadhaarVerified && validateStep1() && validateStep2() && setStep(3)}
+              disabled={!isAadhaarVerified}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all ${
+                !isAadhaarVerified
+                  ? "opacity-60 cursor-not-allowed text-slate-400"
+                  : step === 3
+                  ? "bg-emerald-50 text-[#0e8a5b] ring-1 ring-[#0e8a5b]/30 font-bold cursor-pointer"
+                  : "text-slate-400 hover:text-slate-600 cursor-pointer"
               }`}
             >
               <div
                 className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-black ${
-                  step === 3
+                  !isAadhaarVerified
+                    ? "bg-slate-200 text-slate-400"
+                    : step === 3
                     ? "bg-[#0e8a5b] text-white"
                     : "bg-slate-200 text-slate-500"
                 }`}
               >
-                3
+                {!isAadhaarVerified ? <Lock className="w-3 h-3 text-slate-400" /> : "3"}
               </div>
               <div className="text-left hidden sm:block">
                 <div className="text-xs leading-none">{t("experienceForm.step3", "Step 3: Pricing & Publish")}</div>
@@ -745,7 +843,8 @@ export default function SimplifiedExperienceCreationPage() {
             <button
               type="button"
               onClick={handleSaveDraft}
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors cursor-pointer"
+              disabled={!isAadhaarVerified}
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Save className="w-3.5 h-3.5 text-slate-500" />
               <span>{t("experienceForm.saveDraft", "Save Draft")}</span>
@@ -788,22 +887,109 @@ export default function SimplifiedExperienceCreationPage() {
           </div>
         )}
 
-        {/* Small Collapsible AI Quality Check Card (Requirement 5) */}
-        <AIContentValidatorWidget
-          title={experienceName}
-          description={description}
-          onApplyPolish={(polished) => setDescription(polished)}
-          show1={show1Data}
-          show2={show2Data}
-        />
+        {/* ========================================================= */}
+        {/* STRICT KYC GATE: MUST BE AADHAAR VERIFIED TO LIST        */}
+        {/* ========================================================= */}
+        {!isAadhaarVerified ? (
+          <div className="bg-white p-8 sm:p-10 rounded-3xl border-2 border-amber-300 shadow-md space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold shadow-xs">
+                  <ShieldAlert className="w-8 h-8 stroke-[2.2]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                      Aadhaar Identity Verification Required
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                      Listing Locked
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    To maintain safety, trust, and quality for travelers, all hosts must complete Govt. Aadhaar verification before listing experiences.
+                  </p>
+                </div>
+              </div>
 
-        {/* ========================================================= */}
-        {/* STEP 1: DETAILS                                           */}
-        {/* ========================================================= */}
-        {step === 1 && (
-          <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
+              <Link
+                href="/dashboard"
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Dashboard</span>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-slate-400">Current Status</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                  <span className="text-sm font-bold text-slate-800">Unverified Account</span>
+                </div>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Account is currently using basic email identity ({currentProviderEmail || "provider@locallens.in"}). Experience creation is locked until Aadhaar KYC is completed.
+                </p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+                <span className="text-[10.5px] font-extrabold uppercase tracking-wider text-emerald-800">Required KYC Step</span>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#0e8a5b]" />
+                  <span className="text-sm font-bold text-[#0e8a5b]">Upload &amp; Scan Aadhaar Card</span>
+                </div>
+                <p className="text-xs text-emerald-900/80 leading-relaxed">
+                  Takes less than 30 seconds. Scan your Aadhaar in Settings to instantly unlock experience publishing, verified badges, and traveler bookings.
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-end gap-3">
+              <Link
+                href="/dashboard"
+                className="w-full sm:w-auto px-5 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-700 text-center transition-colors"
+              >
+                Go to Dashboard
+              </Link>
+              <Link
+                href="/settings"
+                className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-black shadow-md shadow-emerald-700/25 flex items-center justify-center gap-2 transition-all cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Verify Aadhaar in Settings Now</span>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Small Collapsible AI Quality Check Card (Requirement 5) */}
+            <AIContentValidatorWidget
+              title={experienceName}
+              description={description}
+              onApplyPolish={(polished) => setDescription(polished)}
+              show1={show1Data}
+              show2={show2Data}
+              onValidationChange={({ canPublish, blockingReason }) => {
+                setAiCanPublish(canPublish);
+                setAiBlockReason(blockingReason);
+              }}
+            />
+
+            {/* ========================================================= */}
+            {/* STEP 1: DETAILS                                           */}
+            {/* ========================================================= */}
+            {step === 1 && (
+              <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
             <div>
-              <h1 className="text-lg font-black text-slate-900 tracking-tight">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-[#0e8a5b] border border-emerald-200/70 inline-flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#0e8a5b]" />
+                  Step 1 of 3
+                </span>
+                <span className="text-xs text-slate-400 font-medium">Basic Information & Media</span>
+              </div>
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 Step 1: Experience Details
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -865,7 +1051,7 @@ export default function SimplifiedExperienceCreationPage() {
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      {opt === "Indoor" ? "🏠 Indoor" : opt === "Outdoor" ? "🌿 Outdoor" : "⛅ Mixed"}
+                      {opt}
                     </button>
                   ))}
                 </div>
@@ -1054,9 +1240,10 @@ export default function SimplifiedExperienceCreationPage() {
             <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
               <Link
                 href="/dashboard"
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors"
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5"
               >
-                &larr; Back to Dashboard
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Dashboard</span>
               </Link>
 
               <div className="flex items-center gap-2">
@@ -1088,7 +1275,14 @@ export default function SimplifiedExperienceCreationPage() {
           <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h1 className="text-lg font-black text-slate-900 tracking-tight">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-[#0e8a5b] border border-emerald-200/70 inline-flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0e8a5b]" />
+                    Step 2 of 3
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">Location & Schedule</span>
+                </div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                   Step 2: Location &amp; Schedule
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1372,9 +1566,10 @@ export default function SimplifiedExperienceCreationPage() {
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
               >
-                &larr; Back to Details
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to Details</span>
               </button>
 
               <div className="flex items-center gap-2">
@@ -1407,7 +1602,14 @@ export default function SimplifiedExperienceCreationPage() {
             {/* Left Panel: Pricing & Capacity Form (7 cols) */}
             <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200/90 shadow-2xs space-y-6">
               <div>
-                <h1 className="text-lg font-black text-slate-900 tracking-tight">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-[#0e8a5b] border border-emerald-200/70 inline-flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0e8a5b]" />
+                    Step 3 of 3
+                  </span>
+                  <span className="text-xs text-slate-400 font-medium">Pricing & Review</span>
+                </div>
+                <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                   Step 3: Pricing &amp; Capacity
                 </h1>
                 <p className="text-xs text-slate-500 mt-0.5">
@@ -1538,9 +1740,10 @@ export default function SimplifiedExperienceCreationPage() {
                 <button
                   type="button"
                   onClick={() => setStep(2)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer"
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
                 >
-                  &larr; Back to Location
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Location</span>
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -1555,11 +1758,18 @@ export default function SimplifiedExperienceCreationPage() {
                   <button
                     type="button"
                     onClick={handlePublish}
-                    disabled={isSubmitting}
-                    className="px-6 py-2.5 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] disabled:opacity-50 text-white text-xs font-black shadow-md shadow-emerald-700/25 flex items-center gap-1.5 cursor-pointer transition-all"
+                    disabled={isSubmitting || !aiCanPublish}
+                    title={!aiCanPublish && aiBlockReason ? `Blocked: ${aiBlockReason}` : undefined}
+                    className={`px-6 py-2.5 rounded-xl text-white text-xs font-black shadow-md flex items-center gap-1.5 transition-all ${
+                      !aiCanPublish
+                        ? "bg-rose-400 cursor-not-allowed opacity-80 shadow-rose-400/20"
+                        : "bg-[#0e8a5b] hover:bg-[#0b744d] cursor-pointer shadow-emerald-700/25 disabled:opacity-50"
+                    }`}
                   >
                     <Rocket className="w-3.5 h-3.5" />
-                    <span>{isSubmitting ? "Publishing..." : "Publish Experience"}</span>
+                    <span>
+                      {isSubmitting ? "Publishing..." : !aiCanPublish ? "AI Check Failed" : "Publish Experience"}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -1625,9 +1835,10 @@ export default function SimplifiedExperienceCreationPage() {
                     {highlights.slice(0, 3).map((hl) => (
                       <span
                         key={hl}
-                        className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-600"
+                        className="px-2 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-600 inline-flex items-center gap-1"
                       >
-                        ✓ {hl}
+                        <Check className="w-3 h-3 text-emerald-600 stroke-[2.5]" />
+                        <span>{hl}</span>
                       </span>
                     ))}
                     {highlights.length > 3 && (
@@ -1677,6 +1888,8 @@ export default function SimplifiedExperienceCreationPage() {
             </div>
           </div>
         )}
+          </>
+        )}
       </main>
 
       {/* ------------------------------------------------------------- */}
@@ -1725,9 +1938,10 @@ export default function SimplifiedExperienceCreationPage() {
               </Link>
               <Link
                 href="/boost"
-                className="py-2.5 px-3 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-bold text-center shadow-xs transition-colors"
+                className="py-2.5 px-3 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-bold text-center shadow-xs transition-colors flex items-center justify-center gap-1.5"
               >
-                Boost This Listing 🚀
+                <Rocket className="w-3.5 h-3.5" />
+                <span>Boost This Listing</span>
               </Link>
             </div>
           </div>

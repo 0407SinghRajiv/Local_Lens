@@ -144,7 +144,7 @@ export async function getProviderProfile(): Promise<ProviderProfile | null> {
   // Fast path: localStorage
   try {
     const saved = localStorage.getItem("locallens_provider_session");
-    if (saved) {
+    if (saved && saved.trim() && saved !== "undefined" && saved !== "null") {
       const parsed = JSON.parse(saved);
       // Validate session in background
       supabase.auth.getSession().then(({ data }) => {
@@ -155,6 +155,9 @@ export async function getProviderProfile(): Promise<ProviderProfile | null> {
       return parsed;
     }
   } catch (err) {
+    try {
+      localStorage.removeItem("locallens_provider_session");
+    } catch (_) {}
     console.error("Error reading localStorage profile:", err);
   }
 
@@ -177,15 +180,25 @@ export async function getProviderProfile(): Promise<ProviderProfile | null> {
 export function saveProviderProfile(profile: Partial<ProviderProfile>): ProviderProfile {
   if (typeof window === "undefined") return DEFAULT_PROFILE;
 
-  const currentStr = localStorage.getItem("locallens_provider_session");
-  const current = currentStr ? JSON.parse(currentStr) : DEFAULT_PROFILE;
+  let current = DEFAULT_PROFILE;
+  try {
+    const currentStr = localStorage.getItem("locallens_provider_session");
+    if (currentStr && currentStr.trim() && currentStr !== "undefined" && currentStr !== "null") {
+      current = JSON.parse(currentStr);
+    }
+  } catch (_) {
+    current = DEFAULT_PROFILE;
+  }
+
   const updated: ProviderProfile = {
     ...current,
     ...profile,
     name: profile.fullName || profile.name || current.name,
   };
 
-  localStorage.setItem("locallens_provider_session", JSON.stringify(updated));
+  try {
+    localStorage.setItem("locallens_provider_session", JSON.stringify(updated));
+  } catch (_) {}
   return updated;
 }
 

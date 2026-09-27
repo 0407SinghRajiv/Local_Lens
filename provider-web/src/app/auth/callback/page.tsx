@@ -68,7 +68,26 @@ export default function AuthCallbackPage() {
           return;
         }
 
-        // 1. If explicit hash tokens exist (implicit flow)
+        // 1. Check existing active session immediately
+        const { data: existingSession } = await supabase.auth.getSession();
+        if (existingSession?.session?.user) {
+          console.log("[OAuth Callback] Active session already verified for user:", existingSession.session.user.id);
+          await completeAndNavigate(existingSession.session.user);
+          return;
+        }
+
+        // 2. Register auth state change listener FIRST so no events are missed
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+          console.log("[OAuth Callback] Auth state change event:", event);
+          if ((event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED") && session?.user) {
+            subscription.unsubscribe();
+            await completeAndNavigate(session.user);
+          }
+        });
+
+        // 3. If explicit hash tokens exist (implicit flow)
         if (hashAccessToken) {
           console.log("[OAuth Callback] Hash access_token found, setting session...");
           setStatusMsg("Establishing authenticated session...");
@@ -83,58 +102,53 @@ export default function AuthCallbackPage() {
           }
         }
 
-        // 2. If authorization code exists (PKCE flow)
+        // 4. If authorization code exists (PKCE flow)
         if (code) {
           console.log("[OAuth Callback] Exchanging authorization code for session...");
           setStatusMsg("Exchanging code for session...");
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-
-          if (!error && data?.session?.user) {
-            console.log("[OAuth Callback] Code exchange successful. User ID:", data.session.user.id);
-            await completeAndNavigate(data.session.user);
-            return;
-          }
-
-          if (error) {
-            console.warn("[OAuth Callback] exchangeCodeForSession notice:", error.message);
-            // Check if session was already established automatically by Supabase client
-            const { data: activeSession } = await supabase.auth.getSession();
-            if (activeSession?.session?.user) {
-              console.log("[OAuth Callback] Fallback active session found:", activeSession.session.user.id);
-              await completeAndNavigate(activeSession.session.user);
+          
+          try {
+            const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+            if (!error && data?.session?.user) {
+              console.log("[OAuth Callback] Code exchange successful. User ID:", data.session.user.id);
+              await completeAndNavigate(data.session.user);
               return;
             }
-
-            setErrorMsg(error.message || "Failed to exchange Google authorization code.");
-            return;
+            if (error) {
+              console.warn("[OAuth Callback] exchangeCodeForSession returned notice:", error.message);
+            }
+          } catch (ex) {
+            console.warn("[OAuth Callback] exchangeCodeForSession caught exception:", ex);
           }
-        }
 
-        // 3. Check existing active session
-        const { data: existingSession } = await supabase.auth.getSession();
-        if (existingSession?.session?.user) {
-          console.log("[OAuth Callback] Existing session verified for user:", existingSession.session.user.id);
-          await completeAndNavigate(existingSession.session.user);
+          // In Supabase client v2, detectSessionInUrl may auto-exchange the code in parallel.
+          // Poll getSession() / getUser() for up to 3 seconds before reporting failure.
+          for (let attempt = 1; attempt <= 6; attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            if (handledRef.current) return;
+            const { data: polledSession } = await supabase.auth.getSession();
+            if (polledSession?.session?.user) {
+              console.log(`[OAuth Callback] Session resolved on poll attempt ${attempt}:`, polledSession.session.user.id);
+              await completeAndNavigate(polledSession.session.user);
+              return;
+            }
+            const { data: polledUser } = await supabase.auth.getUser();
+            if (polledUser?.user) {
+              console.log(`[OAuth Callback] User resolved on poll attempt ${attempt}:`, polledUser.user.id);
+              await completeAndNavigate(polledUser.user);
+              return;
+            }
+          }
+
+          setErrorMsg("Could not verify Google authorization code. Please return to login and try again.");
           return;
         }
 
-        // 4. Listen for SIGNED_IN event from Supabase client
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange(async (event, session) => {
-          console.log("[OAuth Callback] Auth state change event:", event);
-          if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.user) {
-            subscription.unsubscribe();
-            await completeAndNavigate(session.user);
-          }
-        });
-
-        // 5. Fallback check (5 seconds)
+        // 5. Final fallback check
         setTimeout(async () => {
           if (handledRef.current) return;
           const { data: finalCheck } = await supabase.auth.getUser();
           if (finalCheck?.user) {
-            console.log("[OAuth Callback] Final check retrieved user:", finalCheck.user.id);
             await completeAndNavigate(finalCheck.user);
           } else {
             const saved = localStorage.getItem("locallens_provider_session");
@@ -144,7 +158,7 @@ export default function AuthCallbackPage() {
               setErrorMsg("Authentication did not complete in time. Please try logging in again.");
             }
           }
-        }, 5000);
+        }, 4000);
 
       } catch (err: any) {
         console.error("[OAuth Callback] Unexpected exception:", err);

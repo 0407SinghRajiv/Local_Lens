@@ -1,14 +1,16 @@
-﻿"use client";
+"use client";
 
 import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { ProviderNavbar } from "@/components/layout/ProviderNavbar";
 import {
-  getStoredExperiences,
+  getStoredExperiencesForProvider,
+  saveStoredExperiencesForProvider,
   saveStoredExperiences,
 } from "@/services/mockExperiences";
-import { ExperienceListing, BoostPackage } from "@/types/experience";
+import { getProviderProfile } from "@/lib/authSession";
+import { ExperienceListing, BoostPackage, ExperienceCategory } from "@/types/experience";
 import { formatINR } from "@/utils/geoMath";
 import { AiQualityAuditModal } from "@/components/modals/AiQualityAuditModal";
 import { SponsorshipBoostModal } from "@/components/modals/SponsorshipBoostModal";
@@ -22,12 +24,30 @@ import {
   CheckCircle2,
   PauseCircle,
   PlayCircle,
+  ArrowLeft,
+  ShieldAlert,
+  ShieldCheck,
+  Lock,
 } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function ListingsPage() {
   const [experiences, setExperiences] = useState<ExperienceListing[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategory, setFilterCategory] = useState("All");
+
+  const [isAadhaarVerified, setIsAadhaarVerified] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("locallens_aadhaar_verified") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsAadhaarVerified(localStorage.getItem("locallens_aadhaar_verified") === "true");
+    }
+  }, []);
 
   // Modals
   const [selectedForAudit, setSelectedForAudit] = useState<ExperienceListing | null>(null);
@@ -36,8 +56,76 @@ export default function ListingsPage() {
   const [selectedForBoost, setSelectedForBoost] = useState<ExperienceListing | null>(null);
   const [isBoostOpen, setIsBoostOpen] = useState(false);
 
-  const loadExperiences = () => {
-    setExperiences(getStoredExperiences());
+  const loadExperiences = async () => {
+    const profile = await getProviderProfile();
+    const pid = (profile?.id || "provider_default").trim();
+    const pEmail = (profile?.email || "").trim();
+
+    // 1. Load ONLY this provider's locally stored experiences
+    const local = getStoredExperiencesForProvider(pid, pEmail);
+    setExperiences(local);
+
+    // 2. Fetch from Supabase strictly matching THIS provider
+    try {
+      const filterClauses: string[] = [
+        `source_name.eq.provider:${pid}`,
+        `source_url.ilike.%/provider/${pid}%`,
+        `tags.ilike.%provider:${pid}%`,
+      ];
+      if (pEmail && pEmail !== "provider@locallens.in") {
+        filterClauses.push(`source_url.ilike.%${pEmail}%`);
+        filterClauses.push(`tags.ilike.%provider_email:${pEmail}%`);
+      }
+
+      const { data, error } = await supabase
+        .from("experience")
+        .select("*")
+        .or(filterClauses.join(","));
+
+      if (!error && Array.isArray(data)) {
+        const seenIds = new Set(data.map((d: any) => d.experience_id));
+        const formattedRemote: ExperienceListing[] = data.map((d: any) => ({
+          experience_id: d.experience_id,
+          experience_name: d.experience_name || d.title || "Experience",
+          category: (d.category as ExperienceCategory) || "Heritage",
+          sub_category: d.sub_category || "Local Tour",
+          tags: typeof d.tags === "string" ? d.tags.split(",").map((s: string) => s.trim()) : (d.tags || []),
+          local_experience_bool: d.local_experience === "Yes",
+          hidden_gem_bool: d.hidden_gem === "Yes",
+          latitude: Number(d.latitude) || 19.076,
+          longitude: Number(d.longitude) || 72.8777,
+          city: d.city || "Mumbai",
+          district: d.district || "Mumbai",
+          state: d.state || "Maharashtra",
+          region: d.region || "Konkan",
+          meeting_point: d.meeting_point || `${d.city || "Mumbai"} Point`,
+          price_inr_clean: Number(String(d.price_inr_clean || d.price_inr || "500").replace(/[^0-9]/g, "")) || 500,
+          duration_hours_clean: Number(String(d.duration_hours_clean || d.duration_hours || "2").replace(/[^0-9.]/g, "")) || 2,
+          min_group_size: Number(d.min_group_size) || 1,
+          max_group_size: Number(d.max_group_size) || 8,
+          booking_required_bool: d.booking_required !== "No",
+          advance_booking_days_clean: Number(String(d.advance_booking_days || "1").replace(/[^0-9]/g, "")) || 1,
+          availability: d.availability || "Daily",
+          indoor_outdoor_clean: (d.indoor_outdoor || "Outdoor") as "Indoor" | "Outdoor" | "Mixed",
+          best_time: d.best_time || "Sunset 05:00 PM",
+          season: d.season || "All Year",
+          accessibility: d.accessibility || "Standard",
+          description: d.description || "",
+          inclusions: Array.isArray(d.inclusions) ? d.inclusions : ["Guide", "Equipment"],
+          rules: Array.isArray(d.rules) ? d.rules : ["Government ID required"],
+          cancellation_policy: d.cancellation_policy || "Free cancellation up to 24 hrs",
+          health_score: 95,
+          rating: Number(d.rating) || 5.0,
+          review_count: Number(d.review_count) || 1,
+          images: d.image_url ? [d.image_url] : [],
+          status: "active" as const,
+        }));
+
+        setExperiences([...formattedRemote, ...local.filter((l) => !seenIds.has(l.experience_id))]);
+      }
+    } catch (err) {
+      console.warn("Supabase fetch notice:", err);
+    }
   };
 
   useEffect(() => {
@@ -104,7 +192,22 @@ export default function ListingsPage() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-500 selection:text-white pb-20">
       <ProviderNavbar />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 space-y-6">
+        {/* Navigation Back Bar */}
+        <div className="flex items-center justify-between gap-4">
+          <Link
+            href="/dashboard"
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Dashboard</span>
+          </Link>
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Supabase Live Sync</span>
+          </div>
+        </div>
+
         {/* Header Strip */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-sm">
           <div>
@@ -119,14 +222,57 @@ export default function ListingsPage() {
             </p>
           </div>
 
-          <Link
-            href="/listings/new"
-            className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create New Listing</span>
-          </Link>
+          {isAadhaarVerified ? (
+            <Link
+              href="/experiences/new"
+              className="px-5 py-2.5 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/25 transition-all flex items-center gap-1.5"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Listing</span>
+            </Link>
+          ) : (
+            <Link
+              href="/settings"
+              title="Govt. Aadhaar verification required before you can list experiences"
+              className="px-5 py-2.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-lg shadow-amber-500/25 transition-all flex items-center gap-1.5"
+            >
+              <Lock className="w-4 h-4" />
+              <span>Verify Aadhaar to List</span>
+            </Link>
+          )}
         </div>
+
+        {/* KYC Incomplete Warning Banner */}
+        {!isAadhaarVerified && (
+          <div className="p-4 sm:p-5 rounded-2xl bg-amber-50/90 border border-amber-200/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 stroke-[2.2]" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-xs font-black text-slate-900">
+                    Aadhaar Identity Verification Required
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-rose-100 text-rose-700">
+                    Listing Locked
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Hosts cannot create or publish experiences until Govt. Aadhaar card KYC is completed in Settings.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/settings"
+              className="px-4 py-2 rounded-xl bg-[#0e8a5b] hover:bg-[#0b744d] text-white text-xs font-black shadow-xs shrink-0 flex items-center gap-1.5 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Verify in Settings</span>
+            </Link>
+          </div>
+        )}
 
         {/* Search & Categories Bar */}
         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
