@@ -60,6 +60,32 @@ class ItineraryService:
         # 1. Filter selected experiences
         selected_ids = [str(eid).strip() for eid in request.selected_experience_ids if str(eid).strip()]
 
+        # Resolve geographic anchor coordinates if user coordinates are not provided
+        anchor_lat = request.user_lat
+        anchor_lon = request.user_lon
+        if (anchor_lat is None or anchor_lon is None) and (request.destination or request.start_location):
+            dest_lower = (request.destination or request.start_location or "").strip().lower()
+            city_anchors = {
+                "mumbai": (18.9894, 73.1175),
+                "navi mumbai": (19.0330, 73.0297),
+                "delhi": (28.6139, 77.2090),
+                "new delhi": (28.6139, 77.2090),
+                "bangalore": (12.9716, 77.5946),
+                "bengaluru": (12.9716, 77.5946),
+                "goa": (15.2993, 74.1240),
+                "jaipur": (26.9124, 75.7873),
+                "hyderabad": (17.3850, 78.4867),
+                "kolkata": (22.5726, 88.3639),
+                "chennai": (13.0827, 80.2707),
+                "pune": (18.5204, 73.8567),
+                "agra": (27.1767, 78.0081),
+                "varanasi": (25.3176, 82.9739),
+            }
+            for c_name, coords in city_anchors.items():
+                if c_name in dest_lower or dest_lower in c_name:
+                    anchor_lat, anchor_lon = coords
+                    break
+
         if selected_ids:
             # Match IDs with flexible prefix handling ('EXP-' or standard)
             clean_ids = set(selected_ids)
@@ -96,24 +122,60 @@ class ItineraryService:
                 matched_df = pd.concat([matched_df, missing_df], ignore_index=True) if not matched_df.empty else missing_df
         else:
             # If no IDs selected, use notebook candidate scoring to pick top experiences
+            # Dynamic KM area calculation based on available time limit
+            avail_hrs = float(request.available_time_hours or 5.0)
+            if avail_hrs <= 1.5:
+                time_radius_km = 6.0
+            elif avail_hrs <= 2.5:
+                time_radius_km = 10.0
+            elif avail_hrs <= 4.0:
+                time_radius_km = 18.0
+            elif avail_hrs <= 6.0:
+                time_radius_km = 25.0
+            else:
+                time_radius_km = 35.0
+
             scored = engine.get_scored_candidates(
                 budget_inr=request.budget_inr or 4000.0,
-                available_time_hours=request.available_time_hours or 5.0,
+                available_time_hours=avail_hrs,
                 traveler_count=request.traveler_count or 1,
                 group_type=request.group_type or "Solo",
                 interests=[],
-                user_lat=request.user_lat,
-                user_lon=request.user_lon,
+                user_lat=anchor_lat,
+                user_lon=anchor_lon,
+                radius_km=time_radius_km,
             )
+            # If candidate search with anchor was too restrictive, fallback without radius
+            if scored.empty and anchor_lat is not None:
+                scored = engine.get_scored_candidates(
+                    budget_inr=request.budget_inr or 4000.0,
+                    available_time_hours=avail_hrs,
+                    traveler_count=request.traveler_count or 1,
+                    group_type=request.group_type or "Solo",
+                    interests=[],
+                    user_lat=None,
+                    user_lon=None,
+                )
+                if request.destination:
+                    dest_match = scored[scored["city"].astype(str).str.lower().str.contains(request.destination.lower())]
+                    if not dest_match.empty:
+                        scored = dest_match
+
             matched_df = engine.build_itinerary(
                 scored,
-                available_time_hours=request.available_time_hours or 5.0,
+                available_time_hours=avail_hrs,
                 budget_inr=request.budget_inr or 4000.0,
             )
 
+            # If build_itinerary returned fewer stops than desired (e.g. 1 instead of 3),
+            # supplement with top scored candidates in the reachable KM area
+            desired_stops = int(getattr(request, "desired_experience_count", 0) or getattr(request, "places_to_visit", 0) or (3 if avail_hrs <= 3.0 else 4))
+            if len(matched_df) < desired_stops and not scored.empty:
+                matched_df = scored.head(desired_stops).copy()
+
+        target_count = len(selected_ids) if selected_ids else int(getattr(request, "desired_experience_count", 0) or getattr(request, "places_to_visit", 0) or (3 if float(request.available_time_hours or 5.0) <= 3.0 else 4))
         if matched_df.empty:
-            req_count = len(selected_ids) if selected_ids else int(getattr(request, "desired_experience_count", 0) or getattr(request, "places_to_visit", 0) or 4)
-            matched_df = experiences_df.head(max(req_count, 1)).copy()
+            matched_df = experiences_df.head(max(target_count, 1)).copy()
 
         # Parse user's start time and duration limit
         start_dt = cls._parse_start_time(request.trip_date, request.start_time)
@@ -121,8 +183,8 @@ class ItineraryService:
         trip_end_limit_dt = start_dt + timedelta(minutes=max_duration_minutes)
 
         # 2. Geographically order candidate experiences to minimize travel
-        start_lat = request.user_lat
-        start_lon = request.user_lon
+        start_lat = anchor_lat
+        start_lon = anchor_lon
 
         candidates = matched_df.to_dict(orient="records")
         
@@ -153,7 +215,52 @@ class ItineraryService:
 
         ordered_candidates = cls._order_candidates_spatially(candidates, start_lat, start_lon)
 
-        # 3. Time-Aware Chronological Scheduling Loop
+        # 3. Dynamic Adaptive Duration Scaling & KM Reachability Allocation
+        # When a traveler has a specific time limit (e.g. 2 hours) and multiple stops (e.g. 3 stops),
+        # allocate durations and travel times adaptively so ALL stops are included rather than skipped!
+        num_candidates = len(ordered_candidates)
+        allocated_durations = {}
+
+        if num_candidates > 0 and max_duration_minutes > 0:
+            # Estimate transit between consecutive stops along the route
+            transit_estimates = []
+            prev_l, prev_o = start_lat, start_lon
+            for c_idx, c in enumerate(ordered_candidates):
+                c_lat = float(c.get("latitude") or start_lat or 18.9894)
+                c_lon = float(c.get("longitude") or start_lon or 73.1175)
+                if c_idx == 0:
+                    if request.user_lat is not None and request.user_lon is not None:
+                        t_info = RoutingService.get_travel_time(prev_l, prev_o, c_lat, c_lon)
+                        transit_estimates.append(min(t_info.get("duration_minutes", 10), 20))
+                    else:
+                        transit_estimates.append(0)
+                else:
+                    t_info = RoutingService.get_travel_time(prev_l, prev_o, c_lat, c_lon)
+                    transit_estimates.append(min(t_info.get("duration_minutes", 10), 25))
+                prev_l, prev_o = c_lat, c_lon
+
+            total_est_transit = sum(transit_estimates)
+            # Available activity budget
+            avail_act_mins = max(max_duration_minutes - total_est_transit, num_candidates * 20)
+
+            raw_durs = [
+                max(20, int(round(float(c.get("duration_hours_clean", c.get("duration_hours", 1.5))) * 60)))
+                for c in ordered_candidates
+            ]
+            total_raw_act = sum(raw_durs)
+
+            if total_raw_act > avail_act_mins:
+                # Scale down durations proportionally so every requested experience fits in the schedule
+                scale_factor = avail_act_mins / float(total_raw_act)
+                min_stop_mins = 20 if num_candidates >= 4 else 25
+                for c, r_d in zip(ordered_candidates, raw_durs):
+                    scaled = max(min_stop_mins, int(round(r_d * scale_factor)))
+                    allocated_durations[str(c.get("experience_id"))] = scaled
+            else:
+                for c, r_d in zip(ordered_candidates, raw_durs):
+                    allocated_durations[str(c.get("experience_id"))] = r_d
+
+        # 4. Time-Aware Chronological Scheduling Loop
         current_dt = start_dt
         scheduled: List[ScheduledExperience] = []
         skipped: List[SkippedExperience] = []
@@ -170,8 +277,13 @@ class ItineraryService:
             cat = str(exp.get("category", "Local Experience"))
             sub_cat = str(exp.get("sub_category", "")) if pd.notna(exp.get("sub_category")) else None
             price = float(exp.get("price_inr_clean", exp.get("price_inr", 0.0)))
-            duration_hrs = float(exp.get("duration_hours_clean", exp.get("duration_hours", 1.5)))
-            duration_mins = max(30, int(round(duration_hrs * 60)))
+            
+            # Use adaptive allocated duration to guarantee multi-stop fit
+            duration_mins = allocated_durations.get(
+                exp_id,
+                max(20, int(round(float(exp.get("duration_hours_clean", exp.get("duration_hours", 1.5))) * 60)))
+            )
+            duration_hrs = round(duration_mins / 60.0, 2)
             rating = float(exp.get("rating")) if pd.notna(exp.get("rating")) else None
             lat = float(exp.get("latitude")) if pd.notna(exp.get("latitude")) else None
             lon = float(exp.get("longitude")) if pd.notna(exp.get("longitude")) else None
@@ -192,25 +304,34 @@ class ItineraryService:
 
             # Projected time window for this experience
             activity_start_dt = current_dt + timedelta(minutes=transit_mins)
-            activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 
             # Check 1: Strict Total Trip Duration Constraint
-            # Ensure the itinerary strictly respects the traveler's requested hours limit
-            # so the traveler gets an itinerary tailored exactly to their available time window.
             if request.available_time_hours and request.available_time_hours > 0:
-                if activity_end_dt > trip_end_limit_dt:
-                    if scheduled:
+                # If start time is literally past the trip end limit, then skip
+                if activity_start_dt >= trip_end_limit_dt:
+                    skipped.append(SkippedExperience(
+                        experience_id=exp_id,
+                        name=exp_name,
+                        reason=f"Exceeds your requested {request.available_time_hours:g} hr schedule limit (would start after trip end at {activity_start_dt.strftime('%I:%M %p')})",
+                    ))
+                    continue
+
+                # If activity would end past trip_end_limit_dt, trim duration to fit exactly!
+                projected_end = activity_start_dt + timedelta(minutes=duration_mins)
+                if projected_end > trip_end_limit_dt:
+                    remaining_mins = int((trip_end_limit_dt - activity_start_dt).total_seconds() // 60)
+                    if remaining_mins >= 15:
+                        duration_mins = remaining_mins
+                        duration_hrs = round(duration_mins / 60.0, 2)
+                    elif scheduled:
                         skipped.append(SkippedExperience(
                             experience_id=exp_id,
                             name=exp_name,
-                            reason=f"Exceeds your requested {request.available_time_hours:g} hr schedule limit (would finish at {activity_end_dt.strftime('%I:%M %p')})",
+                            reason=f"Insufficient remaining time in your {request.available_time_hours:g} hr schedule",
                         ))
                         continue
-                    else:
-                        # For the very first stop, adjust duration to fit within the available time window
-                        duration_mins = max(30, max_duration_minutes - transit_mins)
-                        duration_hrs = round(duration_mins / 60.0, 2)
-                        activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
+
+            activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 
             # Update previous stop's travel_to_next
             if scheduled:

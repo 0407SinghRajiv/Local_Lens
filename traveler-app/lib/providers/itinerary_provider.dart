@@ -160,6 +160,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       latitude: lat,
       longitude: lng,
       displayAddress: address,
+      activeWeatherCondition: 'Live',
     );
   }
 
@@ -321,6 +322,39 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     );
   }
 
+  /// Store parsed intent and ML recommendations from Home Screen Smart Search bar
+  void applySmartSearchResult({
+    required Map<String, dynamic> parsedIntent,
+    required List<RecommendationModel> recommendations,
+  }) {
+    final timeHours = (parsedIntent['available_time_hours'] as num?)?.toDouble() ?? 4.0;
+    final budget = (parsedIntent['budget_inr'] as num?)?.toDouble() ?? 2500.0;
+    final travelerCount = (parsedIntent['traveler_count'] as num?)?.toInt() ?? 1;
+    final groupType = parsedIntent['group_type']?.toString() ?? 'Solo';
+    final destination = parsedIntent['destination']?.toString() ?? '';
+    final desiredCount = (parsedIntent['desired_experience_count'] as num?)?.toInt() ?? 3;
+    final interests = (parsedIntent['interests'] as List?)?.map((e) => e.toString()).toList() ?? [];
+
+    final minutes = (timeHours * 60).round();
+
+    state = state.copyWith(
+      destination: destination.isNotEmpty ? destination : (state.destination.isNotEmpty ? state.destination : 'Mumbai'),
+      availableTime: timeHours.toStringAsFixed(timeHours.truncateToDouble() == timeHours ? 0 : 1),
+      availableTimeUnit: 'Hours',
+      availableTimeMinutes: minutes,
+      totalBudgetInr: budget,
+      travelerCount: travelerCount,
+      groupType: groupType,
+      desiredExperienceCount: desiredCount,
+      interests: interests.isNotEmpty ? interests : state.interests,
+      recommendations: recommendations,
+      selectedPlaces: const [],
+      selectedExperienceIds: const {},
+      status: ItineraryFormStatus.recommendationsLoaded,
+      error: null,
+    );
+  }
+
   /// STAGE 1: Fetch ML Recommendations based on traveler preferences
   Future<List<RecommendationModel>> fetchRecommendations() async {
     state = state.copyWith(
@@ -443,7 +477,8 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
 
       debugPrint('[ItineraryProvider] Requested: $targetCount, Selected: ${selectedPlacesList.length}, Sent to backend: ${selectedList.length}');
 
-      final activeCondition = weatherOverride ?? (state.activeWeatherCondition != 'Live' ? state.activeWeatherCondition : null);
+      final requestedCond = weatherOverride ?? state.activeWeatherCondition;
+      final activeCondition = (requestedCond == 'Live' || requestedCond == 'Live GPS') ? null : requestedCond;
 
       final itinerary = await ItineraryApiService.generateItinerary(
         destination: dest,

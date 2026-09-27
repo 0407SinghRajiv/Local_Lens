@@ -32,7 +32,8 @@ class Settings(BaseSettings):
 
     # External APIs
     MAP_API_KEY: str = ""
-    WEATHER_API_KEY: str = ""
+    WEATHER_API_KEY: str = "9fb8d155eeb443116f6d35e81215a121"
+    OPENWEATHER_API_KEY: str = "9fb8d155eeb443116f6d35e81215a121"
     LLM_API_KEY: str = ""
     GROQ_API_KEY: str = ""
 

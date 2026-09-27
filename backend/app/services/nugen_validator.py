@@ -41,6 +41,7 @@ class NugenValidator:
         original_itinerary: Dict[str, Any],
         user_constraints: Dict[str, Any],
         weather: Optional[Dict[str, Any]] = None,
+        live_weather: Optional[Dict[str, Any]] = None,
     ) -> NugenEnhancementResponse:
         """
         Validate that Nugen AI response adheres to required schema and doesn't fabricate facts.
@@ -52,6 +53,8 @@ class NugenValidator:
             response.status = "success"
             if weather and not response.weather:
                 response.weather = weather
+            if live_weather and not response.live_weather:
+                response.live_weather = live_weather
 
             # Enforce that all recommendations are tagged with source='nugen'
             for rec in response.final_recommendations:
@@ -60,7 +63,9 @@ class NugenValidator:
             return response
         except Exception as e:
             logger.warning(f"[NUGEN] Response validation error: {e}. Falling back to deterministic evaluation.")
-            return cls.generate_deterministic_evaluation(original_itinerary, user_constraints, weather=weather)
+            return cls.generate_deterministic_evaluation(
+                original_itinerary, user_constraints, weather=weather, live_weather=live_weather
+            )
 
     @classmethod
     def generate_deterministic_evaluation(
@@ -68,6 +73,7 @@ class NugenValidator:
         original_itinerary: Dict[str, Any],
         user_constraints: Dict[str, Any],
         weather: Optional[Dict[str, Any]] = None,
+        live_weather: Optional[Dict[str, Any]] = None,
     ) -> NugenEnhancementResponse:
         """
         Executes the 6 domain validation rules deterministically in pure Python.
@@ -346,6 +352,7 @@ class NugenValidator:
             personalized_tips=personalized_tips,
             final_recommendations=final_recommendations,
             weather=weather,
+            live_weather=live_weather,
             metadata={
                 "validation_engine": "nugen_hybrid_evaluator",
                 "rules_verified": [1, 2, 3, 4, 5, 6],

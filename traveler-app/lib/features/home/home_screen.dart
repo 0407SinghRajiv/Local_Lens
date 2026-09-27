@@ -15,6 +15,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/itinerary_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/sponsor_service.dart';
+import '../../services/itinerary_api_service.dart';
+import '../../models/recommendation_model.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/active_ride_floating_bar.dart';
 import '../explore/explore_screen.dart';
@@ -54,6 +56,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   Timer? _sponsoredAutoTimer;
   int _currentSponsoredPage = 0;
   int _sponsoredCampaignCount = 5;
+
+  final TextEditingController _smartSearchController = TextEditingController();
+  bool _isSmartSearching = false;
 
   @override
   void initState() {
@@ -113,11 +118,104 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _sponsoredAutoTimer?.cancel();
     _sponsoredPageController.dispose();
     _clockTimer?.cancel();
+    _smartSearchController.dispose();
     _sunMoonRayController.dispose();
     _stormController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Groq-powered natural language prompt smart search handler
+  Future<void> _handleSmartSearch(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.isEmpty) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSmartSearching = true;
+    });
+
+    try {
+      final itinState = ref.read(itineraryProvider);
+      final lat = itinState.latitude;
+      final lon = itinState.longitude;
+      final city = itinState.destination.isNotEmpty ? itinState.destination : 'Mumbai';
+
+      final res = await ItineraryApiService.smartSearch(
+        query: query,
+        userLat: lat,
+        userLon: lon,
+        city: city,
+      );
+
+      final parsedIntent = (res['parsed_intent'] as Map<String, dynamic>?) ?? {};
+      final recs = (res['recommendations'] as List<RecommendationModel>?) ?? [];
+
+      if (!mounted) return;
+
+      if (recs.isNotEmpty) {
+        // Hydrate itinerary provider with Groq parsed intent + ML recommendations
+        ref.read(itineraryProvider.notifier).applySmartSearchResult(
+              parsedIntent: parsedIntent,
+              recommendations: recs,
+            );
+
+        final vibe = parsedIntent['vibe_summary']?.toString() ?? 'Experiences tailored to your journey!';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF0F172A),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Color(0xFF38BDF8), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    vibe,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        // Redirect directly to the recommendation swipe page
+        context.push(AppRoutes.recommendationSwipe);
+      } else {
+        // Fallback: switch to Explore tab if no specific items matched
+        setState(() {
+          _currentTabIndex = 1;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF1E293B),
+            content: const Text('Browsing spots matching your search...'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[HomeScreen] Smart Search failed: $e');
+      if (mounted) {
+        setState(() {
+          _currentTabIndex = 1;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSmartSearching = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchWeather() async {
@@ -195,6 +293,26 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }).join(' ');
   }
 
+  String _getOwmWeatherDescription(int id, String rawDesc, bool isDay) {
+    if (id >= 200 && id < 300) return 'Thunderstorm';
+    if (id >= 300 && id < 600) return 'Rain Showers';
+    if (id >= 600 && id < 700) return 'Snow';
+    if (id >= 700 && id < 800) return 'Hazy / Foggy';
+    if (id == 800) return isDay ? 'Clear & Sunny' : 'Clear Night';
+    if (id == 801 || id == 802) return 'Partly Cloudy';
+    if (id >= 803) return 'Overcast';
+    return rawDesc.isNotEmpty ? rawDesc[0].toUpperCase() + rawDesc.substring(1) : 'Pleasant';
+  }
+
+  IconData _getOwmWeatherIcon(int id, bool isDay) {
+    if (id >= 200 && id < 300) return Icons.thunderstorm_rounded;
+    if (id >= 300 && id < 600) return Icons.grain_rounded;
+    if (id >= 700 && id < 800) return Icons.cloud_queue_rounded;
+    if (id == 800) return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
+    if (id >= 801 && id <= 802) return isDay ? Icons.wb_cloudy_rounded : Icons.cloud_queue_rounded;
+    return Icons.cloud_rounded;
+  }
+
   void _refreshSponsored() {
     setState(() {
       _sponsoredFuture = SponsorService.fetchActiveSponsoredExperiences();
@@ -224,9 +342,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             _weatherDesc = 'Heavy Rain & Thunderstorm';
             _weatherIcon = Icons.thunderstorm_rounded;
             _stormController.repeat();
+            ref.read(itineraryProvider.notifier).setWeatherCondition('Heavy Thunderstorm');
           } else {
             _fetchWeather();
             _stormController.stop();
+            ref.read(itineraryProvider.notifier).setWeatherCondition('Live');
           }
         });
       },
@@ -496,7 +616,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                           ),
                           TextButton.icon(
                             onPressed: () {
-                              ref.read(createItineraryProvider.notifier).setWeatherCondition('Live');
+                              ref.read(itineraryProvider.notifier).setWeatherCondition('Live');
+                              setState(() {
+                                _isStormyDemo = false;
+                                _fetchWeather();
+                                _stormController.stop();
+                              });
                               Navigator.pop(ctx);
                               context.push(AppRoutes.travelerCreateItinerary);
                             },
@@ -932,52 +1057,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         ],
                       ),
                       child: TextField(
-                        onSubmitted: (query) {
-                          if (query.trim().isNotEmpty) {
-                            setState(() {
-                              _currentTabIndex = 1; // Switch to Explore tab
-                            });
-                          }
-                        },
+                        controller: _smartSearchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (query) => _handleSmartSearch(query),
                         style: TextStyle(
                           fontSize: 14,
                           color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
                           fontWeight: FontWeight.w700,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Search destinations, local eats & spots...',
+                          hintText: 'Ask AI: e.g. 2 hr, ₹1500, couple, sunset & street food...',
                           hintStyle: TextStyle(
-                            fontSize: 14,
-                            color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF6B7280),
+                            fontWeight: FontWeight.w500,
                           ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
-                            size: 24,
-                          ),
-                          suffixIcon: Container(
-                            margin: const EdgeInsets.all(6),
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: _isStormyDemo
-                                  ? const Color(0xFF0F172A)
-                                  : const Color(0xFF111827).withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Icon(
-                              Icons.tune_rounded,
-                              color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
-                              size: 18,
+                          prefixIcon: _isSmartSearching
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                                    ),
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                                  size: 22,
+                                ),
+                          suffixIcon: GestureDetector(
+                            onTap: () => _handleSmartSearch(_smartSearchController.text),
+                            child: Container(
+                              margin: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: _isStormyDemo
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFF2563EB).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Icon(
+                                Icons.arrow_forward_rounded,
+                                color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                                size: 18,
+                              ),
                             ),
                           ),
                           border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 15,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 15,
+                          ),
                         ),
                       ),
-                    ),
                   ),
                 ],
               ),

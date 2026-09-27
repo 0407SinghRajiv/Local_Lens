@@ -29,6 +29,9 @@ except ImportError:
     )
     from app.services.place_image_resolver import PlaceImageResolver
 
+import time
+import pandas as pd
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +42,55 @@ class RecommendationService:
     """
 
     _engine_instance: Optional[RecommendationEngine] = None
+    _last_sync_time: float = 0.0
+    _sync_interval_seconds: float = 120.0
+
+    @classmethod
+    def sync_with_supabase(
+        cls, engine: Optional[RecommendationEngine] = None, force: bool = False
+    ) -> Dict[str, Any]:
+        """
+        Synchronize the in-memory ML candidate experiences DataFrame with live Supabase table records.
+        Preserves existing base dataset while adding/updating new provider-submitted experiences.
+        """
+        if engine is None:
+            engine = cls.get_engine()
+
+        try:
+            sb_df = SupabaseService.get_experience_dataframe(force_refresh=force)
+            if sb_df is not None and not sb_df.empty:
+                initial_count = len(engine.experiences_df) if engine.experiences_df is not None else 0
+                
+                # Merge Supabase experiences: replace or add based on experience_id
+                if engine.experiences_df is not None and not engine.experiences_df.empty:
+                    combined = pd.concat([engine.experiences_df, sb_df], ignore_index=True)
+                    combined = combined.drop_duplicates(subset=["experience_id"], keep="last")
+                    engine.experiences_df = combined
+                else:
+                    engine.experiences_df = sb_df.copy()
+
+                cls._last_sync_time = time.time()
+                current_count = len(engine.experiences_df)
+                added_count = current_count - initial_count
+                logger.info(
+                    f"ML Engine synchronized with Supabase experience table: "
+                    f"{len(sb_df)} fetched, total active experiences={current_count} (new={added_count})."
+                )
+                return {
+                    "success": True,
+                    "supabase_count": len(sb_df),
+                    "total_active_experiences": current_count,
+                    "new_provider_experiences": added_count,
+                }
+        except Exception as e:
+            logger.warning(f"Failed to sync ML engine with Supabase: {e}")
+
+        return {
+            "success": False,
+            "supabase_count": 0,
+            "total_active_experiences": len(engine.experiences_df) if engine.experiences_df is not None else 0,
+            "new_provider_experiences": 0,
+        }
 
     @classmethod
     def get_engine(cls) -> RecommendationEngine:
@@ -57,6 +109,8 @@ class RecommendationService:
                 dataset_dir=dataset_dir,
                 dataset_filename="all_experiences_with_photos.csv",
             )
+            # Sync with live Supabase database on initial boot
+            cls.sync_with_supabase(cls._engine_instance)
 
         return cls._engine_instance
 
@@ -67,6 +121,13 @@ class RecommendationService:
         """
         engine = cls.get_engine()
 
+        # Check if periodic sync with Supabase is due (every 2 minutes)
+        if time.time() - cls._last_sync_time > cls._sync_interval_seconds:
+            try:
+                cls.sync_with_supabase(engine, force=True)
+            except Exception as e:
+                logger.debug(f"Periodic Supabase sync failed: {e}")
+
         # Extract normalized fields
         budget_inr = float(request.budget_inr or 2500.0)
         available_time_hours = float(request.available_time_hours or 4.0)
@@ -74,12 +135,51 @@ class RecommendationService:
         group_type = str(request.group_type or "Solo")
         interests = request.interests if request.interests else []
 
-        # If coordinates provided, filter by radius around user location (default 25 km)
+        # Resolve target city and coordinates
+        city_filter = request.city if request.city else (request.destination if request.destination else None)
         user_lat = request.user_lat
         user_lon = request.user_lon
-        radius_km = request.radius_km or 25.0
 
-        city_filter = request.city if request.city else None
+        # If user did not provide GPS coordinates, anchor to known city coordinates
+        if (user_lat is None or user_lon is None) and city_filter:
+            clean_city = str(city_filter).strip().lower()
+            city_anchors = {
+                "mumbai": (18.9894, 73.1175),
+                "navi mumbai": (19.0330, 73.0297),
+                "delhi": (28.6139, 77.2090),
+                "new delhi": (28.6139, 77.2090),
+                "bangalore": (12.9716, 77.5946),
+                "bengaluru": (12.9716, 77.5946),
+                "goa": (15.2993, 74.1240),
+                "jaipur": (26.9124, 75.7873),
+                "hyderabad": (17.3850, 78.4867),
+                "kolkata": (22.5726, 88.3639),
+                "chennai": (13.0827, 80.2707),
+                "pune": (18.5204, 73.8567),
+                "agra": (27.1767, 78.0081),
+                "varanasi": (25.3176, 82.9739),
+            }
+            for c_name, coords in city_anchors.items():
+                if c_name in clean_city or clean_city in c_name:
+                    user_lat, user_lon = coords
+                    break
+
+        # Map KM Area within which recommendations will be done based on time limit
+        # For short time limits (e.g. 1-2 hours), restrict search to a tight reachable radius (6-10 km)
+        # so traveler spends time experiencing instead of being stuck in transit!
+        if request.radius_km is not None and request.radius_km > 0 and request.radius_km != 25.0:
+            radius_km = float(request.radius_km)
+        else:
+            if available_time_hours <= 1.5:
+                radius_km = 6.0
+            elif available_time_hours <= 2.5:
+                radius_km = 10.0
+            elif available_time_hours <= 4.0:
+                radius_km = 18.0
+            elif available_time_hours <= 6.0:
+                radius_km = 25.0
+            else:
+                radius_km = 35.0
 
         excluded_categories = request.excluded_categories
 
@@ -98,6 +198,25 @@ class RecommendationService:
             top_n=request.top_n,
             apply_hard_filters=request.apply_hard_filters,
         )
+
+        # Fallback 1: If tight time-bounded radius yielded fewer than 3 candidates, expand radius
+        if len(results) < 3 and user_lat is not None and user_lon is not None:
+            expanded_radius = min(radius_km * 2.0, 40.0)
+            results = engine.recommend(
+                budget_inr=budget_inr,
+                available_time_hours=available_time_hours,
+                traveler_count=traveler_count,
+                group_type=group_type,
+                interests=interests,
+                user_lat=user_lat,
+                user_lon=user_lon,
+                radius_km=expanded_radius,
+                city=city_filter,
+                category=request.category,
+                excluded_categories=excluded_categories,
+                top_n=request.top_n,
+                apply_hard_filters=False,
+            )
 
         # Fallback if hard constraints eliminated all candidates
         if not results and request.apply_hard_filters:

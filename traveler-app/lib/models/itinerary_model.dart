@@ -420,6 +420,7 @@ class NugenEnhancementData {
   final List<Map<String, dynamic>> personalizedTips;
   final List<Map<String, dynamic>> finalRecommendations;
   final Map<String, dynamic>? weather;
+  final Map<String, dynamic>? liveWeather;
 
   const NugenEnhancementData({
     this.enabled = true,
@@ -430,7 +431,19 @@ class NugenEnhancementData {
     this.personalizedTips = const [],
     this.finalRecommendations = const [],
     this.weather,
+    this.liveWeather,
   });
+
+  /// Returns true unsimulated live GPS meteorological condition
+  Map<String, dynamic>? get currentLiveGpsWeather {
+    if (liveWeather != null && liveWeather!['is_simulated'] != true) {
+      return liveWeather;
+    }
+    if (weather != null && weather!['is_simulated'] != true) {
+      return weather;
+    }
+    return liveWeather;
+  }
 
   factory NugenEnhancementData.fromJson(Map<String, dynamic> json) {
     return NugenEnhancementData(
@@ -442,6 +455,7 @@ class NugenEnhancementData {
       personalizedTips: (json['personalized_tips'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
       finalRecommendations: (json['final_recommendations'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
       weather: (json['weather'] as Map<String, dynamic>?),
+      liveWeather: (json['live_weather'] as Map<String, dynamic>?),
     );
   }
 
@@ -454,5 +468,6 @@ class NugenEnhancementData {
     'personalized_tips': personalizedTips,
     'final_recommendations': finalRecommendations,
     if (weather != null) 'weather': weather,
+    if (liveWeather != null) 'live_weather': liveWeather,
   };
 }

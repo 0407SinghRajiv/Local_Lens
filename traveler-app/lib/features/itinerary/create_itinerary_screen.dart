@@ -350,6 +350,7 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
             borderRadius: BorderRadius.circular(12),
             onTap: () {
               notifier.setLocationMode(LocationMode.exact);
+              notifier.setWeatherCondition('Live');
               _handleExactLocationSelection();
             },
             child: Container(
