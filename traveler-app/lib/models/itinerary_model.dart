@@ -51,6 +51,12 @@ class ItineraryItem {
   final double travelToNextDistanceKm;
   final double? latitude;
   final double? longitude;
+  final double? actualExpense;
+  final double? travelerRating;
+  final String? travelerReview;
+  final DateTime? completedAt;
+  final int dwellDurationMinutes;
+  final bool arrivedWithinProximity;
 
   const ItineraryItem({
     required this.id,
@@ -73,7 +79,15 @@ class ItineraryItem {
     this.travelToNextDistanceKm = 0.0,
     this.latitude,
     this.longitude,
+    this.actualExpense,
+    this.travelerRating,
+    this.travelerReview,
+    this.completedAt,
+    this.dwellDurationMinutes = 0,
+    this.arrivedWithinProximity = false,
   });
+
+  double get effectiveExpense => actualExpense ?? price;
 
   ItineraryItem copyWith({
     String? id,
@@ -96,6 +110,12 @@ class ItineraryItem {
     double? travelToNextDistanceKm,
     double? latitude,
     double? longitude,
+    double? actualExpense,
+    double? travelerRating,
+    String? travelerReview,
+    DateTime? completedAt,
+    int? dwellDurationMinutes,
+    bool? arrivedWithinProximity,
   }) {
     return ItineraryItem(
       id: id ?? this.id,
@@ -118,6 +138,12 @@ class ItineraryItem {
       travelToNextDistanceKm: travelToNextDistanceKm ?? this.travelToNextDistanceKm,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      actualExpense: actualExpense ?? this.actualExpense,
+      travelerRating: travelerRating ?? this.travelerRating,
+      travelerReview: travelerReview ?? this.travelerReview,
+      completedAt: completedAt ?? this.completedAt,
+      dwellDurationMinutes: dwellDurationMinutes ?? this.dwellDurationMinutes,
+      arrivedWithinProximity: arrivedWithinProximity ?? this.arrivedWithinProximity,
     );
   }
 
@@ -142,6 +168,12 @@ class ItineraryItem {
         'travelToNextDistanceKm': travelToNextDistanceKm,
         'latitude': latitude,
         'longitude': longitude,
+        'actualExpense': actualExpense,
+        'travelerRating': travelerRating,
+        'travelerReview': travelerReview,
+        'completedAt': completedAt?.toIso8601String(),
+        'dwellDurationMinutes': dwellDurationMinutes,
+        'arrivedWithinProximity': arrivedWithinProximity,
       };
 
   factory ItineraryItem.fromJson(Map<String, dynamic> json) {
@@ -187,6 +219,12 @@ class ItineraryItem {
           (json['lon'] as num?)?.toDouble() ??
           (json['lng'] as num?)?.toDouble() ??
           double.tryParse(json['longitude']?.toString() ?? ''),
+      actualExpense: (json['actualExpense'] as num?)?.toDouble() ?? (json['actual_expense'] as num?)?.toDouble(),
+      travelerRating: (json['travelerRating'] as num?)?.toDouble() ?? (json['traveler_rating'] as num?)?.toDouble(),
+      travelerReview: json['travelerReview'] as String? ?? json['traveler_review'] as String?,
+      completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt'].toString()) : null,
+      dwellDurationMinutes: (json['dwellDurationMinutes'] as num?)?.toInt() ?? 0,
+      arrivedWithinProximity: json['arrivedWithinProximity'] as bool? ?? false,
     );
   }
 
@@ -241,6 +279,7 @@ class Itinerary {
   final DateTime createdAt;
   final bool hasRideAttached;
   final String? attachedRideId;
+  final NugenEnhancementData? nugen;
 
   const Itinerary({
     required this.id,
@@ -261,6 +300,7 @@ class Itinerary {
     required this.createdAt,
     this.hasRideAttached = false,
     this.attachedRideId,
+    this.nugen,
   });
 
   /// Returns only items selected by traveler
@@ -269,6 +309,9 @@ class Itinerary {
   /// Dynamic total cost of selected experiences
   double get totalSelectedCost =>
       selectedItems.fold(0.0, (sum, item) => sum + item.price);
+
+  /// Overall total cost (convenience getter)
+  double get totalCost => totalSelectedCost > 0 ? totalSelectedCost : totalEstimatedCost;
 
   /// Dynamic total duration in minutes of selected experiences
   int get totalSelectedDurationMinutes =>
@@ -289,6 +332,18 @@ class Itinerary {
     return '${mins}m';
   }
 
+  /// Total actual expenses recorded across all stops
+  double get totalActualExpenses => items.fold(0.0, (sum, item) => sum + item.effectiveExpense);
+
+  /// Count of stops marked completed
+  int get completedStopsCount => items.where((item) => item.isCompleted).length;
+
+  /// Completion progress ratio (0.0 to 1.0)
+  double get completionRatio => items.isEmpty ? 0.0 : (completedStopsCount / items.length).clamp(0.0, 1.0);
+
+  /// Whether all scheduled stops are completed
+  bool get isFullyCompleted => items.isNotEmpty && completedStopsCount == items.length;
+
   Itinerary copyWith({
     String? id,
     String? destination,
@@ -308,6 +363,7 @@ class Itinerary {
     DateTime? createdAt,
     bool? hasRideAttached,
     String? attachedRideId,
+    NugenEnhancementData? nugen,
   }) {
     return Itinerary(
       id: id ?? this.id,
@@ -328,6 +384,50 @@ class Itinerary {
       createdAt: createdAt ?? this.createdAt,
       hasRideAttached: hasRideAttached ?? this.hasRideAttached,
       attachedRideId: attachedRideId ?? this.attachedRideId,
+      nugen: nugen ?? this.nugen,
     );
   }
+}
+
+/// Nugen AI Enhancement & Validation Layer outcome
+class NugenEnhancementData {
+  final bool enabled;
+  final String status;
+  final Map<String, dynamic> validation;
+  final List<Map<String, dynamic>> issues;
+  final List<Map<String, dynamic>> enhancements;
+  final List<Map<String, dynamic>> personalizedTips;
+  final List<Map<String, dynamic>> finalRecommendations;
+
+  const NugenEnhancementData({
+    this.enabled = true,
+    this.status = 'success',
+    this.validation = const {},
+    this.issues = const [],
+    this.enhancements = const [],
+    this.personalizedTips = const [],
+    this.finalRecommendations = const [],
+  });
+
+  factory NugenEnhancementData.fromJson(Map<String, dynamic> json) {
+    return NugenEnhancementData(
+      enabled: json['enabled'] as bool? ?? true,
+      status: json['status'] as String? ?? 'success',
+      validation: (json['validation'] as Map<String, dynamic>?) ?? {},
+      issues: (json['issues'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      enhancements: (json['enhancements'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      personalizedTips: (json['personalized_tips'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+      finalRecommendations: (json['final_recommendations'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [],
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'enabled': enabled,
+    'status': status,
+    'validation': validation,
+    'issues': issues,
+    'enhancements': enhancements,
+    'personalized_tips': personalizedTips,
+    'final_recommendations': finalRecommendations,
+  };
 }

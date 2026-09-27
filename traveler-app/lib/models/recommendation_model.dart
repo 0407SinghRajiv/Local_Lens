@@ -58,6 +58,127 @@ class RecommendationModel {
 
   String get experienceName => name;
 
+  /// Checks whether this experience matches a category to exclude (e.g. "Food", "Beach", "Heritage")
+  bool matchesExcludedCategory(String excludedCategory) {
+    final ex = excludedCategory.trim().toLowerCase();
+    if (ex.isEmpty) return false;
+
+    final cat = category.toLowerCase();
+    final sub = (subCategory ?? '').toLowerCase();
+    final nm = name.toLowerCase();
+    final tg = (tags ?? '').toLowerCase();
+    final reas = reason.toLowerCase();
+
+    final allText = '$cat $sub $nm $tg $reas';
+
+    if (ex == 'food' || ex == 'dining' || ex == 'cuisine') {
+      const foodKeywords = [
+        'food', 'street food', 'local cuisine', 'seafood', 'dining', 'restaurant',
+        'cafe', 'eatery', 'bakery', 'snack', 'breakfast', 'lunch', 'dinner',
+        'misal', 'pav', 'dish', 'tasting', 'eats', 'culinary', 'chaat', 'dhaba'
+      ];
+      return foodKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'beach' || ex == 'beaches' || ex == 'coastal') {
+      const beachKeywords = ['beach', 'coastal', 'shore', 'sea', 'ocean', 'coast', 'water sports'];
+      return beachKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'adventure' || ex == 'trek' || ex == 'trekking') {
+      const advKeywords = ['adventure', 'trek', 'trekking', 'hiking', 'climb', 'sports', 'boat ride', 'kayak', 'rafting'];
+      return advKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'heritage' || ex == 'fort' || ex == 'monument') {
+      const herKeywords = ['heritage', 'fort', 'monument', 'palace', 'historic', 'caves', 'ruins'];
+      return herKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'culture' || ex == 'temple' || ex == 'spiritual') {
+      const cultKeywords = ['culture', 'temple', 'museum', 'spiritual', 'religious', 'monastery', 'art', 'workshop'];
+      return cultKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'nature' || ex == 'wildlife' || ex == 'park') {
+      const natureKeywords = ['nature', 'wildlife', 'waterfall', 'bird watching', 'park', 'garden', 'forest', 'lake', 'viewpoint'];
+      return natureKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'shopping' || ex == 'market') {
+      const shopKeywords = ['shopping', 'market', 'bazaar', 'mall', 'handicraft', 'souvenir'];
+      return shopKeywords.any((k) => allText.contains(k));
+    }
+
+    if (ex == 'nightlife' || ex == 'pub' || ex == 'club') {
+      const nightKeywords = ['nightlife', 'bar', 'pub', 'club', 'lounge', 'brewery'];
+      return nightKeywords.any((k) => allText.contains(k));
+    }
+
+    return allText.contains(ex);
+  }
+
+  /// Checks whether this experience matches a specific interest category (e.g. "Beach", "Food", "Adventure")
+  bool matchesInterest(String interest) {
+    final intr = interest.trim().toLowerCase();
+    if (intr.isEmpty) return true;
+
+    final cat = category.toLowerCase();
+    final sub = (subCategory ?? '').toLowerCase();
+    final nm = name.toLowerCase();
+    final tg = (tags ?? '').toLowerCase();
+    final reas = reason.toLowerCase();
+    final allText = '$cat $sub $nm $tg $reas';
+
+    if (intr == 'beach' || intr == 'beaches' || intr == 'coastal') {
+      const beachKw = ['beach', 'coastal', 'shore', 'sea', 'ocean', 'coast', 'water sports'];
+      return beachKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'food' || intr == 'dining' || intr == 'cuisine') {
+      const foodKw = [
+        'food', 'street food', 'local cuisine', 'seafood', 'dining', 'restaurant',
+        'cafe', 'eatery', 'bakery', 'snack', 'breakfast', 'lunch', 'dinner',
+        'misal', 'pav', 'dish', 'tasting', 'eats', 'culinary', 'chaat', 'dhaba'
+      ];
+      return foodKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'adventure' || intr == 'trek' || intr == 'trekking') {
+      const advKw = ['adventure', 'trek', 'trekking', 'hiking', 'climb', 'sports', 'boat ride', 'kayak', 'rafting', 'water sports'];
+      return advKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'heritage' || intr == 'fort' || intr == 'monument') {
+      const herKw = ['heritage', 'fort', 'monument', 'palace', 'historic', 'caves', 'ruins', 'history'];
+      return herKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'culture' || intr == 'temple' || intr == 'spiritual') {
+      const cultKw = ['culture', 'temple', 'museum', 'spiritual', 'religious', 'monastery', 'art', 'workshop', 'handicraft'];
+      return cultKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'nature' || intr == 'wildlife' || intr == 'park') {
+      const natKw = ['nature', 'wildlife', 'waterfall', 'bird watching', 'park', 'garden', 'forest', 'lake', 'viewpoint', 'valley', 'hills'];
+      return natKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'shopping' || intr == 'market') {
+      const shopKw = ['shopping', 'market', 'bazaar', 'mall', 'handicraft', 'souvenir', 'bazaars'];
+      return shopKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'nightlife' || intr == 'pub' || intr == 'club') {
+      const nightKw = ['nightlife', 'bar', 'pub', 'club', 'lounge', 'brewery'];
+      return nightKw.any((k) => allText.contains(k));
+    }
+    if (intr == 'wellness' || intr == 'spa') {
+      const wellKw = ['wellness', 'spa', 'yoga', 'meditation', 'retreat'];
+      return wellKw.any((k) => allText.contains(k));
+    }
+    return allText.contains(intr);
+  }
+
+  /// Checks whether this experience matches ANY of the traveler's selected interests
+  bool matchesAnyInterest(List<String> interests) {
+    if (interests.isEmpty) return true;
+    return interests.any((intr) => matchesInterest(intr));
+  }
+
   factory RecommendationModel.fromJson(Map<String, dynamic> json) {
     final imgUrl = json['image_url'] as String? ?? json['image'] as String?;
     final resolvedImage = imgUrl != null && imgUrl.isNotEmpty

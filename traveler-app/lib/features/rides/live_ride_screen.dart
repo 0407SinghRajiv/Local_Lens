@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -359,18 +358,24 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                   // Action Buttons
                   if (status == RideStatus.arrived) ...[
                     LocalLensPrimaryButton(
-                      text: 'Start Ride',
+                      text: 'Driver Arrived • Board Vehicle',
                       isOrange: true,
-                      icon: Icons.play_arrow_rounded,
-                      onPressed: _onStartRidePressed,
+                      icon: Icons.directions_car_rounded,
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Board the vehicle. Your driver will start the trip.'),
+                            backgroundColor: LocalLensColors.primaryTeal,
+                          ),
+                        );
+                      },
                     ),
-                  ] else if (status == RideStatus.inProgress) ...[
+                  ] else if (status == RideStatus.inProgress || status == RideStatus.started) ...[
                     LocalLensPrimaryButton(
-                      text: 'Heading to Experience...',
+                      text: 'Heading to Destination...',
                       isOrange: false,
                       icon: Icons.navigation_rounded,
                       onPressed: () {
-                        ref.read(rideProvider.notifier).completeTrip();
                         context.pushReplacement(AppRoutes.travelerRideCompleted);
                       },
                     ),

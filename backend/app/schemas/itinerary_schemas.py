@@ -5,6 +5,11 @@ Supports exact specifications from prompt and Flutter model compatibility.
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, model_validator
 
+try:
+    from backend.app.schemas.nugen_schemas import NugenEnhancementResponse
+except ImportError:
+    from app.schemas.nugen_schemas import NugenEnhancementResponse
+
 
 class ItineraryGenerateRequest(BaseModel):
     """
@@ -130,6 +135,7 @@ class ItineraryGenerateResponse(BaseModel):
     scheduled_experiences: List[ScheduledExperience]
     itinerary: List[ScheduledExperience]  # alias for prompt format
     skipped_experiences: List[SkippedExperience] = []
+    nugen: Optional[NugenEnhancementResponse] = None
 
 
 class SaveItineraryRequest(BaseModel):
@@ -181,3 +187,29 @@ class OptimizeItineraryRequest(BaseModel):
     available_time_hours: Optional[float] = 6.0
     selected_experience_ids: List[str] = Field(default_factory=list)
     scheduled_experiences: Optional[List[Dict[str, Any]]] = None
+
+
+class ItineraryChatOptimizeRequest(BaseModel):
+    """
+    Payload for conversational itinerary optimization using Groq AI.
+    """
+    prompt: str
+    destination: Optional[str] = "Mumbai"
+    current_interests: Optional[List[str]] = Field(default_factory=list)
+    budget: Optional[float] = 5000.0
+    duration_hours: Optional[float] = 6.0
+    current_place_names: Optional[List[str]] = Field(default_factory=list)
+
+
+class ItineraryChatOptimizeResponse(BaseModel):
+    """
+    Structured outcome returned by Groq AI optimizer.
+    """
+    reply: str
+    remove_interests: List[str] = Field(default_factory=list)
+    add_interests: List[str] = Field(default_factory=list)
+    custom_notes: Optional[str] = None
+    updated_budget: Optional[float] = None
+    updated_duration_hours: Optional[float] = None
+    should_regenerate: bool = False
+    is_route_reorder_only: bool = False

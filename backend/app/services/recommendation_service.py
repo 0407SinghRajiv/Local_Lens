@@ -81,6 +81,8 @@ class RecommendationService:
 
         city_filter = request.city if request.city else None
 
+        excluded_categories = request.excluded_categories
+
         results = engine.recommend(
             budget_inr=budget_inr,
             available_time_hours=available_time_hours,
@@ -92,6 +94,7 @@ class RecommendationService:
             radius_km=radius_km,
             city=city_filter,
             category=request.category,
+            excluded_categories=excluded_categories,
             top_n=request.top_n,
             apply_hard_filters=request.apply_hard_filters,
         )
@@ -109,6 +112,7 @@ class RecommendationService:
                 radius_km=radius_km,
                 city=None,
                 category=request.category,
+                excluded_categories=excluded_categories,
                 top_n=request.top_n,
                 apply_hard_filters=False,
             )
@@ -126,6 +130,7 @@ class RecommendationService:
                 radius_km=100.0,
                 city=None,
                 category=request.category,
+                excluded_categories=excluded_categories,
                 top_n=request.top_n,
                 apply_hard_filters=False,
             )
@@ -143,6 +148,25 @@ class RecommendationService:
                 radius_km=25.0,
                 city=city_filter,
                 category=request.category,
+                excluded_categories=excluded_categories,
+                top_n=request.top_n,
+                apply_hard_filters=False,
+            )
+
+        # Fallback to catalog-wide matching interests if city filter matched 0 items
+        if not results and city_filter is not None:
+            results = engine.recommend(
+                budget_inr=budget_inr,
+                available_time_hours=available_time_hours,
+                traveler_count=traveler_count,
+                group_type=group_type,
+                interests=interests,
+                user_lat=None,
+                user_lon=None,
+                radius_km=25.0,
+                city=None,
+                category=request.category,
+                excluded_categories=excluded_categories,
                 top_n=request.top_n,
                 apply_hard_filters=False,
             )
