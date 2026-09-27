@@ -293,26 +293,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     }).join(' ');
   }
 
-  String _getOwmWeatherDescription(int id, String rawDesc, bool isDay) {
-    if (id >= 200 && id < 300) return 'Thunderstorm';
-    if (id >= 300 && id < 600) return 'Rain Showers';
-    if (id >= 600 && id < 700) return 'Snow';
-    if (id >= 700 && id < 800) return 'Hazy / Foggy';
-    if (id == 800) return isDay ? 'Clear & Sunny' : 'Clear Night';
-    if (id == 801 || id == 802) return 'Partly Cloudy';
-    if (id >= 803) return 'Overcast';
-    return rawDesc.isNotEmpty ? rawDesc[0].toUpperCase() + rawDesc.substring(1) : 'Pleasant';
-  }
-
-  IconData _getOwmWeatherIcon(int id, bool isDay) {
-    if (id >= 200 && id < 300) return Icons.thunderstorm_rounded;
-    if (id >= 300 && id < 600) return Icons.grain_rounded;
-    if (id >= 700 && id < 800) return Icons.cloud_queue_rounded;
-    if (id == 800) return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
-    if (id >= 801 && id <= 802) return isDay ? Icons.wb_cloudy_rounded : Icons.cloud_queue_rounded;
-    return Icons.cloud_rounded;
-  }
-
   void _refreshSponsored() {
     setState(() {
       _sponsoredFuture = SponsorService.fetchActiveSponsoredExperiences();
