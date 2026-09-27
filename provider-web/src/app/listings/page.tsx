@@ -197,9 +197,9 @@ export default function ListingsPage() {
         <div className="flex items-center justify-between gap-4">
           <Link
             href="/dashboard"
-            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#0F172A] shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 text-[#059669]" />
             <span>Back to Dashboard</span>
           </Link>
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80">

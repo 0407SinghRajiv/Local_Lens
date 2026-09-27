@@ -857,6 +857,20 @@ export default function SimplifiedExperienceCreationPage() {
       {/* Main Wizard Content Area */}
       {/* ------------------------------------------------------------- */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 pt-5 space-y-5">
+        {/* Top Breadcrumb Back Navigation */}
+        <div className="flex items-center justify-between gap-3">
+          <Link
+            href="/dashboard"
+            className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-[#0F172A] shadow-2xs transition-all inline-flex items-center gap-2 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4 text-[#059669]" />
+            <span>Back to Dashboard</span>
+          </Link>
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Auto-saving Drafts</span>
+          </div>
+        </div>
         {/* Save Draft Toast */}
         {saveToast && (
           <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in">
@@ -1563,14 +1577,23 @@ export default function SimplifiedExperienceCreationPage() {
 
             {/* Bottom Bar: Back to Step 1 & Continue to Step 3 */}
             <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Back to Details</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/dashboard"
+                  className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 text-[#059669]" />
+                  <span>Dashboard</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5" />
+                  <span>Back to Details</span>
+                </button>
+              </div>
 
               <div className="flex items-center gap-2">
                 <button
@@ -1737,14 +1760,23 @@ export default function SimplifiedExperienceCreationPage() {
 
               {/* Bottom Actions for Step 3 */}
               <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStep(2)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back to Location</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href="/dashboard"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5 text-[#059669]" />
+                    <span>Dashboard</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 hover:bg-slate-50 text-xs font-bold text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back to Location</span>
+                  </button>
+                </div>
 
                 <div className="flex items-center gap-2">
                   <button
