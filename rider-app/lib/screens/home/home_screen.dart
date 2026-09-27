@@ -4,6 +4,7 @@ import '../../core/app_state.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/ride.dart';
 import '../../widgets/mock_map_widget.dart';
+import '../../services/geocoding_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -23,10 +24,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _listenForNavigation();
-      final state = context.read<AppState>();
-      if (state.driver != null && !state.isOnline) {
-        state.goOnline();
-      }
+      context.read<AppState>().refreshDriverStats();
     });
   }
 
@@ -198,19 +196,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   ),
                                 ),
 
-                                // Status Card (Online Only — Offline Black Div Removed!)
+                                // Status Card (Online Only)
                                 if (state.isOnline) ...[
                                   _buildStatusCard(state),
                                   const SizedBox(height: 10),
                                 ],
 
-                                // Stats Row
+                                // Today's Earnings & Today's Rides Stats Cards (Equal width in bottom bar/sheet)
                                 _buildStatsRow(state),
-
-                                if (state.isOnline) ...[
-                                  const SizedBox(height: 10),
-                                  _buildTestRideButton(state),
-                                ],
                                 const SizedBox(height: 10),
 
                                 // Vehicle Information Card
@@ -363,35 +356,44 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildGpsBadge(AppState state) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    final loc = state.currentLocation;
+    final lat = loc?.latitude ?? 19.0760;
+    final lon = loc?.longitude ?? 72.8777;
+
+    return FutureBuilder<String>(
+      future: GeocodingService.getLocationName(lat, lon, fallbackCity: state.driver?.city ?? ''),
+      builder: (context, snapshot) {
+        final locationName = snapshot.data ?? 'Panvel, Navi Mumbai';
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.my_location_rounded, size: 13, color: AppTheme.primary),
-          const SizedBox(width: 5),
-          Text(
-            '${state.currentLocation!.latitude.toStringAsFixed(4)}, '
-            '${state.currentLocation!.longitude.toStringAsFixed(4)}',
-            style: AppTheme.labelSmall.copyWith(
-              color: AppTheme.primary,
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.my_location_rounded, size: 13, color: AppTheme.primary),
+              const SizedBox(width: 5),
+              Text(
+                locationName,
+                style: AppTheme.labelSmall.copyWith(
+                  color: AppTheme.primary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -622,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen> {
           label: 'Today\'s Earnings',
           value: '₹${driver.todayEarnings.toStringAsFixed(0)}',
           color: AppTheme.primary,
-          onTap: () => Navigator.pushNamed(context, '/earnings'),
+          onTap: () => Navigator.pushNamed(context, '/ride-history'),
         ),
         const SizedBox(width: 12),
         _buildStatCard(
@@ -693,53 +695,40 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTestRideButton(AppState state) {
-    return SizedBox(
-      width: double.infinity,
-      height: 48,
-      child: OutlinedButton.icon(
-        onPressed: () => state.triggerTestRide(),
-        icon: const Icon(Icons.bug_report_rounded, size: 18),
-        label: const Text('TEST RIDE REQUEST'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: AppTheme.tertiary,
-          backgroundColor: Colors.white.withValues(alpha: 0.9),
-          side: BorderSide(
-            color: AppTheme.tertiary.withValues(alpha: 0.5),
-            width: 1.5,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildDriverInfoCard(AppState state) {
     final driver = state.driver!;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppTheme.cardWhite.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.outline.withValues(alpha: 0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Vehicle Information', style: AppTheme.titleMedium),
-          const SizedBox(height: 12),
-          _buildInfoRow(Icons.directions_car, 'Vehicle', driver.vehicleModel),
-          _buildInfoRow(Icons.pin, 'Number', driver.vehicleNumber),
-          _buildInfoRow(Icons.category, 'Type', driver.vehicleType),
-          const Divider(height: 24),
-          _buildInfoRow(
-              Icons.location_on, 'Location', 'Andheri West, Mumbai'),
-          _buildInfoRow(Icons.route, 'Total Rides', '${driver.totalRides}'),
-        ],
-      ),
+    final loc = state.currentLocation;
+    final lat = loc?.latitude ?? 19.0760;
+    final lon = loc?.longitude ?? 72.8777;
+
+    return FutureBuilder<String>(
+      future: GeocodingService.getLocationName(lat, lon, fallbackCity: driver.city),
+      builder: (context, snapshot) {
+        final locationName = snapshot.data ?? (driver.city.isNotEmpty ? driver.city : 'Panvel, Navi Mumbai');
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppTheme.cardWhite.withValues(alpha: 0.95),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.outline.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Vehicle Information', style: AppTheme.titleMedium),
+              const SizedBox(height: 12),
+              _buildInfoRow(Icons.directions_car, 'Vehicle', driver.vehicleModel.isNotEmpty ? driver.vehicleModel : 'Maruti Suzuki Dzire'),
+              _buildInfoRow(Icons.pin, 'Number', driver.vehicleNumber.isNotEmpty ? driver.vehicleNumber : 'MH 04 AB 1234'),
+              _buildInfoRow(Icons.category, 'Type', driver.vehicleType),
+              const Divider(height: 24),
+              _buildInfoRow(Icons.location_on, 'Live Location', locationName),
+              _buildInfoRow(Icons.route, 'Total Rides', '${driver.totalRides}'),
+            ],
+          ),
+        );
+      },
     );
   }
 

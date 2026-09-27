@@ -90,6 +90,12 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
         ? _haversineKm(pickupLat, pickupLng, (nearestRiderRow['latitude'] as num).toDouble(), (nearestRiderRow['longitude'] as num).toDouble())
         : 1.5;
 
+    final double rawTripDist = (pickupLat != 0.0 && pickupLng != 0.0 && dropLat != 0.0 && dropLng != 0.0)
+        ? _haversineKm(pickupLat, pickupLng, dropLat, dropLng)
+        : 4.2;
+    final double realTripDistance = rawTripDist < 0.5 ? 0.5 : rawTripDist;
+    final double computedFare = vehicle.type.calculateFare(realTripDistance);
+
     final payload = <String, dynamic>{
       'passenger_id': user?.id,
       'passenger_name': travelerName,
@@ -100,9 +106,9 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
       'destination_address': dropAddress,
       'destination_lat': dropLat,
       'destination_lng': dropLng,
-      'fare': vehicle.estimatedFare,
+      'fare': double.parse(computedFare.toStringAsFixed(2)),
       'pickup_distance': double.parse(calcPickupDist.toStringAsFixed(2)),
-      'trip_distance': 5.0,
+      'trip_distance': double.parse(realTripDistance.toStringAsFixed(2)),
       'eta_minutes': vehicle.etaMinutes,
       'status': assignedRiderId != null ? 'accepted' : 'searching',
       if (assignedRiderId != null) 'rider_id': assignedRiderId,

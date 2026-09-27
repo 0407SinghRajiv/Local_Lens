@@ -24,7 +24,6 @@ import 'screens/completed/completed_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/car_details/car_details_screen.dart';
 import 'screens/ride_history/ride_history_screen.dart';
-import 'screens/earnings/earnings_screen.dart';
 import 'screens/settings/settings_screen.dart';
 
 void main() async {
@@ -104,7 +103,6 @@ class NearbyRideDriverApp extends StatelessWidget {
         '/profile': (context) => const ProfileScreen(),
         '/car-details': (context) => const CarDetailsScreen(),
         '/ride-history': (context) => const RideHistoryScreen(),
-        '/earnings': (context) => const EarningsScreen(),
         '/settings': (context) => const SettingsScreen(),
       },
     );

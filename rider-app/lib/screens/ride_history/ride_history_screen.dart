@@ -201,9 +201,9 @@ class _RideHistoryScreenState extends State<RideHistoryScreen>
       );
     }
 
-    final totalEarned = rides
-        .where((r) => r.status == RideStatus.completed)
-        .fold(0.0, (sum, r) => sum + r.fare);
+    final completedInTab = rides.where((r) => r.status == RideStatus.completed).fold(0.0, (sum, r) => sum + r.fare);
+    final completedAll = _allRides.where((r) => r.status == RideStatus.completed).fold(0.0, (sum, r) => sum + r.fare);
+    final totalEarned = completedInTab > 0 ? completedInTab : completedAll;
 
     return RefreshIndicator(
       onRefresh: _fetchRides,

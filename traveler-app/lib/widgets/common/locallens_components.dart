@@ -6,12 +6,14 @@ class LocalLensLogo extends StatelessWidget {
   final double size;
   final bool showTagline;
   final Color? textColor;
+  final String title;
 
   const LocalLensLogo({
     super.key,
     this.size = 36,
     this.showTagline = false,
     this.textColor,
+    this.title = 'LensRide',
   });
 
   @override
@@ -61,23 +63,12 @@ class LocalLensLogo extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
-            RichText(
-              text: TextSpan(
-                text: 'Local',
-                style: LocalLensTypography.displayMedium.copyWith(
-                  color: textColor ?? LocalLensColors.textPrimary,
-                  fontWeight: FontWeight.w800,
-                  fontSize: size * 0.75,
-                ),
-                children: [
-                  TextSpan(
-                    text: 'Lens',
-                    style: TextStyle(
-                      color: LocalLensColors.primaryTeal,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ],
+            Text(
+              title,
+              style: LocalLensTypography.displayMedium.copyWith(
+                color: textColor ?? LocalLensColors.textPrimary,
+                fontWeight: FontWeight.w900,
+                fontSize: size * 0.75,
               ),
             ),
           ],

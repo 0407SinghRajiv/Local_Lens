@@ -90,6 +90,7 @@ class AppState extends ChangeNotifier {
             await _saveDriverSession(_driver!);
           }
           await _initCurrentLocation();
+          await refreshDriverStats();
           notifyListeners();
         } else if (event == AuthChangeEvent.signedOut) {
           _driver = null;
@@ -189,6 +190,40 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Refresh driver's stats (Today's earnings and Today's rides) from Database
+  Future<void> refreshDriverStats() async {
+    if (_driver == null) return;
+    try {
+      final rides = await _rideRepo.getDriverRides(_driver!.id);
+      final now = DateTime.now();
+      final startOfToday = DateTime(now.year, now.month, now.day);
+
+      double earningsToday = 0.0;
+      int ridesToday = 0;
+      int totalCompletedRides = 0;
+
+      for (final ride in rides) {
+        if (ride.status == RideStatus.completed) {
+          totalCompletedRides++;
+          final rideDate = ride.completedAt ?? ride.createdAt;
+          if (rideDate.isAfter(startOfToday) || rideDate.isAtSameMomentAs(startOfToday)) {
+            ridesToday++;
+            earningsToday += ride.fare;
+          }
+        }
+      }
+
+      _driver = _driver!.copyWith(
+        todayEarnings: earningsToday,
+        todayRides: ridesToday,
+        totalRides: totalCompletedRides > 0 ? totalCompletedRides : _driver!.totalRides,
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[AppState] Error refreshing driver stats from DB: $e');
+    }
+  }
+
   // ─── Auth ───
   /// Initial authentication check on app launch.
   /// If already authenticated (e.g., existing session in Supabase, Mock, or SharedPreferences),
@@ -246,6 +281,7 @@ class AppState extends ChangeNotifier {
         }
 
         await _initCurrentLocation();
+        await refreshDriverStats();
         notifyListeners();
         return true;
       }
@@ -293,6 +329,7 @@ class AppState extends ChangeNotifier {
       }
 
       await _initCurrentLocation();
+      await refreshDriverStats();
       notifyListeners();
       return _driver != null || _authService.isAuthenticated;
     } on AuthException catch (e) {
@@ -346,6 +383,7 @@ class AppState extends ChangeNotifier {
       }
 
       await _initCurrentLocation();
+      await refreshDriverStats();
       notifyListeners();
       return _driver != null || _authService.isAuthenticated;
     } on AuthException catch (e) {
@@ -659,13 +697,10 @@ class AppState extends ChangeNotifier {
     );
     await _rideRepo.updateRide(_activeRide!);
 
-    // Update driver stats
+    // Update driver stats from database
+    await refreshDriverStats();
     if (_driver != null) {
-      _driver = _driver!.copyWith(
-        todayRides: _driver!.todayRides + 1,
-        todayEarnings: _driver!.todayEarnings + _activeRide!.fare,
-        totalRides: _driver!.totalRides + 1,
-      );
+      await _driverRepo.updateDriver(_driver!);
     }
 
     notifyListeners();
@@ -681,6 +716,7 @@ class AppState extends ChangeNotifier {
     // Reset mock location target if using mock service
     locationService?.setPosition(19.0760, 72.8777);
 
+    refreshDriverStats();
     notifyListeners();
   }
 

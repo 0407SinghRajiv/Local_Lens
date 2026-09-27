@@ -218,9 +218,6 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
 
     final screenWidth = MediaQuery.of(context).size.width;
     final threshold = min(screenWidth > 0 ? screenWidth * 0.24 : 90.0, 100.0);
-    final dragDx = _isDragging ? _dragOffset.dx : _slideAnimation.value.dx;
-    final rightSelectOpacity = (dragDx / threshold).clamp(0.0, 1.0);
-    final leftSkipOpacity = (-dragDx / threshold).clamp(0.0, 1.0);
 
     return KeyboardListener(
       focusNode: _focusNode,
@@ -291,7 +288,7 @@ class RecommendationSwipeStackState extends State<RecommendationSwipeStack>
                                         top: 24,
                                         left: 24,
                                         child: Opacity(
-                                          opacity: rightSelectOpacity,
+                                          opacity: dynamicRightSelectOpacity,
                                           child: Transform.rotate(
                                             angle: -0.2,
                                             child: Container(

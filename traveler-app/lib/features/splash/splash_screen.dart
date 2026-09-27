@@ -154,7 +154,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        'LocalLens • Discover Your World',
+                        'LensRide • Discover Your World',
                         style: TextStyle(
                           color: Colors.white.withValues(alpha: 0.9),
                           fontSize: 12,

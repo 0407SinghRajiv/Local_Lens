@@ -216,33 +216,42 @@ class SupabaseRideRepository extends RideRepository {
 
   Ride _mapRowToRide(Map<String, dynamic> row) {
     RideStatus parseStatus(String? str) {
+      if (str == null || str.isEmpty) return RideStatus.searching;
+      final lower = str.trim().toLowerCase();
       return RideStatus.values.firstWhere(
-        (s) => s.name == str,
+        (s) => s.name.toLowerCase() == lower,
         orElse: () => RideStatus.searching,
       );
     }
 
+    double parseDouble(dynamic val, double fallback) {
+      if (val == null) return fallback;
+      if (val is num) return val.toDouble();
+      if (val is String) return double.tryParse(val) ?? fallback;
+      return fallback;
+    }
+
     return Ride(
-      id: row['id'],
+      id: row['id']?.toString() ?? 'ride_${DateTime.now().millisecondsSinceEpoch}',
       passengerId: row['passenger_id'] ?? row['traveler_id'] ?? '',
       passengerName: row['passenger_name'] ?? row['traveler_name'] ?? 'Passenger',
-      passengerRating: (row['passenger_rating'] as num?)?.toDouble() ?? 4.8,
+      passengerRating: parseDouble(row['passenger_rating'], 4.8),
       driverId: row['rider_id'] ?? row['driver_id'],
-      pickupLat: (row['pickup_lat'] as num?)?.toDouble() ?? 0.0,
-      pickupLng: (row['pickup_lng'] as num?)?.toDouble() ?? 0.0,
-      destinationLat: (row['destination_lat'] as num?)?.toDouble() ?? 0.0,
-      destinationLng: (row['destination_lng'] as num?)?.toDouble() ?? 0.0,
+      pickupLat: parseDouble(row['pickup_lat'], 0.0),
+      pickupLng: parseDouble(row['pickup_lng'], 0.0),
+      destinationLat: parseDouble(row['destination_lat'], 0.0),
+      destinationLng: parseDouble(row['destination_lng'], 0.0),
       pickupAddress: row['pickup_address'] ?? '',
       destinationAddress: row['destination_address'] ?? '',
-      fare: (row['fare'] as num?)?.toDouble() ?? 0.0,
-      pickupDistance: (row['pickup_distance'] as num?)?.toDouble() ?? 1.5,
-      tripDistance: (row['trip_distance'] as num?)?.toDouble() ?? (row['distance_km'] as num?)?.toDouble() ?? 5.0,
-      etaMinutes: row['eta_minutes'] ?? row['duration_minutes'] ?? 10,
+      fare: parseDouble(row['fare'], 180.0),
+      pickupDistance: parseDouble(row['pickup_distance'], 1.5),
+      tripDistance: parseDouble(row['trip_distance'] ?? row['distance_km'], 5.0),
+      etaMinutes: (row['eta_minutes'] as num?)?.toInt() ?? (row['duration_minutes'] as num?)?.toInt() ?? 10,
       status: parseStatus(row['status']),
-      createdAt: DateTime.parse(row['created_at'] ?? DateTime.now().toIso8601String()),
-      updatedAt: row['updated_at'] != null ? DateTime.parse(row['updated_at']) : null,
-      startedAt: row['started_at'] != null ? DateTime.parse(row['started_at']) : null,
-      completedAt: row['completed_at'] != null ? DateTime.parse(row['completed_at']) : null,
+      createdAt: DateTime.tryParse(row['created_at'] ?? '') ?? DateTime.now(),
+      updatedAt: row['updated_at'] != null ? DateTime.tryParse(row['updated_at']) : null,
+      startedAt: row['started_at'] != null ? DateTime.tryParse(row['started_at']) : null,
+      completedAt: row['completed_at'] != null ? DateTime.tryParse(row['completed_at']) : null,
     );
   }
 }

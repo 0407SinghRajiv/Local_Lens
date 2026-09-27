@@ -73,27 +73,17 @@ class ProfileScreen extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           _buildProfileStat(
-                              '${driver.totalRides}', 'Rides'),
+                              '${driver.totalRides}', 'Total Rides'),
                           Container(
                             width: 1,
                             height: 30,
                             color: Colors.white.withValues(alpha: 0.3),
                             margin: const EdgeInsets.symmetric(
-                                horizontal: 20),
+                                horizontal: 24),
                           ),
                           _buildProfileStat(
                               driver.rating.toStringAsFixed(1),
                               'Rating'),
-                          Container(
-                            width: 1,
-                            height: 30,
-                            color: Colors.white.withValues(alpha: 0.3),
-                            margin: const EdgeInsets.symmetric(
-                                horizontal: 20),
-                          ),
-                          _buildProfileStat(
-                              '₹${driver.todayEarnings.toStringAsFixed(0)}',
-                              'Today'),
                         ],
                       ),
                     ],
@@ -197,12 +187,6 @@ class ProfileScreen extends StatelessWidget {
                         Icons.history_rounded,
                         'Ride History',
                         () => Navigator.pushNamed(context, '/ride-history'),
-                      ),
-                      _buildDivider(),
-                      _buildSettingsTile(
-                        Icons.account_balance_wallet_rounded,
-                        'Earnings',
-                        () => Navigator.pushNamed(context, '/earnings'),
                       ),
                       _buildDivider(),
                       _buildSettingsTile(

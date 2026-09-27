@@ -45,21 +45,26 @@ enum RideStatus {
   }
 }
 
-/// Vehicle type options for Lens Ride
+/// Vehicle type options for Lens Ride (Pricing: ₹1 INR per km)
 enum VehicleType {
-  sedan('Sedan', '4 seats', '5 min away', 180.0, Icons.directions_car_rounded),
-  hatchback('Hatchback', '4 seats', '4 min away', 150.0, Icons.directions_car_filled_rounded),
-  suv('SUV', '6 seats', '7 min away', 280.0, Icons.airport_shuttle_rounded),
-  auto('Auto Rickshaw', '3 seats', '3 min away', 110.0, Icons.electric_rickshaw_rounded),
-  bike('Bike', '1 passenger', '2 min away', 80.0, Icons.two_wheeler_rounded);
+  sedan('Sedan', '4 seats', '5 min away', 1.0, Icons.directions_car_rounded),
+  hatchback('Hatchback', '4 seats', '4 min away', 1.0, Icons.directions_car_filled_rounded),
+  suv('SUV', '6 seats', '7 min away', 1.2, Icons.airport_shuttle_rounded),
+  auto('Auto Rickshaw', '3 seats', '3 min away', 1.0, Icons.electric_rickshaw_rounded),
+  bike('Bike', '1 passenger', '2 min away', 1.0, Icons.two_wheeler_rounded);
 
   final String title;
   final String capacity;
   final String etaText;
-  final double baseFare;
+  final double perKmRate;
   final IconData icon;
 
-  const VehicleType(this.title, this.capacity, this.etaText, this.baseFare, this.icon);
+  const VehicleType(this.title, this.capacity, this.etaText, this.perKmRate, this.icon);
+
+  double calculateFare(double distanceKm) {
+    final rawFare = distanceKm * perKmRate;
+    return rawFare < 1.0 ? 1.0 : rawFare;
+  }
 }
 
 /// Vehicle Option model with pricing and arrival
@@ -80,48 +85,20 @@ class VehicleOption {
     required this.icon,
   });
 
-  static List<VehicleOption> get defaultOptions => [
-        const VehicleOption(
-          type: VehicleType.sedan,
-          name: 'Sedan',
-          estimatedFare: 180.0,
-          etaMinutes: 5,
-          capacity: '4 seats',
-          icon: Icons.directions_car_rounded,
-        ),
-        const VehicleOption(
-          type: VehicleType.hatchback,
-          name: 'Hatchback',
-          estimatedFare: 150.0,
-          etaMinutes: 4,
-          capacity: '4 seats',
-          icon: Icons.directions_car_filled_rounded,
-        ),
-        const VehicleOption(
-          type: VehicleType.suv,
-          name: 'SUV',
-          estimatedFare: 280.0,
-          etaMinutes: 7,
-          capacity: '6 seats',
-          icon: Icons.airport_shuttle_rounded,
-        ),
-        const VehicleOption(
-          type: VehicleType.auto,
-          name: 'Auto Rickshaw',
-          estimatedFare: 110.0,
-          etaMinutes: 3,
-          capacity: '3 seats',
-          icon: Icons.electric_rickshaw_rounded,
-        ),
-        const VehicleOption(
-          type: VehicleType.bike,
-          name: 'Bike',
-          estimatedFare: 80.0,
-          etaMinutes: 2,
-          capacity: '1 passenger',
-          icon: Icons.two_wheeler_rounded,
-        ),
-      ];
+  static List<VehicleOption> get defaultOptions => getOptionsForDistance(5.0);
+
+  static List<VehicleOption> getOptionsForDistance([double distanceKm = 5.0]) {
+    return VehicleType.values.map((vt) {
+      return VehicleOption(
+        type: vt,
+        name: vt.title,
+        estimatedFare: vt.calculateFare(distanceKm),
+        etaMinutes: int.tryParse(vt.etaText.split(' ').first) ?? 4,
+        capacity: vt.capacity,
+        icon: vt.icon,
+      );
+    }).toList();
+  }
 }
 
 /// Model representing a verified local rider/driver

@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../models/ride_model.dart';
 import '../../providers/ride_provider.dart';
+import '../../services/geocoding_service.dart';
 
 /// Modal Bottom Sheet helper to show ride booking popup with vehicle options & fare rates
 void showRideBookingBottomSheet({
@@ -55,23 +57,33 @@ class _RideBookingSheetContent extends StatefulWidget {
 class _RideBookingSheetContentState extends State<_RideBookingSheetContent> {
   late VehicleOption _selectedOption;
   late List<VehicleOption> _vehicleOptions;
+  double _effectiveDistanceKm = 4.2;
 
   @override
   void initState() {
     super.initState();
-    // Calculate distance-adjusted fares based on experience distance
-    final factor = (widget.distanceKm / 4.0).clamp(0.8, 3.5);
-    _vehicleOptions = VehicleType.values.map((vt) {
-      final fare = (vt.baseFare * factor).roundToDouble();
-      return VehicleOption(
-        type: vt,
-        name: vt.title,
-        estimatedFare: fare,
-        etaMinutes: (int.tryParse(vt.etaText.split(' ').first) ?? 4),
-        capacity: vt.capacity,
-        icon: vt.icon,
-      );
-    }).toList();
+    _computeDynamicFares();
+  }
+
+  void _computeDynamicFares() {
+    final rideState = widget.ref.read(rideProvider);
+    final pLat = rideState.pickupLat;
+    final pLng = rideState.pickupLng;
+    final dLat = widget.dropLat ?? rideState.dropLat;
+    final dLng = widget.dropLng ?? rideState.dropLng;
+
+    if (pLat != 0.0 && pLng != 0.0 && dLat != 0.0 && dLng != 0.0) {
+      const p = 0.017453292519943295;
+      final a = 0.5 -
+          cos((dLat - pLat) * p) / 2 +
+          cos(pLat * p) * cos(dLat * p) * (1 - cos((dLng - pLng) * p)) / 2;
+      final computedKm = 12742 * asin(sqrt(a));
+      _effectiveDistanceKm = computedKm < 0.5 ? 0.5 : computedKm;
+    } else {
+      _effectiveDistanceKm = widget.distanceKm;
+    }
+
+    _vehicleOptions = VehicleOption.getOptionsForDistance(_effectiveDistanceKm);
 
     _selectedOption = _vehicleOptions.firstWhere(
       (v) => v.type == VehicleType.sedan,
@@ -173,20 +185,29 @@ class _RideBookingSheetContentState extends State<_RideBookingSheetContent> {
                 const Icon(Icons.near_me_rounded, color: LocalLensColors.coastalSage, size: 16),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Pickup: Current Location • Destination: ${widget.destinationLocation}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: LocalLensColors.textSecondary,
+                  child: FutureBuilder<String>(
+                    future: GeocodingService.getLocationName(
+                      widget.ref.read(rideProvider).pickupLat,
+                      widget.ref.read(rideProvider).pickupLng,
                     ),
+                    builder: (context, snapshot) {
+                      final pickupName = snapshot.data ?? 'Current Location';
+                      return Text(
+                        'Pickup: $pickupName • Destination: ${widget.destinationLocation}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: LocalLensColors.textSecondary,
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '${widget.distanceKm.toStringAsFixed(1)} km',
+                  '${_effectiveDistanceKm.toStringAsFixed(1)} km (₹1/km)',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
@@ -286,7 +307,7 @@ class _RideBookingSheetContentState extends State<_RideBookingSheetContent> {
                             ),
                           ),
                           Text(
-                            '₹${v.estimatedFare.toInt()}',
+                            '₹${v.estimatedFare < 10 ? v.estimatedFare.toStringAsFixed(1) : v.estimatedFare.round()}',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
@@ -322,20 +343,27 @@ class _RideBookingSheetContentState extends State<_RideBookingSheetContent> {
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final notifier = widget.ref.read(rideProvider.notifier);
                 notifier.selectVehicle(_selectedOption);
+                final currentRideState = widget.ref.read(rideProvider);
+                final livePickupAddress = await GeocodingService.getLocationName(
+                  currentRideState.pickupLat,
+                  currentRideState.pickupLng,
+                );
+
                 notifier.setLocations(
-                  pickup: 'Current Location (Panvel)',
+                  pickup: livePickupAddress,
                   drop: '${widget.destinationTitle} (${widget.destinationLocation})',
                   dropLat: widget.dropLat ?? 19.0596,
                   dropLng: widget.dropLng ?? 72.8295,
                 );
                 notifier.requestRide(
-                  pickup: 'Current Location (Panvel)',
+                  pickup: livePickupAddress,
                   drop: widget.destinationTitle,
                 );
 
+                if (!context.mounted) return;
                 Navigator.pop(context);
 
                 // Auto navigate to Searching / Fetching Rider screen
@@ -358,7 +386,7 @@ class _RideBookingSheetContentState extends State<_RideBookingSheetContent> {
                 ),
               ),
               child: Text(
-                'BOOK RIDE NOW — ₹${_selectedOption.estimatedFare.toInt()}',
+                'BOOK RIDE NOW — ₹${_selectedOption.estimatedFare < 10 ? _selectedOption.estimatedFare.toStringAsFixed(1) : _selectedOption.estimatedFare.round()}',
                 style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w800,

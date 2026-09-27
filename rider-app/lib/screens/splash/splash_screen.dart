@@ -116,10 +116,11 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     const SizedBox(height: 32),
                     Text(
-                      'NearbyRide',
+                      'LensRide',
                       style: AppTheme.displayLarge.copyWith(
                         color: Colors.white,
-                        fontSize: 36,
+                        fontSize: 38,
+                        fontWeight: FontWeight.w900,
                       ),
                     ),
                     const SizedBox(height: 8),
