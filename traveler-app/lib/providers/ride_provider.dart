@@ -102,6 +102,7 @@ class RideNotifier extends StateNotifier<RideState> {
       : _repository = repository ?? SupabaseTravelerRideRepository(),
         super(const RideState()) {
     _listenToUserLocation();
+    checkActiveRide();
   }
 
   void _listenToUserLocation() {
@@ -273,14 +274,108 @@ class RideNotifier extends StateNotifier<RideState> {
     });
   }
 
+  /// Automatically queries Supabase to check and restore active ride state without needing app restart
+  Future<void> checkActiveRide() async {
+    final client = SupabaseConfig.client;
+    if (client == null) return;
+    try {
+      final user = client.auth.currentUser;
+      final query = client.from('rides').select().order('created_at', ascending: false).limit(1);
+      List<dynamic> rides;
+      if (user != null) {
+        rides = await client.from('rides').select().eq('passenger_id', user.id).order('created_at', ascending: false).limit(1);
+      } else {
+        rides = await query;
+      }
+
+      if (rides.isNotEmpty) {
+        final row = Map<String, dynamic>.from(rides.first);
+        final statusStr = row['status'] as String? ?? '';
+        if (['searching', 'accepted', 'arrived', 'started'].contains(statusStr)) {
+          final rideId = row['id']?.toString() ?? '';
+          final riderId = row['rider_id']?.toString();
+
+          Rider? rider;
+          if (riderId != null && riderId.isNotEmpty) {
+            rider = await _repository.getRiderProfile(riderId);
+          }
+
+          RideStatus parsedStatus = RideStatus.searching;
+          if (statusStr == 'accepted') parsedStatus = RideStatus.accepted;
+          if (statusStr == 'arrived') parsedStatus = RideStatus.arrived;
+          if (statusStr == 'started') parsedStatus = RideStatus.started;
+
+          final vehicle = VehicleOption(
+            type: VehicleType.sedan,
+            name: row['vehicle_type'] ?? 'Sedan',
+            estimatedFare: (row['fare'] as num?)?.toDouble() ?? 180.0,
+            etaMinutes: row['eta_minutes'] ?? 5,
+            capacity: '4 seats',
+            icon: Icons.directions_car_rounded,
+          );
+
+          final req = RideRequest(
+            id: rideId,
+            travelerId: row['passenger_id'] ?? '',
+            pickup: row['pickup_address'] ?? 'Pickup',
+            drop: row['destination_address'] ?? 'Destination',
+            vehicle: vehicle,
+            estimatedFare: (row['fare'] as num?)?.toDouble() ?? 180.0,
+            status: parsedStatus,
+            rider: rider,
+            createdAt: DateTime.tryParse(row['created_at'] ?? '') ?? DateTime.now(),
+          );
+
+          state = state.copyWith(
+            status: parsedStatus,
+            currentRequest: req,
+            activeRider: rider ?? state.activeRider,
+            pickupLocation: row['pickup_address'] ?? state.pickupLocation,
+            dropLocation: row['destination_address'] ?? state.dropLocation,
+            pickupLat: (row['pickup_lat'] as num?)?.toDouble() ?? state.pickupLat,
+            pickupLng: (row['pickup_lng'] as num?)?.toDouble() ?? state.pickupLng,
+            dropLat: (row['destination_lat'] as num?)?.toDouble() ?? state.dropLat,
+            dropLng: (row['destination_lng'] as num?)?.toDouble() ?? state.dropLng,
+            riderLat: rider?.latitude ?? state.riderLat,
+            riderLng: rider?.longitude ?? state.riderLng,
+          );
+
+          if (rideId.isNotEmpty) {
+            _listenToRide(rideId);
+          }
+          if (riderId != null && riderId.isNotEmpty) {
+            _listenToRiderLocation(riderId);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[RideNotifier] Error checking active ride: $e');
+    }
+  }
+
   Future<void> _handleRideRow(Map<String, dynamic> row) async {
     final statusStr = row['status'] as String? ?? '';
-    debugPrint('[RideNotifier] Received ride status update: $statusStr');
+    final riderId = row['rider_id'] as String?;
+    debugPrint('[RideNotifier] Received ride status update: $statusStr (rider: $riderId)');
 
     switch (statusStr) {
+      case 'searching':
+        if (riderId != null && riderId.isNotEmpty) {
+          final rider = await _repository.getRiderProfile(riderId);
+          if (rider != null) {
+            _listenToRiderLocation(riderId);
+            state = state.copyWith(
+              status: RideStatus.accepted,
+              activeRider: rider,
+              riderLat: rider.latitude,
+              riderLng: rider.longitude,
+            );
+          }
+        }
+        break;
+
       case 'accepted':
         _timeoutTimer?.cancel();
-        final riderId = row['rider_id'] as String?;
         Rider? rider;
         if (riderId != null && riderId.isNotEmpty) {
           rider = await _repository.getRiderProfile(riderId);

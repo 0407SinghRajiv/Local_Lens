@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -362,7 +361,9 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                       text: 'Start Ride',
                       isOrange: true,
                       icon: Icons.play_arrow_rounded,
-                      onPressed: _onStartRidePressed,
+                      onPressed: () {
+                        ref.read(rideProvider.notifier).startTrip();
+                      },
                     ),
                   ] else if (status == RideStatus.inProgress) ...[
                     LocalLensPrimaryButton(

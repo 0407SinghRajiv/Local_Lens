@@ -15,6 +15,7 @@ import '../../providers/auth_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/sponsor_service.dart';
 import '../../widgets/common/locallens_components.dart';
+import '../../widgets/active_ride_floating_bar.dart';
 import '../explore/explore_screen.dart';
 import '../itinerary/my_itinerary_screen.dart';
 import '../saved/saved_screen.dart';
@@ -360,14 +361,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
             ),
           ],
         ),
-        bottomNavigationBar: LocalLensBottomNav(
-          currentIndex: _currentTabIndex,
-          isStormy: _isStormyDemo,
-          onTap: (index) {
-            setState(() {
-              _currentTabIndex = index;
-            });
-          },
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ActiveRideFloatingBar(isStormy: _isStormyDemo),
+            LocalLensBottomNav(
+              currentIndex: _currentTabIndex,
+              isStormy: _isStormyDemo,
+              onTap: (index) {
+                setState(() {
+                  _currentTabIndex = index;
+                });
+              },
+            ),
+          ],
         ),
       ),
     );

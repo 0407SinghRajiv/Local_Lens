@@ -104,7 +104,8 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
       'pickup_distance': double.parse(calcPickupDist.toStringAsFixed(2)),
       'trip_distance': 5.0,
       'eta_minutes': vehicle.etaMinutes,
-      'status': 'searching',
+      'status': assignedRiderId != null ? 'accepted' : 'searching',
+      if (assignedRiderId != null) 'rider_id': assignedRiderId,
       'created_at': DateTime.now().toIso8601String(),
     };
 
@@ -117,7 +118,7 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
         drop: dropAddress,
         vehicle: vehicle,
         estimatedFare: vehicle.estimatedFare,
-        status: RideStatus.searching,
+        status: assignedRiderId != null ? RideStatus.accepted : RideStatus.searching,
         createdAt: DateTime.now(),
       );
     }
@@ -129,6 +130,9 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
       Rider? allotedRider;
       if (assignedRiderId != null) {
         allotedRider = await getRiderProfile(assignedRiderId);
+        try {
+          await client.from('riders').update({'is_available': false}).eq('id', assignedRiderId);
+        } catch (_) {}
       }
 
       return RideRequest(
