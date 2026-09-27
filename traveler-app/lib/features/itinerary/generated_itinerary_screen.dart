@@ -11,6 +11,7 @@ import '../../providers/ride_provider.dart';
 import '../../services/itinerary_pdf_service.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/itinerary_map.dart';
+import '../../widgets/itinerary_optimizer_chat_sheet.dart';
 
 /// Screen 2 — Generated Itinerary & Lens Ride Integration
 class GeneratedItineraryScreen extends ConsumerStatefulWidget {
@@ -27,7 +28,6 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
   final GlobalKey<ItineraryMapWidgetState> _mapKey = GlobalKey<ItineraryMapWidgetState>();
 
   bool _isDownloadingPdf = false;
-  bool _isOptimizing = false;
   bool _isSaving = false;
   bool _isSaved = false;
 
@@ -47,7 +47,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
           elevation: 0,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back_ios_new_rounded, color: LocalLensColors.textPrimary, size: 20),
-            onPressed: () => context.go(AppRoutes.travelerCreateItinerary),
+            onPressed: () => context.go(AppRoutes.travelerHome),
           ),
         ),
         body: Center(
@@ -81,7 +81,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: LocalLensColors.textPrimary, size: 20),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(AppRoutes.travelerHome),
         ),
         title: Text(
           'Your Itinerary',
@@ -282,6 +282,17 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                 },
               ),
 
+              const SizedBox(height: 18),
+
+              // LIVE BUDGET & EXPENSES TRACKER WITH DEMO SIMULATOR BUTTON
+              _buildBudgetAndSimulatorBanner(itinerary, itineraryNotifier),
+
+              // NUGEN AI VALIDATION & ENHANCEMENT LAYER
+              if (itinerary.nugen != null && itinerary.nugen!.enabled) ...[
+                const SizedBox(height: 18),
+                _buildNugenValidationCard(itinerary.nugen!),
+              ],
+
               const SizedBox(height: 20),
 
               // TIMELINE HEADER
@@ -478,24 +489,26 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                     boxShadow: item.isSelected ? LocalLensDimensions.softCardShadow : [],
                   ),
                   child: Center(
-                    child: Text(
-                      '${index + 1}',
-                      style: TextStyle(
-                        color: item.isSelected ? Colors.white : LocalLensColors.textMuted,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
+                    child: item.isCompleted
+                        ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+                        : Text(
+                            '${index + 1}',
+                            style: TextStyle(
+                              color: item.isSelected ? Colors.white : LocalLensColors.textMuted,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                            ),
+                          ),
                   ),
                 ),
                 if (!isLast) ...[
                   Container(
                     width: 2.5,
-                    height: item.travelToNextMinutes > 0 ? 30 : 125,
+                    height: item.travelToNextMinutes > 0 ? 30 : 200,
                     margin: const EdgeInsets.symmetric(vertical: 2),
                     decoration: BoxDecoration(
                       color: item.isSelected
-                          ? LocalLensColors.primaryTeal.withValues(alpha: 0.35)
+                          ? (item.isCompleted ? const Color(0xFF86EFAC) : LocalLensColors.primaryTeal.withValues(alpha: 0.35))
                           : LocalLensColors.border,
                       borderRadius: BorderRadius.circular(2),
                     ),
@@ -720,6 +733,9 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                               ],
                             ),
                           ),
+
+                          // EXPENSE TRACKING & PROGRESS SECTION UNDER EACH EXPERIENCE
+                          _buildExperienceExpenseSection(item, notifier),
                         ],
                       ),
                     ),
@@ -728,6 +744,674 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               ),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  Widget _buildExperienceExpenseSection(ItineraryItem item, ItineraryNotifier notifier) {
+    final hasExpense = item.actualExpense != null && item.actualExpense! > 0;
+    final isCompleted = item.isCompleted;
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: isCompleted ? const Color(0xFFF0FDF4) : LocalLensColors.surfaceSecondary.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: isCompleted ? const Color(0xFF86EFAC) : LocalLensColors.borderLight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isCompleted ? Icons.check_circle_rounded : Icons.receipt_long_rounded,
+                    size: 15,
+                    color: isCompleted ? const Color(0xFF16A34A) : LocalLensColors.primaryTeal,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isCompleted ? 'Completed (Stayed 5m in 2km)' : 'Expense Tracking',
+                    style: LocalLensTypography.caption.copyWith(
+                      fontWeight: FontWeight.w800,
+                      color: isCompleted ? const Color(0xFF166534) : LocalLensColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+              if (isCompleted)
+                InkWell(
+                  onTap: () => _showExperienceRatingDialog(item, notifier),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDCFCE7),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.star_rounded, size: 12, color: Colors.amber),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${(item.travelerRating ?? 5.0).toStringAsFixed(1)} ★',
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF166534)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // Expense Input Row
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: LocalLensColors.border),
+                  ),
+                  child: TextFormField(
+                    key: ValueKey('exp_${item.id}_${item.actualExpense}'),
+                    initialValue: item.actualExpense != null ? item.actualExpense!.toInt().toString() : '',
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                    decoration: InputDecoration(
+                      prefixIcon: const Padding(
+                        padding: EdgeInsets.only(left: 10, right: 6, top: 9),
+                        child: Text('₹', style: TextStyle(fontWeight: FontWeight.bold, color: LocalLensColors.primaryTeal)),
+                      ),
+                      prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
+                      hintText: 'Est. ₹${item.price.toInt()}',
+                      hintStyle: const TextStyle(fontSize: 12, color: LocalLensColors.textMuted, fontWeight: FontWeight.normal),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      isDense: true,
+                    ),
+                    onFieldSubmitted: (val) {
+                      final amount = double.tryParse(val.trim());
+                      if (amount != null) {
+                        notifier.updateExperienceExpense(item.id, amount);
+                      }
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Quick Set chip
+              InkWell(
+                onTap: () {
+                  notifier.updateExperienceExpense(item.id, item.price);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: hasExpense ? LocalLensColors.primaryTealSoft : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: LocalLensColors.primaryTeal),
+                  ),
+                  child: Text(
+                    'Set ₹${item.price.toInt()}',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: LocalLensColors.primaryTeal),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // Quick +50 chip
+              InkWell(
+                onTap: () {
+                  final current = item.actualExpense ?? item.price;
+                  notifier.updateExperienceExpense(item.id, current + 50);
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: LocalLensColors.border),
+                  ),
+                  child: const Text(
+                    '+₹50',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: LocalLensColors.textPrimary),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          if (hasExpense) ...[
+            const SizedBox(height: 5),
+            Text(
+              'Tracked Expense: ₹${item.actualExpense!.toInt()} (Est. ₹${item.price.toInt()})',
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: LocalLensColors.primaryTeal),
+            ),
+          ],
+
+          if (isCompleted && item.travelerReview != null && item.travelerReview!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Review: "${item.travelerReview}"',
+              style: const TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Color(0xFF15803D)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBudgetAndSimulatorBanner(Itinerary itinerary, ItineraryNotifier notifier) {
+    final totalBudget = itinerary.totalCost;
+    final totalSpent = itinerary.totalActualExpenses;
+    final remaining = (totalBudget - totalSpent).clamp(0.0, 999999.0);
+    final completedCount = itinerary.completedStopsCount;
+    final totalCount = itinerary.items.length;
+    final progress = totalCount > 0 ? (completedCount / totalCount).clamp(0.0, 1.0) : 0.0;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusLarge),
+        border: Border.all(color: LocalLensColors.border),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.primaryTealSoft,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.account_balance_wallet_rounded, size: 18, color: LocalLensColors.primaryTeal),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Budget & Expenses Tracker',
+                    style: LocalLensTypography.titleSmall.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: completedCount == totalCount && totalCount > 0
+                      ? const Color(0xFFDCFCE7)
+                      : LocalLensColors.surfaceSecondary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$completedCount / $totalCount Completed',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: completedCount == totalCount && totalCount > 0
+                        ? const Color(0xFF16A34A)
+                        : LocalLensColors.primaryTeal,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 3-Metric Tiles Row: Budget, Spent, Remaining
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: LocalLensColors.surfaceSecondary.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Est. Budget', style: LocalLensTypography.caption.copyWith(fontSize: 10)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${totalBudget.toInt()}',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: LocalLensColors.textPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: totalSpent > totalBudget ? const Color(0xFFFEE2E2) : LocalLensColors.primaryTealSoft,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Actual Spent', style: LocalLensTypography.caption.copyWith(fontSize: 10)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${totalSpent.toInt()}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: totalSpent > totalBudget ? LocalLensColors.errorRed : LocalLensColors.primaryTeal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Remaining', style: LocalLensTypography.caption.copyWith(fontSize: 10)),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${remaining.toInt()}',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: Color(0xFF16A34A)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Progress bar
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: LocalLensColors.border,
+              valueColor: const AlwaysStoppedAnimation<Color>(LocalLensColors.primaryTeal),
+              minHeight: 6,
+            ),
+          ),
+          const SizedBox(height: 14),
+          // Demo Simulation Button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _simulateGeofenceArrivalAndCompletion(itinerary, notifier),
+              icon: const Icon(Icons.bolt_rounded, size: 18, color: Colors.white),
+              label: const Text(
+                '⚡ Live Demo: Simulate Arrival (<2km for 5m)',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12, color: Colors.white),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0F766E), // Emerald Teal
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                elevation: 0,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _simulateGeofenceArrivalAndCompletion(Itinerary itinerary, ItineraryNotifier notifier) async {
+    // Find first uncompleted experience (or selected one)
+    ItineraryItem? targetItem;
+    if (_selectedExperienceIndex != null &&
+        _selectedExperienceIndex! < itinerary.items.length &&
+        !itinerary.items[_selectedExperienceIndex!].isCompleted) {
+      targetItem = itinerary.items[_selectedExperienceIndex!];
+    } else {
+      targetItem = itinerary.items.cast<ItineraryItem?>().firstWhere(
+            (item) => item != null && !item.isCompleted,
+            orElse: () => null,
+          );
+    }
+
+    if (targetItem == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🎉 All experiences in this itinerary are already completed!'),
+          backgroundColor: Color(0xFF16A34A),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Step 1: In-app arrival simulation notice
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.gps_fixed_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '📍 Traveler entered within 2 km of "${targetItem.experienceName}". Tracking 5 min dwell time...',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: LocalLensColors.accentOrange,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    // Wait short simulated dwell delay
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (!mounted) return;
+
+    // Step 2: Mark completed in state
+    notifier.completeExperience(
+      targetItem.id,
+      expense: targetItem.actualExpense ?? targetItem.price,
+    );
+
+    // Step 3: Trigger in-app Push Notification banner & Rating Dialog
+    _showInAppPushNotification(targetItem, notifier);
+  }
+
+  void _showInAppPushNotification(ItineraryItem item, ItineraryNotifier notifier) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: InkWell(
+          onTap: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            _showExperienceRatingDialog(item, notifier);
+          },
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.notifications_active_rounded, color: Colors.amber, size: 22),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: const [
+                        Text(
+                          'LocalLens • Push Notification',
+                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70),
+                        ),
+                        Spacer(),
+                        Text('Just now', style: TextStyle(fontSize: 9, color: Colors.white54)),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Completed: ${item.experienceName}!',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                    ),
+                    const Text(
+                      'Traveler stayed >5 min within 2 km. Tap to rate your experience ⭐',
+                      style: TextStyle(fontSize: 11, color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        backgroundColor: const Color(0xFF0F172A),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+        margin: const EdgeInsets.all(12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        action: SnackBarAction(
+          label: 'RATE NOW',
+          textColor: Colors.amber,
+          onPressed: () => _showExperienceRatingDialog(item, notifier),
+        ),
+      ),
+    );
+
+    // Directly open interactive Rating Dialog
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) {
+        _showExperienceRatingDialog(item, notifier);
+      }
+    });
+  }
+
+  void _showExperienceRatingDialog(ItineraryItem item, ItineraryNotifier notifier) {
+    double currentRating = item.travelerRating ?? 5.0;
+    final reviewController = TextEditingController(text: item.travelerReview ?? '');
+    final expenseController = TextEditingController(
+      text: item.actualExpense != null ? item.actualExpense!.toInt().toString() : item.price.toInt().toString(),
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: LocalLensColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFDCFCE7),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.verified_rounded, color: Color(0xFF16A34A), size: 24),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Experience Completed!',
+                                style: LocalLensTypography.caption.copyWith(
+                                  color: const Color(0xFF16A34A),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                item.experienceName,
+                                style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.w800),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: LocalLensColors.surfaceSecondary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: const [
+                          Icon(Icons.location_on_rounded, size: 14, color: LocalLensColors.primaryTeal),
+                          SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'Verified: Reached within 2 km & stayed for >5 mins',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: LocalLensColors.textSecondary),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Rate this experience',
+                      style: LocalLensTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 8),
+                    // 5 Star rating row
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (starIndex) {
+                        final starValue = starIndex + 1.0;
+                        final isFilled = starValue <= currentRating;
+                        return IconButton(
+                          iconSize: 36,
+                          icon: Icon(
+                            isFilled ? Icons.star_rounded : Icons.star_border_rounded,
+                            color: Colors.amber,
+                          ),
+                          onPressed: () {
+                            setModalState(() {
+                              currentRating = starValue;
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Actual Expense Incurred (₹)',
+                      style: LocalLensTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: LocalLensColors.surfaceSecondary,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: LocalLensColors.border),
+                      ),
+                      child: TextFormField(
+                        controller: expenseController,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.currency_rupee_rounded, size: 18, color: LocalLensColors.primaryTeal),
+                          hintText: 'Enter expense',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Leave a brief review',
+                      style: LocalLensTypography.bodyMedium.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: LocalLensColors.surfaceSecondary,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: LocalLensColors.border),
+                      ),
+                      child: TextFormField(
+                        controller: reviewController,
+                        maxLines: 2,
+                        decoration: const InputDecoration(
+                          hintText: 'How was the food, crowd, or view?',
+                          hintStyle: TextStyle(fontSize: 12, color: LocalLensColors.textMuted),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    LocalLensPrimaryButton(
+                      text: 'Submit Rating & Save Expense',
+                      isOrange: true,
+                      icon: Icons.check_circle_rounded,
+                      onPressed: () {
+                        final expense = double.tryParse(expenseController.text.trim()) ?? item.price;
+                        notifier.completeExperience(
+                          item.id,
+                          rating: currentRating,
+                          review: reviewController.text.trim(),
+                          expense: expense,
+                        );
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Row(
+                              children: [
+                                const Icon(Icons.star_rounded, color: Colors.amber, size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text('Thank you! ${currentRating.toInt()}★ rating & ₹${expense.toInt()} expense logged for ${item.experienceName}'),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: LocalLensColors.primaryTeal,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
         );
       },
     );
@@ -945,6 +1629,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                     isOrange: true,
                     icon: Icons.local_taxi_rounded,
                     onPressed: () {
+                      setState(() => _isRideSectionEnabled = true);
                       ref.read(rideProvider.notifier).selectVehicle(selectedVehicle);
                       ref.read(rideProvider.notifier).requestRide(
                             pickup: 'Current Location (Panvel)',
@@ -981,49 +1666,14 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
     }
   }
 
-  Future<void> _optimizeItinerary(ItineraryNotifier notifier) async {
-    setState(() => _isOptimizing = true);
-    try {
-      final optimized = await notifier.optimizeCurrentItinerary();
-      if (mounted && optimized != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: const [
-                Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Itinerary route optimized for fastest travel time & sequence!',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
-            backgroundColor: LocalLensColors.primaryTeal,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to optimize itinerary: $e'),
-            backgroundColor: LocalLensColors.errorRed,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isOptimizing = false);
-    }
+  void _openOptimizerChatbot(Itinerary itinerary) {
+    ItineraryOptimizerChatSheet.show(context, itinerary);
   }
 
   Future<void> _saveItinerary(ItineraryNotifier notifier, Itinerary itinerary) async {
     setState(() => _isSaving = true);
     try {
-      final success = await notifier.saveCurrentItinerary();
+      await notifier.saveCurrentItinerary();
       if (mounted) {
         setState(() => _isSaved = true);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1061,6 +1711,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
   }
 
   void _optForRide(Itinerary itinerary) {
+    setState(() => _isRideSectionEnabled = true);
     final nextExp = itinerary.items.isNotEmpty ? itinerary.items.first.name : itinerary.destination;
     final selectedVehicle = _vehicles[_selectedVehicleIndex];
     ref.read(rideProvider.notifier).selectVehicle(selectedVehicle);
@@ -1105,17 +1756,11 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
         // 2. THREE BUTTONS ROW (Optimize Itinerary, Opt for Ride, Save Itinerary)
         Row(
           children: [
-            // Optimize Itinerary Button
+            // Optimize Itinerary Button (Opens AI Optimizer Chatbot)
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: _isOptimizing ? null : () => _optimizeItinerary(notifier),
-                icon: _isOptimizing
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: LocalLensColors.textPrimary),
-                      )
-                    : const Icon(Icons.auto_awesome_rounded, size: 16, color: LocalLensColors.primaryTeal),
+                onPressed: () => _openOptimizerChatbot(itinerary),
+                icon: const Icon(Icons.auto_awesome_rounded, size: 16, color: LocalLensColors.primaryTeal),
                 label: Text(
                   'Optimize',
                   style: LocalLensTypography.caption.copyWith(
@@ -1191,19 +1836,21 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
           ],
         ),
 
-        const SizedBox(height: 14),
-
-        // 3. START TRIP ACTION
-        LocalLensPrimaryButton(
-          text: 'Start Trip',
-          isOrange: false,
-          icon: Icons.directions_walk_rounded,
-          onPressed: () {
-            context.push(AppRoutes.liveTrip);
-          },
-        ),
-
-        const SizedBox(height: 10),
+        // 3. START TRIP ACTION (Only visible when traveler opts for a ride)
+        if (_isRideSectionEnabled || itinerary.hasRideAttached) ...[
+          const SizedBox(height: 14),
+          LocalLensPrimaryButton(
+            text: 'Start Trip',
+            isOrange: false,
+            icon: Icons.directions_walk_rounded,
+            onPressed: () {
+              context.push(AppRoutes.liveTrip);
+            },
+          ),
+          const SizedBox(height: 10),
+        ] else ...[
+          const SizedBox(height: 14),
+        ],
 
         // 4. SECONDARY CONTROLS
         Row(
@@ -1240,6 +1887,325 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
           ],
         ),
       ],
+    );
+  }
+
+  // ==========================================
+  // NUGEN AI VALIDATION & ENHANCEMENT WIDGETS
+  // ==========================================
+  Widget _buildNugenValidationCard(NugenEnhancementData nugen) {
+    final validation = nugen.validation;
+    final issues = nugen.issues;
+    final enhancements = nugen.enhancements;
+    final tips = nugen.personalizedTips;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: LocalLensColors.primaryTeal.withOpacity(0.35), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: LocalLensColors.primaryTeal.withOpacity(0.06),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: LocalLensColors.primaryTeal.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: LocalLensColors.primaryTeal,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'Nugen AI Verification',
+                          style: LocalLensTypography.bodyLarge.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: LocalLensColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: LocalLensColors.primaryTeal.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Active',
+                            style: LocalLensTypography.caption.copyWith(
+                              color: LocalLensColors.primaryTeal,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      'Validation & smart suggestions for Rajiv\'s ML itinerary',
+                      style: LocalLensTypography.caption.copyWith(
+                        color: LocalLensColors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: LocalLensColors.border),
+          const SizedBox(height: 12),
+
+          // Weather Forecast Context (if provided by Nugen)
+          if (nugen.weather != null && nugen.weather!.isNotEmpty) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wb_sunny_rounded, size: 16, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Nugen Weather Forecast: ${nugen.weather!['condition'] ?? 'Clear'} • ${nugen.weather!['temperature'] ?? '28°C'} • Wind ${nugen.weather!['wind_speed_kmh'] ?? '10 km/h'}',
+                      style: LocalLensTypography.caption.copyWith(
+                        color: LocalLensColors.textPrimary,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          // 1. Validation Grid/Rows
+          Text(
+            'Constraint & Plan Validation',
+            style: LocalLensTypography.caption.copyWith(
+              fontWeight: FontWeight.w800,
+              color: LocalLensColors.textPrimary,
+              letterSpacing: 0.3,
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          _buildNugenValidationItemRow(
+            'Budget',
+            validation['budget'] as Map<String, dynamic>?,
+            Icons.account_balance_wallet_outlined,
+          ),
+          _buildNugenValidationItemRow(
+            'Time & Schedule',
+            validation['available_time'] as Map<String, dynamic>? ?? validation['schedule'] as Map<String, dynamic>?,
+            Icons.access_time_rounded,
+          ),
+          _buildNugenValidationItemRow(
+            'Interests Matched',
+            validation['interests'] as Map<String, dynamic>?,
+            Icons.interests_outlined,
+          ),
+          _buildNugenValidationItemRow(
+            'Group Fit',
+            validation['group_type'] as Map<String, dynamic>?,
+            Icons.groups_outlined,
+          ),
+
+          // 2. Issues flagged (if any)
+          if (issues.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: LocalLensColors.accentOrange.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: LocalLensColors.accentOrange.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.warning_amber_rounded, size: 16, color: LocalLensColors.accentOrange),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Schedule & Budget Observations (${issues.length})',
+                        style: LocalLensTypography.caption.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: LocalLensColors.accentOrange,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ...issues.take(3).map((issue) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          '• ${issue['message'] ?? 'Notice flagged'}',
+                          style: LocalLensTypography.caption.copyWith(
+                            color: LocalLensColors.textPrimary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ],
+
+          // 3. Smart Enhancements
+          if (enhancements.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Smart Suggestions',
+              style: LocalLensTypography.caption.copyWith(
+                fontWeight: FontWeight.w800,
+                color: LocalLensColors.textPrimary,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...enhancements.take(3).map((enh) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.lightbulb_outline_rounded, size: 14, color: LocalLensColors.primaryTeal),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          enh['suggestion']?.toString() ?? enh['reason']?.toString() ?? '',
+                          style: LocalLensTypography.caption.copyWith(
+                            color: LocalLensColors.textPrimary,
+                            fontSize: 11.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+
+          // 4. Personalized Tips
+          if (tips.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Personalized Tips',
+              style: LocalLensTypography.caption.copyWith(
+                fontWeight: FontWeight.w800,
+                color: LocalLensColors.textPrimary,
+                letterSpacing: 0.3,
+              ),
+            ),
+            const SizedBox(height: 6),
+            ...tips.take(2).map((tip) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2.5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.star_outline_rounded, size: 14, color: LocalLensColors.accentOrange),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          tip['tip']?.toString() ?? '',
+                          style: LocalLensTypography.caption.copyWith(
+                            color: LocalLensColors.textSecondary,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNugenValidationItemRow(
+    String title,
+    Map<String, dynamic>? data,
+    IconData icon,
+  ) {
+    final status = (data?['status'] as String? ?? 'pass').toLowerCase();
+    final message = data?['message'] as String? ?? 'Verified';
+
+    Color statusColor;
+    IconData statusIcon;
+    if (status == 'pass') {
+      statusColor = LocalLensColors.primaryTeal;
+      statusIcon = Icons.check_circle_rounded;
+    } else if (status == 'warning') {
+      statusColor = LocalLensColors.accentOrange;
+      statusIcon = Icons.error_outline_rounded;
+    } else if (status == 'fail') {
+      statusColor = Colors.redAccent;
+      statusIcon = Icons.cancel_outlined;
+    } else {
+      statusColor = LocalLensColors.textSecondary;
+      statusIcon = Icons.help_outline_rounded;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3.5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: LocalLensColors.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            '$title: ',
+            style: LocalLensTypography.caption.copyWith(
+              fontWeight: FontWeight.w700,
+              color: LocalLensColors.textPrimary,
+              fontSize: 11.5,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              message,
+              style: LocalLensTypography.caption.copyWith(
+                color: LocalLensColors.textSecondary,
+                fontSize: 11,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Icon(statusIcon, size: 14, color: statusColor),
+        ],
+      ),
     );
   }
 }

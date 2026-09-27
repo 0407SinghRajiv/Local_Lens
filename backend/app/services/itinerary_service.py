@@ -194,16 +194,23 @@ class ItineraryService:
             activity_start_dt = current_dt + timedelta(minutes=transit_mins)
             activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 
-            # Check 1: Total Trip Duration Constraint
-            # Only enforce hard skip if auto-generating without user selected_ids
-            # When user explicitly selects places, ALL selected places are scheduled into the itinerary!
-            if not selected_ids and request.available_time_hours and request.available_time_hours <= 2.5 and activity_end_dt > trip_end_limit_dt:
-                skipped.append(SkippedExperience(
-                    experience_id=exp_id,
-                    name=exp_name,
-                    reason=f"Insufficient remaining time within {request.available_time_hours:.1f} hours duration window",
-                ))
-                continue
+            # Check 1: Strict Total Trip Duration Constraint
+            # Ensure the itinerary strictly respects the traveler's requested hours limit
+            # so the traveler gets an itinerary tailored exactly to their available time window.
+            if request.available_time_hours and request.available_time_hours > 0:
+                if activity_end_dt > trip_end_limit_dt:
+                    if scheduled:
+                        skipped.append(SkippedExperience(
+                            experience_id=exp_id,
+                            name=exp_name,
+                            reason=f"Exceeds your requested {request.available_time_hours:g} hr schedule limit (would finish at {activity_end_dt.strftime('%I:%M %p')})",
+                        ))
+                        continue
+                    else:
+                        # For the very first stop, adjust duration to fit within the available time window
+                        duration_mins = max(30, max_duration_minutes - transit_mins)
+                        duration_hrs = round(duration_mins / 60.0, 2)
+                        activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 
             # Update previous stop's travel_to_next
             if scheduled:

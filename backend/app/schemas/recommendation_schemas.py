@@ -38,6 +38,7 @@ class RecommendationRequest(BaseModel):
     # Filtering parameters
     city: Optional[str] = Field(default=None, description="Optional city filter")
     category: Optional[str] = Field(default=None, description="Optional category filter")
+    excluded_categories: Optional[Union[List[str], str]] = Field(default_factory=list, description="Categories to completely exclude from recommendations")
     radius_km: float = Field(default=25.0, gt=0, description="Search radius in km from user coordinates")
     top_n: int = Field(default=50, ge=1, le=100, description="Number of ranked experiences to return")
     apply_hard_filters: bool = Field(default=False, description="Whether to filter out experiences exceeding individual budget or time")

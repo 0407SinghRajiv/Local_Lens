@@ -106,6 +106,7 @@ class ItineraryApiService {
     required String travelerType,
     required List<String> interests,
     String? preferences,
+    List<String>? excludedCategories,
     int? topN,
   }) async {
     final activeBase = await resolveBaseUrl();
@@ -125,6 +126,7 @@ class ItineraryApiService {
       'traveler_type': travelerType,
       'group_type': travelerType,
       'interests': interests,
+      'excluded_categories': excludedCategories ?? [],
       'radius_km': 25.0,
       'additional_preferences': preferences != null && preferences.isNotEmpty ? {'notes': preferences} : {},
       'top_n': topN ?? 50,
@@ -137,7 +139,16 @@ class ItineraryApiService {
         if (data['success'] == true && data['recommendations'] != null) {
           final List list = data['recommendations'] as List;
           debugPrint('[ItineraryApiService] Received ${list.length} ML recommendations from $activeBase');
-          return list.map((item) => RecommendationModel.fromJson(item as Map<String, dynamic>)).toList();
+          final items = list.map((item) => RecommendationModel.fromJson(item as Map<String, dynamic>)).toList();
+          if (excludedCategories != null && excludedCategories.isNotEmpty) {
+            return items.where((item) {
+              for (final ex in excludedCategories) {
+                if (item.matchesExcludedCategory(ex)) return false;
+              }
+              return true;
+            }).toList();
+          }
+          return items;
         }
       }
     } catch (e) {
@@ -145,7 +156,7 @@ class ItineraryApiService {
     }
 
     // Fallback if backend is unreachable
-    return _buildFallbackRecommendations(destination, interests, budget);
+    return _buildFallbackRecommendations(destination, interests, budget, excludedCategories);
   }
 
   /// 2. Generate Chronological Itinerary from selected experiences + trip start time
@@ -213,6 +224,7 @@ class ItineraryApiService {
             items: items,
             skippedExperiences: skipped,
             createdAt: DateTime.now(),
+            nugen: data['nugen'] != null ? NugenEnhancementData.fromJson(data['nugen'] as Map<String, dynamic>) : null,
           );
         }
       }
@@ -317,21 +329,178 @@ class ItineraryApiService {
 
     // Local in-memory spatial TSP sort fallback
     final sortedItems = List<ItineraryItem>.from(currentItinerary.items);
-    sortedItems.sort((a, b) => (a.distanceKm ?? 0).compareTo(b.distanceKm ?? 0));
+    sortedItems.sort((a, b) => a.distanceKm.compareTo(b.distanceKm));
     return currentItinerary.copyWith(items: sortedItems);
   }
 
   static List<RecommendationModel> _buildFallbackRecommendations(
     String destination,
     List<String> interests,
-    double budget,
-  ) {
+    double budget, [
+    List<String>? excludedCategories,
+  ]) {
     final dest = destination.isNotEmpty ? destination : 'Mumbai';
-    return [
+    final allItems = [
+      // BEACH
       RecommendationModel(
-        experienceId: 'EXP-DELHI-001',
+        experienceId: 'EXP-BEACH-001',
+        name: 'Kashid Beach Watersports & Coastal Walk',
+        category: 'Nature',
+        subCategory: 'Beach',
+        tags: 'beach; coastal; water sports; white sand',
+        location: '$dest Coastal Strip',
+        city: dest,
+        durationMinutes: 120,
+        durationHours: 2.0,
+        price: 450.0,
+        rating: 4.8,
+        reviewCount: 380,
+        reason: 'Beautiful white sand beach with water sports and scenic coastal walk',
+        score: 0.95,
+        image: 'assets/images/destinations/beach_cafe.png',
+        latitude: 18.9100,
+        longitude: 72.9000,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-BEACH-002',
+        name: 'Alibag Beach Sunset & Sea Breeze',
+        category: 'Beach',
+        subCategory: 'Beach Walk',
+        tags: 'beach; sunset; coastal; sea view',
+        location: '$dest Beachfront',
+        city: dest,
+        durationMinutes: 90,
+        durationHours: 1.5,
+        price: 200.0,
+        rating: 4.7,
+        reviewCount: 420,
+        reason: 'Iconic beach walk with views of historic sea fort at low tide',
+        score: 0.92,
+        image: 'assets/images/destinations/beach_cafe.png',
+        latitude: 18.6400,
+        longitude: 72.8700,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-BEACH-003',
+        name: 'Nagaon Beach Jet Ski & Parasailing',
+        category: 'Beach',
+        subCategory: 'Water Sports',
+        tags: 'beach; water sports; jet ski; parasailing',
+        location: '$dest Nagaon Shore',
+        city: dest,
+        durationMinutes: 90,
+        durationHours: 1.5,
+        price: 750.0,
+        rating: 4.9,
+        reviewCount: 510,
+        reason: 'Top destination for adventurous water sports along a flat sandy beach',
+        score: 0.94,
+        image: 'assets/images/destinations/beach_cafe.png',
+        latitude: 18.6000,
+        longitude: 72.9100,
+        localExperience: true,
+        hiddenGem: true,
+      ),
+
+      // FOOD
+      RecommendationModel(
+        experienceId: 'EXP-FOOD-001',
+        name: 'Authentic Local Breakfast & Chai Walk',
+        category: 'Food',
+        subCategory: 'Food Walk',
+        tags: 'food; breakfast; chai; street food; local cuisine',
+        location: '$dest Market',
+        city: dest,
+        durationMinutes: 60,
+        durationHours: 1.0,
+        price: 250.0,
+        rating: 4.9,
+        reviewCount: 620,
+        reason: 'Matches your food interest with legendary regional breakfast spots',
+        score: 0.93,
+        image: 'assets/images/destinations/food_trail.png',
+        latitude: 18.9950,
+        longitude: 73.1200,
+        localExperience: true,
+        hiddenGem: true,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-FOOD-002',
+        name: 'Coastal Seafood Tasting Masterclass',
+        category: 'Food',
+        subCategory: 'Seafood',
+        tags: 'food; seafood; coastal; tasting; culinary',
+        location: '$dest Harbor',
+        city: dest,
+        durationMinutes: 90,
+        durationHours: 1.5,
+        price: 550.0,
+        rating: 4.9,
+        reviewCount: 410,
+        reason: 'Delicious coastal delicacies prepared by authentic local chefs',
+        score: 0.91,
+        image: 'assets/images/destinations/food_trail.png',
+        latitude: 18.9900,
+        longitude: 73.1150,
+        localExperience: true,
+        hiddenGem: true,
+      ),
+
+      // ADVENTURE
+      RecommendationModel(
+        experienceId: 'EXP-ADV-001',
+        name: 'Cliffside Rock Climbing & Rappelling',
+        category: 'Adventure',
+        subCategory: 'Climbing',
+        tags: 'adventure; climbing; rappelling; trekking; outdoor',
+        location: '$dest Valley',
+        city: dest,
+        durationMinutes: 120,
+        durationHours: 2.0,
+        price: 800.0,
+        rating: 4.8,
+        reviewCount: 290,
+        reason: 'Thrilling outdoor adventure with certified local instructors',
+        score: 0.90,
+        image: 'assets/images/destinations/waterfall.png',
+        latitude: 19.0200,
+        longitude: 73.1400,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+      RecommendationModel(
+        experienceId: 'EXP-ADV-002',
+        name: 'Kharghar Hills Sunrise Trek',
+        category: 'Adventure',
+        subCategory: 'Hiking',
+        tags: 'adventure; hiking; trek; sunrise; viewpoint',
+        location: '$dest Hills',
+        city: dest,
+        durationMinutes: 120,
+        durationHours: 2.0,
+        price: 300.0,
+        rating: 4.9,
+        reviewCount: 340,
+        reason: 'Scenic hilltop hike with panoramic sunrise vistas',
+        score: 0.92,
+        image: 'assets/images/destinations/waterfall.png',
+        latitude: 19.0400,
+        longitude: 73.0800,
+        localExperience: true,
+        hiddenGem: true,
+      ),
+
+      // HERITAGE
+      RecommendationModel(
+        experienceId: 'EXP-HER-001',
         name: 'Heritage Fortress & Walk',
         category: 'Heritage',
+        subCategory: 'Historic Fort',
+        tags: 'heritage; fort; history; architecture; monument',
         location: '$dest Old Quarter',
         city: dest,
         durationMinutes: 90,
@@ -339,7 +508,7 @@ class ItineraryApiService {
         price: 350.0,
         rating: 4.8,
         reviewCount: 450,
-        reason: 'Top-rated historical landmark matching your interests',
+        reason: 'Top-rated historical landmark matching your heritage interest',
         score: 0.94,
         image: 'assets/images/destinations/heritage_walk.png',
         latitude: 18.9894,
@@ -348,66 +517,11 @@ class ItineraryApiService {
         hiddenGem: false,
       ),
       RecommendationModel(
-        experienceId: 'EXP-DELHI-002',
-        name: 'Authentic Local Breakfast & Chai Walk',
-        category: 'Food',
-        location: '$dest Market',
-        city: dest,
-        durationMinutes: 60,
-        durationHours: 1.0,
-        price: 250.0,
-        rating: 4.9,
-        reviewCount: 620,
-        reason: 'Matches your food interest and fits your budget',
-        score: 0.92,
-        image: 'assets/images/destinations/food_trail.png',
-        latitude: 18.9950,
-        longitude: 73.1200,
-        localExperience: true,
-        hiddenGem: true,
-      ),
-      RecommendationModel(
-        experienceId: 'EXP-DELHI-003',
-        name: 'Artisan Workshop & Crafts',
-        category: 'Culture',
-        location: '$dest Craft Village',
-        city: dest,
-        durationMinutes: 75,
-        durationHours: 1.25,
-        price: 450.0,
-        rating: 4.7,
-        reviewCount: 280,
-        reason: 'Interactive hands-on cultural workshop with local artisans',
-        score: 0.88,
-        image: 'assets/images/destinations/beach_cafe.png',
-        latitude: 19.0010,
-        longitude: 73.1250,
-        localExperience: true,
-        hiddenGem: true,
-      ),
-      RecommendationModel(
-        experienceId: 'EXP-DELHI-004',
-        name: 'Scenic Valley Trail & Sunset View',
-        category: 'Nature',
-        location: '$dest Foothills',
-        city: dest,
-        durationMinutes: 90,
-        durationHours: 1.5,
-        price: 200.0,
-        rating: 4.9,
-        reviewCount: 510,
-        reason: 'Peaceful nature experience with panoramic viewpoint',
-        score: 0.86,
-        image: 'assets/images/destinations/waterfall.png',
-        latitude: 19.0100,
-        longitude: 73.1300,
-        localExperience: true,
-        hiddenGem: false,
-      ),
-      RecommendationModel(
-        experienceId: 'EXP-DELHI-005',
+        experienceId: 'EXP-HER-002',
         name: 'Historic Temple & Architecture Walk',
         category: 'Heritage',
+        subCategory: 'Monument',
+        tags: 'heritage; temple; architecture; historic; spiritual',
         location: '$dest Temple Town',
         city: dest,
         durationMinutes: 60,
@@ -415,56 +529,43 @@ class ItineraryApiService {
         price: 150.0,
         rating: 4.7,
         reviewCount: 320,
-        reason: 'Ancient architectural marvel with rich heritage',
-        score: 0.85,
+        reason: 'Ancient architectural marvel with rich regional heritage',
+        score: 0.88,
         image: 'assets/images/destinations/heritage_walk.png',
         latitude: 19.0150,
         longitude: 73.1350,
         localExperience: true,
         hiddenGem: false,
       ),
+
+      // CULTURE
       RecommendationModel(
-        experienceId: 'EXP-DELHI-006',
-        name: 'Coastal Seafood Tasting Masterclass',
-        category: 'Food',
-        location: '$dest Harbor',
+        experienceId: 'EXP-CUL-001',
+        name: 'Artisan Workshop & Crafts',
+        category: 'Culture',
+        subCategory: 'Workshop',
+        tags: 'culture; workshop; handicraft; artisan',
+        location: '$dest Craft Village',
         city: dest,
-        durationMinutes: 90,
-        durationHours: 1.5,
-        price: 500.0,
-        rating: 4.9,
-        reviewCount: 410,
-        reason: 'Delicious coastal delicacies prepared by local home chefs',
-        score: 0.91,
-        image: 'assets/images/destinations/food_trail.png',
-        latitude: 18.9900,
-        longitude: 73.1150,
+        durationMinutes: 75,
+        durationHours: 1.25,
+        price: 450.0,
+        rating: 4.7,
+        reviewCount: 280,
+        reason: 'Interactive hands-on cultural workshop with master artisans',
+        score: 0.89,
+        image: 'assets/images/destinations/beach_cafe.png',
+        latitude: 19.0010,
+        longitude: 73.1250,
         localExperience: true,
         hiddenGem: true,
       ),
       RecommendationModel(
-        experienceId: 'EXP-DELHI-007',
-        name: 'Cliffside Rock Climbing & Rappelling',
-        category: 'Adventure',
-        location: '$dest Valley',
-        city: dest,
-        durationMinutes: 120,
-        durationHours: 2.0,
-        price: 800.0,
-        rating: 4.8,
-        reviewCount: 290,
-        reason: 'Thrilling outdoor adventure with certified guides',
-        score: 0.89,
-        image: 'assets/images/destinations/waterfall.png',
-        latitude: 19.0200,
-        longitude: 73.1400,
-        localExperience: true,
-        hiddenGem: false,
-      ),
-      RecommendationModel(
-        experienceId: 'EXP-DELHI-008',
+        experienceId: 'EXP-CUL-002',
         name: 'Traditional Pottery & Clay Workshop',
         category: 'Culture',
+        subCategory: 'Art',
+        tags: 'culture; pottery; clay; craft; traditional',
         location: '$dest Heritage Lane',
         city: dest,
         durationMinutes: 60,
@@ -473,14 +574,102 @@ class ItineraryApiService {
         rating: 4.6,
         reviewCount: 180,
         reason: 'Hands-on artisanal pottery making with local masters',
-        score: 0.84,
+        score: 0.86,
         image: 'assets/images/destinations/beach_cafe.png',
         latitude: 18.9980,
         longitude: 73.1220,
         localExperience: true,
         hiddenGem: true,
       ),
+
+      // NATURE
+      RecommendationModel(
+        experienceId: 'EXP-NAT-001',
+        name: 'Scenic Valley Trail & Sunset View',
+        category: 'Nature',
+        subCategory: 'Viewpoint',
+        tags: 'nature; valley; sunset; viewpoint; scenic',
+        location: '$dest Foothills',
+        city: dest,
+        durationMinutes: 90,
+        durationHours: 1.5,
+        price: 200.0,
+        rating: 4.9,
+        reviewCount: 510,
+        reason: 'Peaceful nature experience with panoramic sunset viewpoints',
+        score: 0.90,
+        image: 'assets/images/destinations/waterfall.png',
+        latitude: 19.0100,
+        longitude: 73.1300,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+
+      // SHOPPING
+      RecommendationModel(
+        experienceId: 'EXP-SHOP-001',
+        name: 'Local Spice & Handicraft Bazaar Walk',
+        category: 'Shopping',
+        subCategory: 'Market',
+        tags: 'shopping; bazaar; market; spices; handicrafts',
+        location: '$dest Central Bazaar',
+        city: dest,
+        durationMinutes: 75,
+        durationHours: 1.25,
+        price: 200.0,
+        rating: 4.7,
+        reviewCount: 310,
+        reason: 'Vibrant local bazaar for authentic spices and handmade crafts',
+        score: 0.88,
+        image: 'assets/images/destinations/food_trail.png',
+        latitude: 19.0050,
+        longitude: 73.1100,
+        localExperience: true,
+        hiddenGem: false,
+      ),
+
+      // NIGHTLIFE
+      RecommendationModel(
+        experienceId: 'EXP-NIGHT-001',
+        name: 'Harborside Lounge & Craft Brewery',
+        category: 'Nightlife',
+        subCategory: 'Brewery',
+        tags: 'nightlife; lounge; brewery; live music; bar',
+        location: '$dest Promenade',
+        city: dest,
+        durationMinutes: 120,
+        durationHours: 2.0,
+        price: 850.0,
+        rating: 4.8,
+        reviewCount: 410,
+        reason: 'Relaxing waterfront evening with craft brews and ambient acoustics',
+        score: 0.89,
+        image: 'assets/images/destinations/beach_cafe.png',
+        latitude: 18.9300,
+        longitude: 72.8300,
+        localExperience: true,
+        hiddenGem: false,
+      ),
     ];
+
+    List<RecommendationModel> filtered = allItems;
+    if (interests.isNotEmpty) {
+      final matches = allItems.where((item) => item.matchesAnyInterest(interests)).toList();
+      if (matches.isNotEmpty) {
+        filtered = matches;
+      }
+    }
+
+    if (excludedCategories != null && excludedCategories.isNotEmpty) {
+      filtered = filtered.where((item) {
+        for (final ex in excludedCategories) {
+          if (item.matchesExcludedCategory(ex)) return false;
+        }
+        return true;
+      }).toList();
+    }
+
+    return filtered;
   }
 
   static Itinerary _buildFallbackItinerary({
@@ -548,8 +737,14 @@ class ItineraryApiService {
     double totalCost = 0;
     int totalMins = 0;
 
+    final maxAllowedMins = (durationHours > 0 ? durationHours * 60 : 300).round();
     for (int i = 0; i < itemsToUse.length; i++) {
       final r = itemsToUse[i];
+      final transitMins = items.isNotEmpty ? 15 : 0;
+      if (items.isNotEmpty && totalMins + transitMins + r.durationMinutes > maxAllowedMins) {
+        // Stop adding to ensure the itinerary strictly matches the traveler's requested hours
+        break;
+      }
       final startStr = _formatTime(curHour, curMin);
 
       curMin += r.durationMinutes;
@@ -583,7 +778,7 @@ class ItineraryApiService {
       ));
 
       totalCost += r.price;
-      totalMins += r.durationMinutes + 15;
+      totalMins += r.durationMinutes + transitMins;
     }
 
     return Itinerary(

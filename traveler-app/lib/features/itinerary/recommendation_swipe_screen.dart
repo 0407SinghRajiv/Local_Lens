@@ -70,6 +70,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
           travelerType: state.groupType,
           interests: state.interests,
           preferences: state.preferences,
+          excludedCategories: state.excludedCategories,
           topN: 50,
         );
       } catch (e) {
@@ -82,8 +83,20 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         _candidatePool.clear();
         for (final rec in initialRecs) {
           final id = rec.experienceId.trim();
-          if (id.isNotEmpty && !_selectedPlaceIds.contains(id) && !_rejectedPlaceIds.contains(id)) {
+          final isExcluded = state.excludedCategories.any((ex) => rec.matchesExcludedCategory(ex));
+          final matchesInterest = state.interests.isEmpty || rec.matchesAnyInterest(state.interests);
+          if (id.isNotEmpty && !isExcluded && matchesInterest && !_selectedPlaceIds.contains(id) && !_rejectedPlaceIds.contains(id)) {
             _candidatePool.add(rec);
+          }
+        }
+        // If strict interest filter yielded 0 candidates, fallback to non-excluded candidates
+        if (_candidatePool.isEmpty && initialRecs.isNotEmpty) {
+          for (final rec in initialRecs) {
+            final id = rec.experienceId.trim();
+            final isExcluded = state.excludedCategories.any((ex) => rec.matchesExcludedCategory(ex));
+            if (id.isNotEmpty && !isExcluded && !_selectedPlaceIds.contains(id) && !_rejectedPlaceIds.contains(id)) {
+              _candidatePool.add(rec);
+            }
           }
         }
         _isLoading = false;
@@ -116,6 +129,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         travelerType: state.groupType,
         interests: state.interests,
         preferences: state.preferences,
+        excludedCategories: state.excludedCategories,
         topN: 50,
       );
 
@@ -124,7 +138,11 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
 
       for (final rec in freshRecs) {
         final id = rec.experienceId.trim();
+        final isExcluded = state.excludedCategories.any((ex) => rec.matchesExcludedCategory(ex));
+        final matchesInterest = state.interests.isEmpty || rec.matchesAnyInterest(state.interests);
         if (id.isNotEmpty &&
+            !isExcluded &&
+            matchesInterest &&
             !_selectedPlaceIds.contains(id) &&
             !_rejectedPlaceIds.contains(id) &&
             !existingPoolIds.contains(id)) {

@@ -33,6 +33,7 @@ class AppRoutes {
   static const String recommendationSwipe = '/traveler/recommendations/swipe';
   static const String aiItineraryGenerating = '/traveler/itinerary/generating';
   static const String aiItineraryResult = '/traveler/itinerary/result';
+  static const String generatedItinerary = aiItineraryResult;
   static const String travelerRideSelect = '/traveler/ride/select';
   static const String travelerRideSearching = '/traveler/ride/searching';
   static const String travelerRideAccepted = '/traveler/ride/accepted';

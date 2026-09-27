@@ -267,12 +267,13 @@ class RecommendationEngine:
         radius_km: float = 25.0,
         city: Optional[str] = None,
         category: Optional[str] = None,
+        excluded_categories: Optional[Union[str, List[str]]] = None,
         top_n: int = 10,
         apply_hard_filters: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         Score candidate experiences and return top_n ranked recommendations.
-        Strictly reproduces Jupyter Notebook output.
+        Strictly reproduces Jupyter Notebook output with exclusion support.
         """
         scored_df = self.get_scored_candidates(
             budget_inr=budget_inr,
@@ -287,6 +288,58 @@ class RecommendationEngine:
 
         if scored_df.empty:
             return []
+
+        # Strict exclusion filter for any excluded categories (e.g. food, beach, adventure, etc.)
+        if excluded_categories:
+            ex_list = [c.strip().lower() for c in (excluded_categories if isinstance(excluded_categories, list) else str(excluded_categories).split("|")) if c.strip()]
+            if ex_list:
+                def is_excluded(row):
+                    cat = str(row.get("category", "")).lower()
+                    sub_cat = str(row.get("sub_category", "")).lower()
+                    name = str(row.get("name", "")).lower()
+                    tags = str(row.get("tags", "")).lower()
+                    combined = f"{cat} {sub_cat} {name} {tags}"
+                    for ex in ex_list:
+                        if ex in ["food", "dining", "cuisine"]:
+                            food_kw = ["food", "street food", "local cuisine", "seafood", "dining", "restaurant", "cafe", "eatery", "snack", "bakery", "misal", "pav", "dish"]
+                            if any(k in combined for k in food_kw):
+                                return True
+                        elif ex in ["beach", "beaches"]:
+                            beach_kw = ["beach", "coastal", "shore", "sea", "ocean", "coast"]
+                            if any(k in combined for k in beach_kw):
+                                return True
+                        elif ex in ["adventure", "trek", "trekking"]:
+                            adv_kw = ["adventure", "trekking", "trek", "water sports", "sports", "climb", "hiking"]
+                            if any(k in combined for k in adv_kw):
+                                return True
+                        elif ex in ["heritage", "fort", "monument"]:
+                            her_kw = ["heritage", "fort", "temple", "monument", "palace", "caves", "historic"]
+                            if any(k in combined for k in her_kw):
+                                return True
+                        elif ex in ["culture", "temple"]:
+                            cult_kw = ["culture", "temple", "museum", "spiritual", "religious", "monastery"]
+                            if any(k in combined for k in cult_kw):
+                                return True
+                        elif ex in ["nature", "wildlife"]:
+                            nat_kw = ["nature", "wildlife", "waterfall", "bird watching", "park", "garden", "forest"]
+                            if any(k in combined for k in nat_kw):
+                                return True
+                        elif ex in ["shopping", "market"]:
+                            shop_kw = ["shopping", "market", "markets", "bazaar", "mall"]
+                            if any(k in combined for k in shop_kw):
+                                return True
+                        elif ex in ["nightlife", "bar"]:
+                            night_kw = ["nightlife", "bar", "pub", "club", "lounge"]
+                            if any(k in combined for k in night_kw):
+                                return True
+                        elif ex in combined:
+                            return True
+                    return False
+
+                exclude_mask = ~scored_df.apply(is_excluded, axis=1)
+                scored_df = scored_df[exclude_mask].copy()
+                if scored_df.empty:
+                    return []
 
         # Location filter when explicit city or state requested
         if city:
@@ -336,29 +389,32 @@ class RecommendationEngine:
                 def matches_interests(row):
                     cat = str(row.get("category", "")).lower()
                     sub_cat = str(row.get("sub_category", "")).lower()
+                    tags = str(row.get("tags", "")).lower()
+                    name = str(row.get("experience_name", "")).lower()
+                    all_text = f"{cat} {sub_cat} {tags} {name}"
                     for intr in interest_list:
                         if intr == cat:
                             return True
-                        if intr == "food" and (cat in ["food", "street food", "local cuisine", "seafood"] or "food" in cat or "cuisine" in cat):
+                        if intr == "food" and (cat in ["food", "street food", "local cuisine", "seafood"] or "food" in cat or "cuisine" in cat or any(k in all_text for k in ["restaurant", "cafe", "dhaba", "dining", "bakery", "snack", "misal"])):
                             return True
                         if intr == "culture" and (cat in ["culture", "heritage", "museum", "temple", "religious", "spiritual", "architecture", "art", "handicraft", "workshop"]):
                             return True
-                        if intr == "adventure" and (cat in ["adventure", "trekking", "water sports", "sports", "boat ride"] or "adventure" in cat):
+                        if intr == "adventure" and (cat in ["adventure", "trekking", "water sports", "sports", "boat ride"] or "adventure" in cat or any(k in all_text for k in ["trek", "hike", "kayak", "rafting", "climbing"])):
                             return True
                         if intr == "nature" and (cat in ["nature", "beach", "wildlife", "waterfall", "bird watching", "coastal"] or "nature" in cat):
                             return True
-                        if intr == "heritage" and (cat in ["heritage", "fort", "temple", "religious", "architecture", "museum"] or "heritage" in cat):
+                        if intr == "heritage" and (cat in ["heritage", "fort", "temple", "religious", "architecture", "museum"] or "heritage" in cat or "fort" in all_text):
                             return True
-                        if intr == "beach" and (cat in ["beach", "coastal", "water sports"] or "beach" in cat):
+                        if intr == "beach" and (cat in ["beach", "coastal", "water sports"] or "beach" in cat or "beach" in all_text):
                             return True
-                        if intr == "shopping" and (cat in ["shopping", "market", "markets", "handicraft"] or "shopping" in cat or "market" in cat):
+                        if intr == "shopping" and (cat in ["shopping", "market", "markets", "handicraft"] or "shopping" in cat or "market" in cat or "bazaar" in all_text):
                             return True
-                        if intr == "nightlife" and (cat in ["nightlife", "entertainment"] or "nightlife" in cat):
+                        if intr == "nightlife" and (cat in ["nightlife", "entertainment"] or "nightlife" in cat or any(k in all_text for k in ["pub", "bar", "brewery", "club"])):
                             return True
                         if intr in ["local experiences", "local experience", "hidden gems", "hidden gem"]:
                             if row.get("local_experience_bool") == 1 or row.get("hidden_gem_bool") == 1 or cat in ["local experience", "local_experience", "homestay", "agritourism"]:
                                 return True
-                        if intr in cat or intr in sub_cat:
+                        if intr in cat or intr in sub_cat or intr in all_text:
                             return True
                     return False
 

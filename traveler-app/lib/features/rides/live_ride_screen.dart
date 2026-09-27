@@ -358,20 +358,19 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                   // Action Buttons
                   if (status == RideStatus.arrived) ...[
                     LocalLensPrimaryButton(
-                      text: 'Start Ride',
+                      text: 'Driver Arrived • Board Vehicle',
                       isOrange: true,
                       icon: Icons.play_arrow_rounded,
                       onPressed: () {
                         ref.read(rideProvider.notifier).startTrip();
                       },
                     ),
-                  ] else if (status == RideStatus.inProgress) ...[
+                  ] else if (status == RideStatus.inProgress || status == RideStatus.started) ...[
                     LocalLensPrimaryButton(
-                      text: 'Heading to Experience...',
+                      text: 'Heading to Destination...',
                       isOrange: false,
                       icon: Icons.navigation_rounded,
                       onPressed: () {
-                        ref.read(rideProvider.notifier).completeTrip();
                         context.pushReplacement(AppRoutes.travelerRideCompleted);
                       },
                     ),

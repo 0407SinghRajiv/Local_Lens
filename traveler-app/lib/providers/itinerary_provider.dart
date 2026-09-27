@@ -30,6 +30,7 @@ class CreateItineraryState {
   final String groupType; // "Solo", "Couple", "Friends", "Family"
   final int desiredExperienceCount; // e.g. 4 (Number of experiences wanted in itinerary)
   final List<String> interests;
+  final List<String> excludedCategories;
   final String preferences;
 
   // ML Recommendations & Selection Stage
@@ -42,6 +43,7 @@ class CreateItineraryState {
   final ItineraryFormStatus status;
   final String? error;
   final Itinerary? generatedItinerary;
+  final List<Itinerary> savedTrips;
 
   const CreateItineraryState({
     this.locationMode = LocationMode.destination,
@@ -57,6 +59,7 @@ class CreateItineraryState {
     this.groupType = 'Couple',
     this.desiredExperienceCount = 4,
     this.interests = const ['Food', 'Culture', 'Local Experiences'],
+    this.excludedCategories = const [],
     this.preferences = '',
     this.recommendations = const [],
     this.selectedExperienceIds = const {},
@@ -66,6 +69,7 @@ class CreateItineraryState {
     this.status = ItineraryFormStatus.initial,
     this.error,
     this.generatedItinerary,
+    this.savedTrips = const [],
   });
 
   /// Form validation rule:
@@ -98,6 +102,7 @@ class CreateItineraryState {
     String? groupType,
     int? desiredExperienceCount,
     List<String>? interests,
+    List<String>? excludedCategories,
     String? preferences,
     List<RecommendationModel>? recommendations,
     Set<String>? selectedExperienceIds,
@@ -107,6 +112,7 @@ class CreateItineraryState {
     ItineraryFormStatus? status,
     String? error,
     Itinerary? generatedItinerary,
+    List<Itinerary>? savedTrips,
   }) {
     return CreateItineraryState(
       locationMode: locationMode ?? this.locationMode,
@@ -122,6 +128,7 @@ class CreateItineraryState {
       groupType: groupType ?? this.groupType,
       desiredExperienceCount: desiredExperienceCount ?? this.desiredExperienceCount,
       interests: interests ?? this.interests,
+      excludedCategories: excludedCategories ?? this.excludedCategories,
       preferences: preferences ?? this.preferences,
       recommendations: recommendations ?? this.recommendations,
       selectedExperienceIds: selectedExperienceIds ?? this.selectedExperienceIds,
@@ -131,6 +138,7 @@ class CreateItineraryState {
       status: status ?? this.status,
       error: error,
       generatedItinerary: generatedItinerary ?? this.generatedItinerary,
+      savedTrips: savedTrips ?? this.savedTrips,
     );
   }
 }
@@ -211,6 +219,62 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     state = state.copyWith(interests: updated);
   }
 
+  /// Apply conversational optimization changes from Groq Chatbot
+  void applyOptimizationChanges({
+    List<String>? removeInterests,
+    List<String>? addInterests,
+    String? customNotes,
+    double? budget,
+    double? durationHours,
+  }) {
+    final currentInterests = List<String>.from(state.interests);
+    final currentExcluded = List<String>.from(state.excludedCategories);
+
+    if (removeInterests != null) {
+      for (final r in removeInterests) {
+        currentInterests.removeWhere((i) => i.toLowerCase() == r.toLowerCase());
+        if (!currentExcluded.any((e) => e.toLowerCase() == r.toLowerCase())) {
+          currentExcluded.add(r);
+        }
+      }
+    }
+    if (addInterests != null) {
+      for (final a in addInterests) {
+        currentExcluded.removeWhere((e) => e.toLowerCase() == a.toLowerCase());
+        if (!currentInterests.any((i) => i.toLowerCase() == a.toLowerCase())) {
+          currentInterests.add(a);
+        }
+      }
+    }
+
+    String updatedPref = state.preferences;
+    if (customNotes != null && customNotes.trim().isNotEmpty) {
+      updatedPref = updatedPref.isNotEmpty
+          ? '$updatedPref; ${customNotes.trim()}'
+          : customNotes.trim();
+    }
+
+    // Filter existing recommendations to purge any excluded items
+    final filteredRecs = state.recommendations.where((rec) {
+      for (final ex in currentExcluded) {
+        if (rec.matchesExcludedCategory(ex)) return false;
+      }
+      return true;
+    }).toList();
+
+    state = state.copyWith(
+      interests: currentInterests,
+      excludedCategories: currentExcluded,
+      preferences: updatedPref,
+      totalBudgetInr: budget ?? state.totalBudgetInr,
+      availableTimeMinutes: durationHours != null ? (durationHours * 60).round() : state.availableTimeMinutes,
+      recommendations: filteredRecs,
+      // Clear previous swipe selections so user can swipe fresh recommendations
+      selectedPlaces: const [],
+      selectedExperienceIds: const {},
+    );
+  }
+
   void setPreferences(String preferences) {
     state = state.copyWith(preferences: preferences);
   }
@@ -276,17 +340,34 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         travelerType: state.groupType,
         interests: state.interests,
         preferences: state.preferences,
+        excludedCategories: state.excludedCategories,
         topN: 50,
       );
 
+      // Strictly purge any items matching excluded categories
+      var filteredRecs = recs.where((rec) {
+        for (final ex in state.excludedCategories) {
+          if (rec.matchesExcludedCategory(ex)) return false;
+        }
+        return true;
+      }).toList();
+
+      // If traveler selected specific interests, ensure recommendations match those interests
+      if (state.interests.isNotEmpty) {
+        final interestMatches = filteredRecs.where((r) => r.matchesAnyInterest(state.interests)).toList();
+        if (interestMatches.isNotEmpty) {
+          filteredRecs = interestMatches;
+        }
+      }
+
       state = state.copyWith(
         status: ItineraryFormStatus.recommendationsLoaded,
-        recommendations: recs,
+        recommendations: filteredRecs,
         selectedPlaces: const [],
         selectedExperienceIds: const {},
       );
 
-      return recs;
+      return filteredRecs;
     } catch (e) {
       state = state.copyWith(
         status: ItineraryFormStatus.error,
@@ -342,12 +423,20 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
 
       debugPrint('[ItineraryProvider] Returned itinerary stops: ${itinerary.items.length}');
 
-      // Automatically save to database
+      // Automatically save to database & user trips
       ItineraryApiService.saveItineraryToDatabase(itinerary);
+      final currentTrips = List<Itinerary>.from(state.savedTrips);
+      final existingIndex = currentTrips.indexWhere((t) => t.id == itinerary.id);
+      if (existingIndex >= 0) {
+        currentTrips[existingIndex] = itinerary;
+      } else {
+        currentTrips.insert(0, itinerary);
+      }
 
       state = state.copyWith(
         status: ItineraryFormStatus.generated,
         generatedItinerary: itinerary,
+        savedTrips: currentTrips,
       );
       return itinerary;
     } catch (e) {
@@ -370,9 +459,19 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       );
       final resolved = await fallbackItin;
       ItineraryApiService.saveItineraryToDatabase(resolved);
+
+      final currentTrips = List<Itinerary>.from(state.savedTrips);
+      final existingIndex = currentTrips.indexWhere((t) => t.id == resolved.id);
+      if (existingIndex >= 0) {
+        currentTrips[existingIndex] = resolved;
+      } else {
+        currentTrips.insert(0, resolved);
+      }
+
       state = state.copyWith(
         status: ItineraryFormStatus.generated,
         generatedItinerary: resolved,
+        savedTrips: currentTrips,
       );
       return resolved;
     }
@@ -386,6 +485,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         currentItinerary: state.generatedItinerary!,
       );
       await ItineraryApiService.saveItineraryToDatabase(optimized);
+      saveItineraryToTrips(optimized);
       state = state.copyWith(generatedItinerary: optimized);
       return optimized;
     } catch (e) {
@@ -394,10 +494,69 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     }
   }
 
-  /// Explicitly save current itinerary to database
+  /// Save given itinerary into savedTrips collection
+  void saveItineraryToTrips(Itinerary itinerary) {
+    final currentList = List<Itinerary>.from(state.savedTrips);
+    final idx = currentList.indexWhere((t) => t.id == itinerary.id);
+    if (idx >= 0) {
+      currentList[idx] = itinerary;
+    } else {
+      currentList.insert(0, itinerary);
+    }
+    state = state.copyWith(savedTrips: currentList);
+  }
+
+  /// Explicitly save current itinerary to database and Trips collection
   Future<bool> saveCurrentItinerary() async {
     if (state.generatedItinerary == null) return false;
-    return await ItineraryApiService.saveItineraryToDatabase(state.generatedItinerary!);
+    final itin = state.generatedItinerary!;
+    saveItineraryToTrips(itin);
+    return await ItineraryApiService.saveItineraryToDatabase(itin);
+  }
+
+  /// Update actual expense for a specific experience stop
+  void updateExperienceExpense(String itemId, double expense) {
+    if (state.generatedItinerary == null) return;
+    final currentItin = state.generatedItinerary!;
+    final updatedItems = currentItin.items.map((item) {
+      if (item.id == itemId) {
+        return item.copyWith(actualExpense: expense);
+      }
+      return item;
+    }).toList();
+    final updatedItin = currentItin.copyWith(items: updatedItems);
+    saveItineraryToTrips(updatedItin);
+    state = state.copyWith(generatedItinerary: updatedItin);
+    ItineraryApiService.saveItineraryToDatabase(updatedItin);
+  }
+
+  /// Mark experience as completed with rating, review, and expense tracking
+  void completeExperience(String itemId, {double? rating, String? review, double? expense}) {
+    if (state.generatedItinerary == null) return;
+    final currentItin = state.generatedItinerary!;
+    final updatedItems = currentItin.items.map((item) {
+      if (item.id == itemId) {
+        return item.copyWith(
+          isCompleted: true,
+          completedAt: DateTime.now(),
+          travelerRating: rating ?? item.travelerRating ?? 5.0,
+          travelerReview: review ?? item.travelerReview,
+          actualExpense: expense ?? item.actualExpense,
+          arrivedWithinProximity: true,
+          dwellDurationMinutes: 5,
+        );
+      }
+      return item;
+    }).toList();
+    final updatedItin = currentItin.copyWith(items: updatedItems);
+    saveItineraryToTrips(updatedItin);
+    state = state.copyWith(generatedItinerary: updatedItin);
+    ItineraryApiService.saveItineraryToDatabase(updatedItin);
+  }
+
+  /// Sets the active itinerary for viewing and editing
+  void setActiveItinerary(Itinerary itinerary) {
+    state = state.copyWith(generatedItinerary: itinerary);
   }
 
   /// Toggle item selection in generated itinerary
@@ -412,6 +571,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     }).toList();
 
     final updatedItin = state.generatedItinerary!.copyWith(items: updatedItems);
+    saveItineraryToTrips(updatedItin);
     state = state.copyWith(
       generatedItinerary: updatedItin,
     );
@@ -420,20 +580,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
 
   /// Mark experience completed
   void markItemCompleted(String itemId) {
-    if (state.generatedItinerary == null) return;
-    final currentItems = state.generatedItinerary!.items;
-    final updatedItems = currentItems.map((item) {
-      if (item.id == itemId) {
-        return item.copyWith(isCompleted: true);
-      }
-      return item;
-    }).toList();
-
-    final updatedItin = state.generatedItinerary!.copyWith(items: updatedItems);
-    state = state.copyWith(
-      generatedItinerary: updatedItin,
-    );
-    ItineraryApiService.saveItineraryToDatabase(updatedItin);
+    completeExperience(itemId);
   }
 
   /// Attaches booked ride to itinerary
@@ -443,6 +590,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       hasRideAttached: true,
       attachedRideId: rideId,
     );
+    saveItineraryToTrips(updatedItin);
     state = state.copyWith(
       generatedItinerary: updatedItin,
     );

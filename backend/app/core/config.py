@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     MAP_API_KEY: str = ""
     WEATHER_API_KEY: str = ""
     LLM_API_KEY: str = ""
+    GROQ_API_KEY: str = ""
+
+    # Nugen AI Integration (Post-generation enhancement & validation layer)
+    NUGEN_ENABLED: bool = False
+    NUGEN_API_KEY: str = ""
+    NUGEN_MODEL: str = "nugen-flash-instruct"
+    NUGEN_API_URL: str = ""
 
     # CORS
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
