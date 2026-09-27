@@ -1,4 +1,5 @@
 import logging
+import os
 from typing import Any, Dict, Optional
 import httpx
 
@@ -152,6 +153,66 @@ class WeatherService:
                             "longitude": target_lon,
                         }
 
+        # 1. Primary: Fetch real-time weather from OpenWeatherMap using API Key
+        owm_key = (
+            os.getenv("WEATHER_API_KEY")
+            or os.getenv("OPENWEATHER_API_KEY")
+            or "9fb8d155eeb443116f6d35e81215a121"
+        ).strip()
+
+        if owm_key:
+            try:
+                owm_url = (
+                    f"https://api.openweathermap.org/data/2.5/weather"
+                    f"?lat={target_lat}&lon={target_lon}&appid={owm_key}&units=metric"
+                )
+                async with httpx.AsyncClient(timeout=4.0) as client:
+                    res = await client.get(owm_url)
+                    if res.status_code == 200:
+                        data = res.json()
+                        w_list = data.get("weather", [{}])
+                        w_main = w_list[0].get("main", "Clear")
+                        w_desc = w_list[0].get("description", "clear sky").title()
+                        main_block = data.get("main", {})
+                        temp_c = float(main_block.get("temp", 28.0))
+                        humidity = int(main_block.get("humidity", 60))
+                        wind_block = data.get("wind", {})
+                        wind_speed_ms = float(wind_block.get("speed", 3.0))
+                        wind_speed_kmh = round(wind_speed_ms * 3.6, 1)
+                        rain_block = data.get("rain", {})
+                        rainfall_mm = float(rain_block.get("1h", rain_block.get("3h", 0.0)))
+
+                        # Map OpenWeatherMap conditions to friendly display condition
+                        condition = w_desc
+                        w_main_lower = w_main.lower()
+                        if w_main_lower == "clear":
+                            condition = "Clear & Sunny"
+                        elif w_main_lower in ("clouds", "cloudy"):
+                            condition = "Partly Cloudy" if "few" in w_desc.lower() or "scattered" in w_desc.lower() else "Overcast"
+                        elif w_main_lower == "rain":
+                            condition = "Rain Showers" if "shower" in w_desc.lower() or "light" in w_desc.lower() else "Moderate Rain"
+                        elif w_main_lower == "thunderstorm":
+                            condition = "Heavy Thunderstorm"
+                        elif w_main_lower in ("drizzle", "mist", "fog", "haze"):
+                            condition = "Hazy / Foggy"
+
+                        return {
+                            "condition": condition,
+                            "temperature": f"{round(temp_c)}°C",
+                            "temperature_c": round(temp_c, 1),
+                            "rainfall_mm": rainfall_mm,
+                            "humidity_pct": humidity,
+                            "wind_speed_kmh": f"{wind_speed_kmh} km/h",
+                            "source": "openweathermap",
+                            "is_simulated": False,
+                            "latitude": target_lat,
+                            "longitude": target_lon,
+                            "city_name": data.get("name"),
+                        }
+            except Exception as e:
+                logger.debug(f"[WeatherService] OpenWeatherMap fetch failed: {e}")
+
+        # 2. Secondary Fallback: Open-Meteo
         try:
             url = (
                 f"https://api.open-meteo.com/v1/forecast"
@@ -181,7 +242,7 @@ class WeatherService:
                         "longitude": target_lon,
                     }
         except Exception as e:
-            logger.debug(f"[WeatherService] Live weather fetch skipped/timed out: {e}")
+            logger.debug(f"[WeatherService] Open-Meteo fetch skipped/timed out: {e}")
 
         # Fallback realistic live GPS weather data based on current local hour
         from datetime import datetime
