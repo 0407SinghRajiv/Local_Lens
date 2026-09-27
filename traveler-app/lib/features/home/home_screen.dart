@@ -15,6 +15,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/itinerary_provider.dart';
 import '../../services/location_service.dart';
 import '../../services/sponsor_service.dart';
+import '../../services/itinerary_api_service.dart';
+import '../../models/recommendation_model.dart';
 import '../../widgets/common/locallens_components.dart';
 import '../../widgets/active_ride_floating_bar.dart';
 import '../explore/explore_screen.dart';
@@ -51,6 +53,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   String _tempCelsius = '27°C';
   String _weatherDesc = 'Clear Sky';
   IconData _weatherIcon = Icons.wb_sunny_rounded;
+
+  final TextEditingController _smartSearchController = TextEditingController();
+  bool _isSmartSearching = false;
 
   @override
   void initState() {
@@ -106,12 +111,105 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   @override
   void dispose() {
     _clockTimer?.cancel();
+    _smartSearchController.dispose();
     _sunMoonRayController.dispose();
     _stormController.dispose();
     _borderPulseController.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Groq-powered natural language prompt smart search handler
+  Future<void> _handleSmartSearch(String rawQuery) async {
+    final query = rawQuery.trim();
+    if (query.isEmpty) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _isSmartSearching = true;
+    });
+
+    try {
+      final itinState = ref.read(itineraryProvider);
+      final lat = itinState.latitude;
+      final lon = itinState.longitude;
+      final city = itinState.destination.isNotEmpty ? itinState.destination : 'Mumbai';
+
+      final res = await ItineraryApiService.smartSearch(
+        query: query,
+        userLat: lat,
+        userLon: lon,
+        city: city,
+      );
+
+      final parsedIntent = (res['parsed_intent'] as Map<String, dynamic>?) ?? {};
+      final recs = (res['recommendations'] as List<RecommendationModel>?) ?? [];
+
+      if (!mounted) return;
+
+      if (recs.isNotEmpty) {
+        // Hydrate itinerary provider with Groq parsed intent + ML recommendations
+        ref.read(itineraryProvider.notifier).applySmartSearchResult(
+              parsedIntent: parsedIntent,
+              recommendations: recs,
+            );
+
+        final vibe = parsedIntent['vibe_summary']?.toString() ?? 'Experiences tailored to your journey!';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF0F172A),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            content: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Color(0xFF38BDF8), size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    vibe,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+
+        // Redirect directly to the recommendation swipe page
+        context.push(AppRoutes.recommendationSwipe);
+      } else {
+        // Fallback: switch to Explore tab if no specific items matched
+        setState(() {
+          _currentTabIndex = 1;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: const Color(0xFF1E293B),
+            content: const Text('Browsing spots matching your search...'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[HomeScreen] Smart Search failed: $e');
+      if (mounted) {
+        setState(() {
+          _currentTabIndex = 1;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSmartSearching = false;
+        });
+      }
+    }
   }
 
   Future<void> _fetchWeather() async {
@@ -975,52 +1073,63 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                         ],
                       ),
                       child: TextField(
-                        onSubmitted: (query) {
-                          if (query.trim().isNotEmpty) {
-                            setState(() {
-                              _currentTabIndex = 1; // Switch to Explore tab
-                            });
-                          }
-                        },
+                        controller: _smartSearchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (query) => _handleSmartSearch(query),
                         style: TextStyle(
                           fontSize: 14,
                           color: _isStormyDemo ? Colors.white : const Color(0xFF111827),
                           fontWeight: FontWeight.w700,
                         ),
                         decoration: InputDecoration(
-                          hintText: 'Search destinations, local eats & spots...',
+                          hintText: 'Ask AI: e.g. 2 hr, ₹1500, couple, sunset & street food...',
                           hintStyle: TextStyle(
-                            fontSize: 14,
-                            color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF111827),
-                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                            color: _isStormyDemo ? const Color(0xFF94A3B8) : const Color(0xFF6B7280),
+                            fontWeight: FontWeight.w500,
                           ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
-                            size: 24,
-                          ),
-                          suffixIcon: Container(
-                            margin: const EdgeInsets.all(6),
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: _isStormyDemo
-                                  ? const Color(0xFF0F172A)
-                                  : const Color(0xFF111827).withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: Icon(
-                              Icons.tune_rounded,
-                              color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF111827),
-                              size: 18,
+                          prefixIcon: _isSmartSearching
+                              ? const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: Padding(
+                                    padding: EdgeInsets.all(12),
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF38BDF8)),
+                                    ),
+                                  ),
+                                )
+                              : Icon(
+                                  Icons.auto_awesome_rounded,
+                                  color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                                  size: 22,
+                                ),
+                          suffixIcon: GestureDetector(
+                            onTap: () => _handleSmartSearch(_smartSearchController.text),
+                            child: Container(
+                              margin: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.all(7),
+                              decoration: BoxDecoration(
+                                color: _isStormyDemo
+                                    ? const Color(0xFF0F172A)
+                                    : const Color(0xFF2563EB).withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Icon(
+                                Icons.arrow_forward_rounded,
+                                color: _isStormyDemo ? const Color(0xFF38BDF8) : const Color(0xFF2563EB),
+                                size: 18,
+                              ),
                             ),
                           ),
                           border: InputBorder.none,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 15,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 15,
+                          ),
                         ),
                       ),
-                    ),
                   ),
                 ],
               ),

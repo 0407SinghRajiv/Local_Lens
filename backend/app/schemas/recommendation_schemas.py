@@ -120,3 +120,39 @@ class RecommendationResponse(BaseModel):
     success: bool = True
     count: int
     recommendations: List[RecommendationItem]
+
+
+class SmartSearchRequest(BaseModel):
+    """
+    Natural language query from the traveler search bar.
+    e.g. "I have 2 hr my budget is 1500 I am with couple I have to visit 3 places my interest is street food and sunset"
+    """
+    query: str = Field(..., description="Natural language search prompt from traveler")
+    user_lat: Optional[float] = Field(default=None, description="Current latitude")
+    user_lon: Optional[float] = Field(default=None, description="Current longitude")
+    city: Optional[str] = Field(default=None, description="Fallback or current city")
+
+
+class ParsedTravelIntent(BaseModel):
+    """
+    Structured parameters extracted by Groq LLM from the traveler's free-form prompt.
+    """
+    destination: Optional[str] = None
+    available_time_hours: float = 4.0
+    budget_inr: float = 2500.0
+    traveler_count: int = 1
+    group_type: str = "Solo"
+    interests: List[str] = Field(default_factory=list)
+    desired_experience_count: int = 3
+    keywords: List[str] = Field(default_factory=list)
+    vibe_summary: str = ""
+
+
+class SmartSearchResponse(BaseModel):
+    """
+    Response returned by POST /api/recommendations/smart-search
+    """
+    success: bool = True
+    parsed_intent: ParsedTravelIntent
+    count: int
+    recommendations: List[RecommendationItem]

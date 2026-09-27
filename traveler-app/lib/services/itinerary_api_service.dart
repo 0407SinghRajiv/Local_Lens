@@ -159,6 +159,46 @@ class ItineraryApiService {
     return _buildFallbackRecommendations(destination, interests, budget, excludedCategories);
   }
 
+  /// Natural language smart search using Groq LLM parsing + ML Recommendation Engine
+  static Future<Map<String, dynamic>> smartSearch({
+    required String query,
+    double? userLat,
+    double? userLon,
+    String? city,
+  }) async {
+    final activeBase = await resolveBaseUrl();
+    final url = '$activeBase/api/recommendations/smart-search';
+    final payload = {
+      'query': query,
+      'user_lat': userLat,
+      'user_lon': userLon,
+      'city': city,
+    };
+
+    try {
+      final response = await _dio.post(url, data: payload);
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data is String ? jsonDecode(response.data) : response.data;
+        final parsedIntent = data['parsed_intent'] as Map<String, dynamic>? ?? {};
+        final rawRecs = (data['recommendations'] as List? ?? []);
+        final recs = rawRecs.map((item) => RecommendationModel.fromJson(item as Map<String, dynamic>)).toList();
+        debugPrint('[ItineraryApiService] Smart Search received ${recs.length} recommendations from Groq+ML');
+        return {
+          'success': true,
+          'parsed_intent': parsedIntent,
+          'recommendations': recs,
+        };
+      }
+    } catch (e) {
+      debugPrint('[ItineraryApiService] Smart Search failed: $e');
+    }
+    return {
+      'success': false,
+      'parsed_intent': <String, dynamic>{},
+      'recommendations': <RecommendationModel>[],
+    };
+  }
+
   /// 2. Generate Chronological Itinerary from selected experiences + trip start time
   static Future<Itinerary> generateItinerary({
     required String destination,
