@@ -94,8 +94,10 @@ class RideAcceptedScreen extends ConsumerWidget {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(color: LocalLensColors.primaryTeal, width: 2),
-                            image: const DecorationImage(
-                              image: AssetImage('assets/images/characters/solo.png'),
+                            image: DecorationImage(
+                              image: rider.profileImage.startsWith('http')
+                                  ? NetworkImage(rider.profileImage) as ImageProvider
+                                  : AssetImage(rider.profileImage.isNotEmpty ? rider.profileImage : 'assets/images/characters/solo.png'),
                               fit: BoxFit.cover,
                             ),
                           ),
@@ -107,9 +109,13 @@ class RideAcceptedScreen extends ConsumerWidget {
                             children: [
                               Row(
                                 children: [
-                                  Text(
-                                    rider.name,
-                                    style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.w800),
+                                  Flexible(
+                                    child: Text(
+                                      rider.name,
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
+                                      style: LocalLensTypography.titleMedium.copyWith(fontWeight: FontWeight.w800),
+                                    ),
                                   ),
                                   const SizedBox(width: 6),
                                   Container(

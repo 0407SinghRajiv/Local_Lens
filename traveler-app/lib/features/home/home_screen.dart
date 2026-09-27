@@ -19,6 +19,7 @@ import '../explore/explore_screen.dart';
 import '../itinerary/my_itinerary_screen.dart';
 import '../saved/saved_screen.dart';
 import '../profile/profile_screen.dart';
+import '../rides/ride_booking_bottom_sheet.dart';
 
 /// Screen 10: Home Screen & Main Shell with Real Sponsored Experiences
 class HomeScreen extends ConsumerStatefulWidget {
@@ -1182,6 +1183,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                               distanceKm: exp.distanceKm,
                               durationHours: exp.durationHours,
                               onTap: () => context.push(AppRoutes.experienceDetails),
+                              onBookRideTap: () {
+                                showRideBookingBottomSheet(
+                                  context: context,
+                                  ref: ref,
+                                  destinationTitle: exp.title,
+                                  destinationLocation: exp.location,
+                                  distanceKm: exp.distanceKm,
+                                );
+                              },
                               width: double.infinity,
                               isStormy: _isStormyDemo,
                             );
@@ -1306,8 +1316,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
                                 height: 48,
                                 decoration: BoxDecoration(
                                   color: _isStormyDemo
-                                      ? const Color(0xFF38BDF8).withValues(alpha: 0.15)
-                                      : const Color(0xFFFF1744).withValues(alpha: 0.1),
+                                      ? Color(0xFF38BDF8).withValues(alpha: 0.15)
+                                      : Color(0xFFFF1744).withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                                 child: Icon(

@@ -4,27 +4,73 @@ import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../widgets/common/locallens_components.dart';
 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 /// Screen 19: Turn-by-Turn Navigation Screen
-class NavigationScreen extends StatelessWidget {
+class NavigationScreen extends StatefulWidget {
   const NavigationScreen({super.key});
+
+  @override
+  State<NavigationScreen> createState() => _NavigationScreenState();
+}
+
+class _NavigationScreenState extends State<NavigationScreen> {
+  GoogleMapController? _mapController;
+
+  static const _userLoc = LatLng(18.9894, 73.1175);
+  static const _destLoc = LatLng(18.9950, 73.1250);
+
+  final Set<Marker> _markers = {
+    Marker(
+      markerId: const MarkerId('user_current_location'),
+      position: _userLoc,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      infoWindow: const InfoWindow(title: 'You are here', snippet: 'Current Location'),
+    ),
+    Marker(
+      markerId: const MarkerId('experience_destination'),
+      position: _destLoc,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+      infoWindow: const InfoWindow(title: 'Local Food Experience', snippet: 'Destination'),
+    ),
+  };
+
+  final Set<Polyline> _polylines = {
+    const Polyline(
+      polylineId: PolylineId('navigation_turn_by_turn_route'),
+      points: [_userLoc, LatLng(18.9920, 73.1200), _destLoc],
+      color: LocalLensColors.primaryTeal,
+      width: 6,
+      geodesic: true,
+    ),
+  };
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // Navigation Route Map
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/54506.png'),
-                fit: BoxFit.cover,
+          // Navigation Route Real Google Map
+          Positioned.fill(
+            child: GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: _userLoc,
+                zoom: 15.0,
               ),
-            ),
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.15),
+              markers: _markers,
+              polylines: _polylines,
+              zoomControlsEnabled: false,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              onMapCreated: (controller) {
+                _mapController = controller;
+              },
             ),
           ),
 

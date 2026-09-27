@@ -1,25 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
+import '../../services/location_service.dart';
 import '../../widgets/common/locallens_components.dart';
+import '../rides/ride_booking_bottom_sheet.dart';
 
 /// Screen 11: Explore Screen with Real-Time Search, Filters, and Interactive Cards (Stitch UI)
-class ExploreScreen extends StatefulWidget {
+class ExploreScreen extends ConsumerStatefulWidget {
   final bool isStormy;
   const ExploreScreen({super.key, this.isStormy = false});
 
   @override
-  State<ExploreScreen> createState() => _ExploreScreenState();
+  ConsumerState<ExploreScreen> createState() => _ExploreScreenState();
 }
 
-class _ExploreScreenState extends State<ExploreScreen> {
+class _ExploreScreenState extends ConsumerState<ExploreScreen> {
   String _searchQuery = '';
   String _selectedFilter = 'All';
   final Set<String> _savedIds = {};
 
   final List<String> _quickFilters = ['All', 'Food', 'Culture', 'Adventure', 'Nature'];
+
+  @override
+  void initState() {
+    super.initState();
+    LocationService.startLiveLocationTracking();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -244,8 +253,16 @@ class _ExploreScreenState extends State<ExploreScreen> {
                             location: exp.location,
                             distanceKm: exp.distanceKm,
                             durationHours: exp.durationHours,
-                            isSaved: isSaved,
                             onTap: () => context.push(AppRoutes.experienceDetails),
+                            onBookRideTap: () {
+                              showRideBookingBottomSheet(
+                                context: context,
+                                ref: ref,
+                                destinationTitle: exp.title,
+                                destinationLocation: exp.location,
+                                distanceKm: exp.distanceKm,
+                              );
+                            },
                             onSaveTap: () {
                               setState(() {
                                 if (isSaved) {

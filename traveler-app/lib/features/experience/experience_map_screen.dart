@@ -4,34 +4,82 @@ import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../widgets/common/locallens_components.dart';
 
+import 'package:google_maps_flutter/google_maps_flutter.dart';
+
 /// Screen 13: Experience Map Screen with Route & Bottom Detail Card
-class ExperienceMapScreen extends StatelessWidget {
+class ExperienceMapScreen extends StatefulWidget {
   const ExperienceMapScreen({super.key});
+
+  @override
+  State<ExperienceMapScreen> createState() => _ExperienceMapScreenState();
+}
+
+class _ExperienceMapScreenState extends State<ExperienceMapScreen> {
+  GoogleMapController? _mapController;
+
+  static const _center = LatLng(18.9894, 73.1175);
+  static const _stop1 = LatLng(18.9850, 73.1120);
+  static const _stop2 = LatLng(18.9920, 73.1230);
+  static const _stop3 = LatLng(18.9980, 73.1290);
+
+  final Set<Marker> _markers = {
+    Marker(
+      markerId: const MarkerId('stop1'),
+      position: _stop1,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueCyan),
+      infoWindow: const InfoWindow(title: 'Panvel Heritage Trail', snippet: 'Stop 1'),
+    ),
+    Marker(
+      markerId: const MarkerId('stop2'),
+      position: _stop2,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+      infoWindow: const InfoWindow(title: 'Sunset by the Coast', snippet: 'Stop 2'),
+    ),
+    Marker(
+      markerId: const MarkerId('stop3'),
+      position: _stop3,
+      icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
+      infoWindow: const InfoWindow(title: 'Local Spice Tasting', snippet: 'Stop 3'),
+    ),
+  };
+
+  final Set<Polyline> _polylines = {
+    const Polyline(
+      polylineId: PolylineId('experience_trail_route'),
+      points: [_stop1, _stop2, _stop3],
+      color: LocalLensColors.primaryTeal,
+      width: 5,
+      geodesic: true,
+    ),
+  };
+
+  @override
+  void dispose() {
+    _mapController?.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          // Full-screen Stylized Interactive Map Background
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/maps/experience_map.png'),
-                fit: BoxFit.cover,
+          // Full-screen Interactive Real Google Map
+          Positioned.fill(
+            child: GoogleMap(
+              initialCameraPosition: const CameraPosition(
+                target: _center,
+                zoom: 13.8,
               ),
+              markers: _markers,
+              polylines: _polylines,
+              zoomControlsEnabled: false,
+              myLocationEnabled: true,
+              myLocationButtonEnabled: false,
+              onMapCreated: (controller) {
+                _mapController = controller;
+              },
             ),
-            child: Container(
-              color: Colors.teal.withValues(alpha: 0.15),
-            ),
-          ),
-
-          // Custom Map Route Polyline & Pins Canvas
-          CustomPaint(
-            size: Size.infinite,
-            painter: _MapRoutePainter(),
           ),
 
           // Top Floating Navigation Bar
@@ -140,33 +188,4 @@ class ExperienceMapScreen extends StatelessWidget {
       ),
     );
   }
-}
-
-/// Simulated Map Path Painter with waypoints
-class _MapRoutePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = LocalLensColors.primaryTeal
-      ..strokeWidth = 4.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path()
-      ..moveTo(size.width * 0.25, size.height * 0.35)
-      ..lineTo(size.width * 0.50, size.height * 0.45)
-      ..lineTo(size.width * 0.40, size.height * 0.60)
-      ..lineTo(size.width * 0.70, size.height * 0.68);
-
-    canvas.drawPath(path, paint);
-
-    // Draw Map Pin Nodes
-    final pinPaint = Paint()..color = LocalLensColors.accentOrange;
-    canvas.drawCircle(Offset(size.width * 0.25, size.height * 0.35), 8, pinPaint);
-    canvas.drawCircle(Offset(size.width * 0.50, size.height * 0.45), 6, pinPaint);
-    canvas.drawCircle(Offset(size.width * 0.70, size.height * 0.68), 10, pinPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -8,8 +8,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 import re
+import sys
 import numpy as np
 import pandas as pd
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from ml.recommendation.engine import haversine_km
 try:
