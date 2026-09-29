@@ -489,7 +489,7 @@ class AppState extends ChangeNotifier {
   // ─── Ride Request Handling ───
   void _onNewRideRequest(Ride ride) {
     if (_pendingRequest != null || _activeRide != null) return;
-    if (!(_driver?.isAvailable ?? false)) return;
+    if (!(_driver?.isOnline ?? false)) return;
 
     _pendingRequest = ride;
     _countdownSeconds = 15;

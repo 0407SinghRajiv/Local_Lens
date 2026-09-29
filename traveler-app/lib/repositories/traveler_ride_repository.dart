@@ -49,47 +49,6 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
     final travelerId = user?.id ?? 'traveler-${DateTime.now().millisecondsSinceEpoch}';
     final travelerName = user?.userMetadata?['full_name'] as String? ?? user?.email?.split('@').first ?? 'Traveler';
 
-    // 1. Query real riders from Supabase riders table to allot nearest real rider
-    String? assignedRiderId;
-    Map<String, dynamic>? nearestRiderRow;
-
-    if (client != null) {
-      try {
-        final ridersResponse = await client.from('riders').select();
-        if (ridersResponse.isNotEmpty) {
-          final ridersList = List<Map<String, dynamic>>.from(ridersResponse as List);
-
-          // Prefer online/available riders
-          var eligibleRiders = ridersList.where((r) => r['is_online'] == true || r['is_available'] == true).toList();
-          if (eligibleRiders.isEmpty) {
-            eligibleRiders = ridersList; // Fallback to all registered drivers in Supabase
-          }
-
-          double minDistance = double.infinity;
-          for (final r in eligibleRiders) {
-            final rLat = (r['latitude'] as num?)?.toDouble() ?? 19.0760;
-            final rLng = (r['longitude'] as num?)?.toDouble() ?? 72.8777;
-            final dist = _haversineKm(pickupLat, pickupLng, rLat, rLng);
-            if (dist < minDistance) {
-              minDistance = dist;
-              nearestRiderRow = r;
-            }
-          }
-
-          if (nearestRiderRow != null) {
-            assignedRiderId = nearestRiderRow['id']?.toString();
-            debugPrint('[TravelerRideRepo] Alloted nearest real Supabase rider: ${nearestRiderRow['name']} (ID: $assignedRiderId, dist: ${minDistance.toStringAsFixed(2)} km)');
-          }
-        }
-      } catch (e) {
-        debugPrint('[TravelerRideRepo] Error querying riders for nearest match: $e');
-      }
-    }
-
-    final double calcPickupDist = (nearestRiderRow != null && nearestRiderRow['latitude'] != null && nearestRiderRow['longitude'] != null)
-        ? _haversineKm(pickupLat, pickupLng, (nearestRiderRow['latitude'] as num).toDouble(), (nearestRiderRow['longitude'] as num).toDouble())
-        : 1.5;
-
     final double rawTripDist = (pickupLat != 0.0 && pickupLng != 0.0 && dropLat != 0.0 && dropLng != 0.0)
         ? _haversineKm(pickupLat, pickupLng, dropLat, dropLng)
         : 4.2;
@@ -107,11 +66,10 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
       'destination_lat': dropLat,
       'destination_lng': dropLng,
       'fare': double.parse(computedFare.toStringAsFixed(2)),
-      'pickup_distance': double.parse(calcPickupDist.toStringAsFixed(2)),
+      'pickup_distance': 1.5,
       'trip_distance': double.parse(realTripDistance.toStringAsFixed(2)),
       'eta_minutes': vehicle.etaMinutes,
-      'status': assignedRiderId != null ? 'accepted' : 'searching',
-      if (assignedRiderId != null) 'rider_id': assignedRiderId,
+      'status': 'searching',
       'created_at': DateTime.now().toIso8601String(),
     };
 
@@ -124,7 +82,7 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
         drop: dropAddress,
         vehicle: vehicle,
         estimatedFare: vehicle.estimatedFare,
-        status: assignedRiderId != null ? RideStatus.accepted : RideStatus.searching,
+        status: RideStatus.searching,
         createdAt: DateTime.now(),
       );
     }
@@ -132,14 +90,6 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
     try {
       final response = await client.from('rides').insert(payload).select().single();
       final rideId = response['id']?.toString() ?? 'ride-${DateTime.now().millisecondsSinceEpoch}';
-      
-      Rider? allotedRider;
-      if (assignedRiderId != null) {
-        allotedRider = await getRiderProfile(assignedRiderId);
-        try {
-          await client.from('riders').update({'is_available': false}).eq('id', assignedRiderId);
-        } catch (_) {}
-      }
 
       return RideRequest(
         id: rideId,
@@ -148,8 +98,8 @@ class SupabaseTravelerRideRepository extends TravelerRideRepository {
         drop: dropAddress,
         vehicle: vehicle,
         estimatedFare: (response['fare'] as num?)?.toDouble() ?? vehicle.estimatedFare,
-        status: assignedRiderId != null ? RideStatus.accepted : RideStatus.searching,
-        rider: allotedRider,
+        status: RideStatus.searching,
+        rider: null,
         createdAt: DateTime.now(),
       );
     } catch (e) {

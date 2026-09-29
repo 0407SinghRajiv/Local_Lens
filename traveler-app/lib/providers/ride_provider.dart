@@ -8,6 +8,7 @@ import '../services/location_service.dart';
 
 class RideState {
   final RideStatus status;
+  final String otp;
   final VehicleOption selectedVehicle;
   final RideRequest? currentRequest;
   final Rider? activeRider;
@@ -26,6 +27,7 @@ class RideState {
 
   const RideState({
     this.status = RideStatus.idle,
+    this.otp = '4729',
     this.selectedVehicle = const VehicleOption(
       type: VehicleType.sedan,
       name: 'Sedan',
@@ -52,6 +54,7 @@ class RideState {
 
   RideState copyWith({
     RideStatus? status,
+    String? otp,
     VehicleOption? selectedVehicle,
     RideRequest? currentRequest,
     Rider? activeRider,
@@ -70,6 +73,7 @@ class RideState {
   }) {
     return RideState(
       status: status ?? this.status,
+      otp: otp ?? this.otp,
       selectedVehicle: selectedVehicle ?? this.selectedVehicle,
       currentRequest: currentRequest ?? this.currentRequest,
       activeRider: activeRider ?? this.activeRider,
@@ -105,18 +109,35 @@ class RideNotifier extends StateNotifier<RideState> {
   RideNotifier([TravelerRideRepository? repository])
       : _repository = repository ?? SupabaseTravelerRideRepository(),
         super(const RideState()) {
+    _initLiveLocation();
     _listenToUserLocation();
     checkActiveRide();
+  }
+
+  Future<void> _initLiveLocation() async {
+    LocationService.startLiveLocationTracking();
+    final resolved = await LocationService.getCurrentResolvedLocation();
+    if (resolved.latitude != 0.0 && resolved.longitude != 0.0) {
+      state = state.copyWith(
+        pickupLat: resolved.latitude,
+        pickupLng: resolved.longitude,
+        pickupLocation: resolved.displayAddress.isNotEmpty ? resolved.displayAddress : state.pickupLocation,
+      );
+    }
   }
 
   void _listenToUserLocation() {
     _userLocationSub?.cancel();
     _userLocationSub = LocationService.positionStream.listen((pos) {
       if (pos.latitude != 0.0 && pos.longitude != 0.0) {
-        state = state.copyWith(
-          pickupLat: pos.latitude,
-          pickupLng: pos.longitude,
-        );
+        final dLat = (pos.latitude - state.pickupLat).abs();
+        final dLng = (pos.longitude - state.pickupLng).abs();
+        if (dLat > 0.0001 || dLng > 0.0001) {
+          state = state.copyWith(
+            pickupLat: pos.latitude,
+            pickupLng: pos.longitude,
+          );
+        }
       }
     });
   }

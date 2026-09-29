@@ -20,6 +20,134 @@ class DriverAssignedScreen extends ConsumerStatefulWidget {
 
 class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
   GoogleMapController? _mapController;
+  bool _hasShownOtpPopup = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final currentStatus = ref.read(rideProvider).status;
+      if (currentStatus == RideStatus.arrived && !_hasShownOtpPopup) {
+        _hasShownOtpPopup = true;
+        _showOtpDialog(context, '4729');
+      }
+    });
+  }
+
+  void _showOtpDialog(BuildContext context, String otp) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: LocalLensColors.successGreen.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.near_me_rounded,
+                  color: LocalLensColors.successGreen,
+                  size: 36,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Driver Has Arrived! 🚗',
+                style: LocalLensTypography.headlineMedium.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: LocalLensColors.deepInk,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please share this 4-digit OTP with your driver so they can verify and start your ride.',
+                style: LocalLensTypography.bodyMedium.copyWith(
+                  color: LocalLensColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                decoration: BoxDecoration(
+                  color: LocalLensColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: LocalLensColors.successGreen, width: 2),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: otp.split('').map((digit) {
+                    return Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 5),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                        border: Border.all(color: LocalLensColors.successGreen, width: 1.5),
+                      ),
+                      child: Text(
+                        digit,
+                        style: const TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: LocalLensColors.successGreen,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: otp));
+                    Navigator.of(ctx).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('OTP $otp copied to clipboard!')),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: LocalLensColors.terracottaPrimary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: const Text(
+                    'SHARE OTP WITH DRIVER',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -45,7 +173,15 @@ class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
   @override
   Widget build(BuildContext context) {
     ref.listen<RideState>(rideProvider, (previous, next) {
-      if (next.status == RideStatus.started || next.status == RideStatus.inProgress) {
+      if (next.status == RideStatus.arrived && previous?.status != RideStatus.arrived) {
+        if (!_hasShownOtpPopup) {
+          _hasShownOtpPopup = true;
+          _showOtpDialog(context, '4729');
+        }
+      } else if (next.status == RideStatus.started || next.status == RideStatus.inProgress) {
+        if (_hasShownOtpPopup && Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop();
+        }
         context.pushReplacement(AppRoutes.travelerRideLive);
       } else if (next.status == RideStatus.completed) {
         context.pushReplacement(AppRoutes.travelerRideCompleted);
@@ -77,15 +213,6 @@ class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
         infoWindow: InfoWindow(
           title: '${rider.name} (Driver)',
           snippet: rider.vehicleType,
-        ),
-      ),
-      Marker(
-        markerId: const MarkerId('destination_location'),
-        position: LatLng(rideState.dropLat, rideState.dropLng),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: InfoWindow(
-          title: 'Drop Destination',
-          snippet: rideState.dropLocation,
         ),
       ),
     };
@@ -120,12 +247,12 @@ class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
                   _mapController = controller;
                   final bounds = LatLngBounds(
                     southwest: LatLng(
-                      [riderPos.latitude, pickupPos.latitude, rideState.dropLat].reduce(min) - 0.005,
-                      [riderPos.longitude, pickupPos.longitude, rideState.dropLng].reduce(min) - 0.005,
+                      [riderPos.latitude, pickupPos.latitude].reduce(min) - 0.005,
+                      [riderPos.longitude, pickupPos.longitude].reduce(min) - 0.005,
                     ),
                     northeast: LatLng(
-                      [riderPos.latitude, pickupPos.latitude, rideState.dropLat].reduce(max) + 0.005,
-                      [riderPos.longitude, pickupPos.longitude, rideState.dropLng].reduce(max) + 0.005,
+                      [riderPos.latitude, pickupPos.latitude].reduce(max) + 0.005,
+                      [riderPos.longitude, pickupPos.longitude].reduce(max) + 0.005,
                     ),
                   );
                   controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 60));
@@ -417,50 +544,70 @@ class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
                           padding: EdgeInsets.symmetric(vertical: 6),
                           child: Divider(height: 1),
                         ),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.15),
-                                shape: BoxShape.circle,
+                        if (status == RideStatus.arrived || status == RideStatus.started || status == RideStatus.inProgress) ...[
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.place_rounded,
+                                  color: LocalLensColors.terracottaPrimary,
+                                  size: 16,
+                                ),
                               ),
-                              child: Icon(
-                                Icons.place_rounded,
-                                color: LocalLensColors.terracottaPrimary,
-                                size: 16,
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'DESTINATION',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.6,
-                                      color: LocalLensColors.terracottaPrimary,
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'DESTINATION',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: 0.6,
+                                        color: LocalLensColors.terracottaPrimary,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 1),
-                                  Text(
-                                    rideState.dropLocation,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                      color: LocalLensColors.deepInk,
+                                    const SizedBox(height: 1),
+                                    Text(
+                                      rideState.dropLocation,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: LocalLensColors.deepInk,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                        ] else ...[
+                          Row(
+                            children: [
+                              Icon(Icons.lock_outline_rounded, size: 14, color: LocalLensColors.terracottaPrimary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Destination hidden until rider arrives',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    fontStyle: FontStyle.italic,
+                                    color: LocalLensColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -552,9 +699,9 @@ class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
                             ),
                             InkWell(
                               onTap: () {
-                                Clipboard.setData(const ClipboardData(text: '4729'));
+                                Clipboard.setData(ClipboardData(text: rideState.otp));
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Ride OTP 4729 copied to clipboard!')),
+                                  SnackBar(content: Text('Ride OTP ${rideState.otp} copied to clipboard!')),
                                 );
                               },
                               child: Container(
@@ -581,7 +728,7 @@ class _DriverAssignedScreenState extends ConsumerState<DriverAssignedScreen> {
                         const SizedBox(height: 10),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
-                          children: ['4', '7', '2', '9'].map((digit) {
+                          children: rideState.otp.split('').map((digit) {
                             return Container(
                               margin: const EdgeInsets.symmetric(horizontal: 4),
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

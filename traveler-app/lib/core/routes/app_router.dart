@@ -70,13 +70,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           location == AppRoutes.googleLogin ||
           location == AppRoutes.onboarding;
 
+      // If currently on splash, let SplashScreen complete its animation timeline
+      if (isSplash) return null;
+
       // 2. Unauthenticated State
       if (status == AuthStatus.unauthenticated) {
-        if (isSplash || isAuthRoute) {
-          // Already on an appropriate screen — don't redirect
-          if (location != AppRoutes.splash) return null;
-          return AppRoutes.welcome;
-        }
+        if (isAuthRoute) return null;
         debugPrint('[ROUTER] Protected route $location accessed unauthenticated. Redirecting to ${AppRoutes.login}');
         return AppRoutes.login;
       }
@@ -85,8 +84,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (status == AuthStatus.authenticated) {
         const roleHome = AppRoutes.travelerHome;
 
-        // If on splash or any auth route, automatically redirect to role home
-        if (isSplash || isAuthRoute) {
+        // If on an auth route, automatically redirect to role home
+        if (isAuthRoute) {
           debugPrint('[ROUTER] Authenticated user on $location. Redirecting to $roleHome');
           return roleHome;
         }

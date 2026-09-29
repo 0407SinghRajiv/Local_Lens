@@ -1929,10 +1929,10 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: LocalLensColors.primaryTeal.withOpacity(0.35), width: 1.5),
+        border: Border.all(color: LocalLensColors.primaryTeal.withValues(alpha: 0.35), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: LocalLensColors.primaryTeal.withOpacity(0.06),
+            color: LocalLensColors.primaryTeal.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1947,7 +1947,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: LocalLensColors.primaryTeal.withOpacity(0.12),
+                  color: LocalLensColors.primaryTeal.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(
@@ -1974,7 +1974,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
-                            color: LocalLensColors.primaryTeal.withOpacity(0.1),
+                            color: LocalLensColors.primaryTeal.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -2010,9 +2010,9 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               margin: const EdgeInsets.only(bottom: 12),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.06),
+                color: Colors.blue.withValues(alpha: 0.06),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
               ),
               child: Row(
                 children: [
@@ -2071,9 +2071,9 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: LocalLensColors.accentOrange.withOpacity(0.08),
+                color: LocalLensColors.accentOrange.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: LocalLensColors.accentOrange.withOpacity(0.3)),
+                border: Border.all(color: LocalLensColors.accentOrange.withValues(alpha: 0.3)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2367,7 +2367,7 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (activeScenario['color'] as Color).withOpacity(0.12),
+                  color: (activeScenario['color'] as Color).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -2395,8 +2395,8 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: _selectedWeatherCondition == 'Live'
-                                ? LocalLensColors.primaryTeal.withOpacity(0.1)
-                                : Colors.purple.withOpacity(0.1),
+                                ? LocalLensColors.primaryTeal.withValues(alpha: 0.1)
+                                : Colors.purple.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(

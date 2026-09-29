@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
@@ -185,7 +186,93 @@ class RideAcceptedScreen extends ConsumerWidget {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
+              // RIDE OTP CARD
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: LocalLensColors.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: LocalLensColors.terracottaPrimary.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.lock_outline_rounded, color: LocalLensColors.terracottaPrimary, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'YOUR RIDE VERIFICATION OTP',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                color: LocalLensColors.terracottaPrimary,
+                              ),
+                            ),
+                          ],
+                        ),
+                        InkWell(
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: rideState.otp));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('OTP ${rideState.otp} copied!')),
+                            );
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: LocalLensColors.terracottaPrimary),
+                            ),
+                            child: const Text(
+                              'Copy OTP',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: LocalLensColors.terracottaPrimary),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: rideState.otp.split('').map((digit) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 5),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: LocalLensColors.deepInk.withValues(alpha: 0.2), width: 1.5),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Text(
+                            digit,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                              color: LocalLensColors.deepInk,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 16),
 
               // Route Preview Card
               Container(
@@ -218,15 +305,16 @@ class RideAcceptedScreen extends ConsumerWidget {
                     ),
                     Row(
                       children: [
-                        const Icon(Icons.place_rounded, size: 16, color: LocalLensColors.accentOrange),
+                        const Icon(Icons.lock_outline_rounded, size: 16, color: LocalLensColors.terracottaPrimary),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Drop Destination', style: LocalLensTypography.caption.copyWith(fontSize: 10)),
-                              Text(rideState.dropLocation, style: LocalLensTypography.caption.copyWith(fontWeight: FontWeight.bold)),
-                            ],
+                          child: Text(
+                            'Destination hidden until rider arrives',
+                            style: LocalLensTypography.caption.copyWith(
+                              fontWeight: FontWeight.bold,
+                              fontStyle: FontStyle.italic,
+                              color: LocalLensColors.textSecondary,
+                            ),
                           ),
                         ),
                       ],

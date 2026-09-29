@@ -184,20 +184,34 @@ class _ActiveRideFloatingBarState extends ConsumerState<ActiveRideFloatingBar> w
                               ),
                             ),
                           ),
-                          if (status == RideStatus.arrived) ...[
+                          if (status == RideStatus.accepted ||
+                              status == RideStatus.riderArriving ||
+                              status == RideStatus.arrived ||
+                              status == RideStatus.started ||
+                              status == RideStatus.inProgress) ...[
                             const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                              decoration: BoxDecoration(
-                                color: LocalLensColors.successGreen,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'OTP 4729',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
+                            GestureDetector(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: rideState.otp));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('OTP ${rideState.otp} copied to clipboard!')),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: status == RideStatus.arrived
+                                      ? LocalLensColors.successGreen
+                                      : LocalLensColors.terracottaPrimary,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  'OTP ${rideState.otp}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),

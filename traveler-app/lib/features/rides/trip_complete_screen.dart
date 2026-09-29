@@ -142,12 +142,13 @@ class _TripCompleteScreenState extends State<TripCompleteScreen> {
 
               const Spacer(),
 
-              // Continue Trip Button (Orange)
+              // Continue Trip Button (Orange) -> Redirects to Main Dashboard
               LocalLensPrimaryButton(
                 text: 'Continue Trip',
                 isOrange: true,
+                icon: Icons.dashboard_rounded,
                 onPressed: () {
-                  context.push(AppRoutes.adventureComplete);
+                  context.go(AppRoutes.travelerHome);
                 },
               ),
               const SizedBox(height: 8),

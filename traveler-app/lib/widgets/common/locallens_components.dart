@@ -23,15 +23,12 @@ class AppBackgroundWrapper extends StatelessWidget {
         ),
         Positioned.fill(
           child: Opacity(
-            opacity: isDark ? 0.06 : 0.10,
+            opacity: isDark ? 0.12 : 0.18,
             child: Image.asset(
-              'assets/images/54511.png',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Image.asset(
-                'assets/images/54506.png',
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const SizedBox.shrink(),
-              ),
+              'assets/images/atithi_devo_bhava_logo.png',
+              fit: BoxFit.contain,
+              alignment: Alignment.center,
+              errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
           ),
         ),

@@ -269,7 +269,6 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
     final dayName = days[date.weekday - 1];
     final monthName = months[date.month - 1];
     return '$dayName, ${date.day} $monthName ${date.year}';
->>>>>>> 25fcca8 (fix(location): enforce destination as single source of truth for weather, recommendations, itinerary and map)
   }
 
   @override

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
@@ -349,6 +350,117 @@ class _LiveRideScreenState extends ConsumerState<LiveRideScreen>
                         ],
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Prominent Ride OTP Card (Displayed continuously until ride completion)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: status == RideStatus.arrived
+                          ? LocalLensColors.successGreen.withValues(alpha: 0.1)
+                          : LocalLensColors.surfaceContainerLow,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: status == RideStatus.arrived
+                            ? LocalLensColors.successGreen
+                            : LocalLensColors.terracottaPrimary.withValues(alpha: 0.3),
+                        width: status == RideStatus.arrived ? 1.5 : 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  status == RideStatus.arrived ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
+                                  color: status == RideStatus.arrived ? LocalLensColors.successGreen : LocalLensColors.terracottaPrimary,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  status == RideStatus.arrived
+                                      ? 'DRIVER ARRIVED! SHARE OTP'
+                                      : 'YOUR RIDE VERIFICATION OTP',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.6,
+                                    color: status == RideStatus.arrived ? LocalLensColors.successGreen : LocalLensColors.terracottaPrimary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            InkWell(
+                              onTap: () {
+                                Clipboard.setData(ClipboardData(text: rideState.otp));
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Ride OTP ${rideState.otp} copied!')),
+                                );
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(
+                                    color: status == RideStatus.arrived ? LocalLensColors.successGreen : LocalLensColors.terracottaPrimary,
+                                  ),
+                                ),
+                                child: Text(
+                                  'Copy OTP',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: status == RideStatus.arrived ? LocalLensColors.successGreen : LocalLensColors.terracottaPrimary,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: rideState.otp.split('').map((digit) {
+                            return Container(
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: status == RideStatus.arrived
+                                      ? LocalLensColors.successGreen
+                                      : LocalLensColors.deepInk.withValues(alpha: 0.2),
+                                  width: 1.5,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                digit,
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  color: status == RideStatus.arrived ? LocalLensColors.successGreen : LocalLensColors.deepInk,
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ),
                   ),
 
                   const SizedBox(height: 14),

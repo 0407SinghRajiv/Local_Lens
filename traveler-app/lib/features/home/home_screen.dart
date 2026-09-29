@@ -86,7 +86,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _sunMoonRayController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2500),
-    )..repeat(reverse: true);
+    );
 
     _stormController = AnimationController(
       vsync: this,

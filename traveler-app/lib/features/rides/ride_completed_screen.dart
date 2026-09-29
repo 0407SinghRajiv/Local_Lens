@@ -153,21 +153,20 @@ class _RideCompletedScreenState extends ConsumerState<RideCompletedScreen> {
 
               const Spacer(),
 
-              // Continue Itinerary Button (Orange)
+              // Continue Trip Button (Orange) -> Redirects to Main Dashboard
               LocalLensPrimaryButton(
                 text: 'Continue Trip',
                 isOrange: true,
-                icon: Icons.check_circle_outline_rounded,
+                icon: Icons.dashboard_rounded,
                 onPressed: () {
-                  // Mark the first stop or current stop as completed in itinerary
                   final itinerary = itineraryState.generatedItinerary;
                   if (itinerary != null && itinerary.items.isNotEmpty) {
                     ref.read(itineraryProvider.notifier).markItemCompleted(itinerary.items.first.id);
                   }
                   ref.read(rideProvider.notifier).resetRide();
 
-                  // Return to generated itinerary screen to continue exploring
-                  context.go(AppRoutes.aiItineraryResult);
+                  // Redirect to main Dashboard page (Traveler Home)
+                  context.go(AppRoutes.travelerHome);
                 },
               ),
               const SizedBox(height: 8),
