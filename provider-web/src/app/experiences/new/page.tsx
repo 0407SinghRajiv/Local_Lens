@@ -56,7 +56,7 @@ const GoogleMapPinDropper = dynamic(
   }
 );
 
-export default function NewExperienceWizardPage() {
+function NewExperienceWizardPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("id") || searchParams.get("edit");
@@ -430,6 +430,10 @@ export default function NewExperienceWizardPage() {
 
     saveStoredExperiencesForProvider(userId, updatedListings, userEmail);
     saveStoredExperiences(updatedListings);
+
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("locallens_experience_update", { detail: { providerId: userId } }));
+    }
 
     try {
       localStorage.removeItem("locallens_experience_draft");
@@ -1454,5 +1458,22 @@ export default function NewExperienceWizardPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function NewExperienceWizardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-slate-50">
+          <div className="text-center space-y-3">
+            <div className="w-10 h-10 border-4 border-[#00875A] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs font-bold text-slate-600">Loading Experience Creator...</p>
+          </div>
+        </div>
+      }
+    >
+      <NewExperienceWizardPageContent />
+    </Suspense>
   );
 }
