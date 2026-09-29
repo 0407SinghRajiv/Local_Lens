@@ -72,12 +72,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // 2. Unauthenticated State
       if (status == AuthStatus.unauthenticated) {
-        if (isSplash) {
-          debugPrint('[ROUTER] Redirecting unauthenticated user from splash to ${AppRoutes.welcome}');
+        if (isSplash || isAuthRoute) {
+          // Already on an appropriate screen — don't redirect
+          if (location != AppRoutes.splash) return null;
           return AppRoutes.welcome;
-        }
-        if (isAuthRoute) {
-          return null; // Allow unauthenticated user on auth pages
         }
         debugPrint('[ROUTER] Protected route $location accessed unauthenticated. Redirecting to ${AppRoutes.login}');
         return AppRoutes.login;
@@ -334,7 +332,59 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: AppRoutes.designSystem,
         pageBuilder: (context, state) => _buildPage(state, const DesignSystemScreen()),
       ),
+      // Error / fallback route
+      GoRoute(
+        path: AppRoutes.error,
+        pageBuilder: (context, state) => _buildPage(
+          state,
+          Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 64, color: Colors.redAccent),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Something went wrong',
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    state.extra?.toString() ?? 'Please restart the app.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () => context.go(AppRoutes.welcome),
+                    child: const Text('Go to Home'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     ],
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.link_off_rounded, size: 64, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('Page not found', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Route: ${state.uri}', style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => context.go(AppRoutes.travelerHome),
+              child: const Text('Go to Home'),
+            ),
+          ],
+        ),
+      ),
+    ),
   );
 });
 
@@ -343,13 +393,25 @@ Page<dynamic> _buildPage(GoRouterState state, Widget child) {
     key: state.pageKey,
     child: child,
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      // Slide up + fade transition for a modern, smooth feel
+      final slideAnimation = Tween<Offset>(
+        begin: const Offset(0, 0.04),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+      ));
       return FadeTransition(
         opacity: CurvedAnimation(
           parent: animation,
-          curve: Curves.easeInOut,
+          curve: Curves.easeOut,
         ),
-        child: child,
+        child: SlideTransition(
+          position: slideAnimation,
+          child: child,
+        ),
       );
     },
+    transitionDuration: const Duration(milliseconds: 280),
   );
 }

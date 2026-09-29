@@ -11,6 +11,7 @@ class AuthNotifier extends ChangeNotifier {
   final Ref _ref;
   AuthState _state = const AuthState.initializing();
   StreamSubscription<supa.AuthState>? _authSubscription;
+  bool _isLoading = false;
 
   AuthNotifier(this._ref) {
     _init();
@@ -18,11 +19,28 @@ class AuthNotifier extends ChangeNotifier {
 
   AuthState get state => _state;
 
+  /// Whether an auth operation (sign-in, sign-up, etc.) is in progress.
+  bool get isLoading => _isLoading;
+
+  void _setLoading(bool loading) {
+    if (_isLoading != loading) {
+      _isLoading = loading;
+      notifyListeners();
+    }
+  }
+
   void _updateState(AuthState newState) {
     if (_state != newState) {
       _state = newState;
       debugPrint('[AUTH] State updated: ${_state.status} | Role: ${_state.role?.value} | User: ${_state.user?.email}');
       notifyListeners();
+    }
+  }
+
+  /// Clears any auth error state so stale errors don't persist across attempts.
+  void clearError() {
+    if (_state.hasError) {
+      _updateState(const AuthState.unauthenticated());
     }
   }
 
@@ -78,6 +96,7 @@ class AuthNotifier extends ChangeNotifier {
     required String email,
     required String password,
   }) async {
+    _setLoading(true);
     try {
       final authService = _ref.read(authServiceProvider);
       final profile = await authService.signInWithEmail(
@@ -91,6 +110,8 @@ class AuthNotifier extends ChangeNotifier {
       final formattedMsg = authService.formatAuthError(e);
       _updateState(AuthState.error(formattedMsg));
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
@@ -99,6 +120,7 @@ class AuthNotifier extends ChangeNotifier {
     required String password,
     String? fullName,
   }) async {
+    _setLoading(true);
     try {
       final authService = _ref.read(authServiceProvider);
       final profile = await authService.signUpWithEmail(
@@ -113,10 +135,13 @@ class AuthNotifier extends ChangeNotifier {
       final formattedMsg = authService.formatAuthError(e);
       _updateState(AuthState.error(formattedMsg));
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<bool> signInWithGoogle() async {
+    _setLoading(true);
     try {
       final authService = _ref.read(authServiceProvider);
       final profile = await authService.signInWithGoogle();
@@ -137,20 +162,26 @@ class AuthNotifier extends ChangeNotifier {
       final formattedMsg = authService.formatAuthError(e);
       _updateState(AuthState.error(formattedMsg));
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<void> signOut() async {
+    _setLoading(true);
     try {
       final authService = _ref.read(authServiceProvider);
       await authService.signOut();
       _updateState(const AuthState.unauthenticated());
     } catch (e) {
       _updateState(const AuthState.unauthenticated());
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<bool> resetPassword(String email) async {
+    _setLoading(true);
     try {
       final authService = _ref.read(authServiceProvider);
       await authService.resetPasswordForEmail(email);
@@ -159,6 +190,8 @@ class AuthNotifier extends ChangeNotifier {
       final authService = _ref.read(authServiceProvider);
       _updateState(AuthState.error(authService.formatAuthError(e)));
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 }

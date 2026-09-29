@@ -1,175 +1,396 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/routes/app_routes.dart';
-import '../../core/theme/locallens_design_system.dart';
-import '../../widgets/common/locallens_components.dart';
 
-/// Screen 1: Splash Screen matching exact reference design
-class SplashScreen extends ConsumerStatefulWidget {
+import '../../core/routes/app_routes.dart';
+
+/// LocalLens Animated Splash Screen
+///
+/// Animation:
+/// Local
+///   ↓
+/// LocalExperience
+///   ↓
+/// LocalLens
+///   ↓
+/// Welcome
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  ConsumerState<SplashScreen> createState() => _SplashScreenState();
+  State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends ConsumerState<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _animController;
-  late final Animation<double> _fadeAnim;
-  late final Animation<double> _scaleAnim;
+class _SplashScreenState extends State<SplashScreen>
+    with TickerProviderStateMixin {
+  // ============================================================
+  // LOCAL LENS COLORS
+  // ============================================================
+
+  static const Color background = Color(0xFFFFFAF7);
+
+  static const Color localColor = Color(0xFF4A3024);
+
+  static const Color accentColor = Color(0xFFC9825E);
+
+  static const Color softPeach = Color(0xFFF7E2D5);
+
+  // ============================================================
+  // ANIMATION CONTROLLERS
+  // ============================================================
+
+  late final AnimationController _logoController;
+  late final AnimationController _exitController;
+
+  late final Animation<double> _logoFade;
+  late final Animation<double> _logoScale;
+
+  late final Animation<double> _exitFade;
+  late final Animation<double> _exitScale;
+
+  // ============================================================
+  // LOGO STATE
+  // ============================================================
+
+  String _localText = '';
+
+  String _suffix = '';
+
+  bool _isExiting = false;
+
+  bool _hasNavigated = false;
+
+  // ============================================================
+  // INIT
+  // ============================================================
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..forward();
 
-    _fadeAnim = CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.0, 0.7, curve: Curves.easeOut),
+    // ------------------------------------------------------------
+    // LOGO CONTROLLER
+    // ------------------------------------------------------------
+
+    _logoController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
     );
 
-    _scaleAnim = Tween<double>(begin: 0.92, end: 1.0).animate(
+    _logoFade = CurvedAnimation(
+      parent: _logoController,
+      curve: Curves.easeOut,
+    );
+
+    _logoScale = Tween<double>(
+      begin: 0.90,
+      end: 1.0,
+    ).animate(
       CurvedAnimation(
-        parent: _animController,
-        curve: const Interval(0.0, 0.8, curve: Curves.easeOutCubic),
+        parent: _logoController,
+        curve: Curves.easeOutBack,
       ),
     );
+
+    // ------------------------------------------------------------
+    // EXIT CONTROLLER
+    // ------------------------------------------------------------
+
+    _exitController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    );
+
+    _exitFade = Tween<double>(
+      begin: 1.0,
+      end: 0.0,
+    ).animate(
+      CurvedAnimation(
+        parent: _exitController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _exitScale = Tween<double>(
+      begin: 1.0,
+      end: 1.05,
+    ).animate(
+      CurvedAnimation(
+        parent: _exitController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    // ------------------------------------------------------------
+    // START
+    // ------------------------------------------------------------
+
+    _runSplashAnimation();
   }
 
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
+  // ============================================================
+  // SPLASH ANIMATION
+  // ============================================================
+
+  Future<void> _runSplashAnimation() async {
+    // ==========================================================
+    // STEP 1 — BUILD LOCAL LETTER BY LETTER
+    // ==========================================================
+
+    const word = 'Local';
+
+    for (int i = 1; i <= word.length; i++) {
+      if (!mounted || _hasNavigated) return;
+
+      setState(() {
+        _localText = word.substring(0, i);
+      });
+
+      await Future.delayed(
+        const Duration(milliseconds: 120),
+      );
+    }
+
+    // Small scale/fade animation.
+    if (!mounted || _hasNavigated) return;
+
+    await _logoController.forward();
+
+    // ==========================================================
+    // STEP 2 — LOCAL EXPERIENCE
+    // ==========================================================
+
+    await Future.delayed(
+      const Duration(milliseconds: 200),
+    );
+
+    if (!mounted || _hasNavigated) return;
+
+    setState(() {
+      _suffix = 'Experience';
+    });
+
+    // Keep LocalExperience visible.
+    await Future.delayed(
+      const Duration(milliseconds: 1300),
+    );
+
+    // ==========================================================
+    // STEP 3 — EXPERIENCE → LENS
+    // ==========================================================
+
+    if (!mounted || _hasNavigated) return;
+
+    // Direct replacement.
+    //
+    // Because the ValueKey changes from
+    //
+    // ValueKey('Experience')
+    //
+    // to
+    //
+    // ValueKey('Lens')
+    //
+    // AnimatedSwitcher will animate the replacement.
+    setState(() {
+      _suffix = 'Lens';
+    });
+
+    // ==========================================================
+    // STEP 4 — HOLD LOCAL LENS
+    // ==========================================================
+
+    await Future.delayed(
+      const Duration(milliseconds: 1500),
+    );
+
+    // ==========================================================
+    // STEP 5 — EXIT
+    // ==========================================================
+
+    if (!mounted || _hasNavigated) return;
+
+    setState(() {
+      _isExiting = true;
+    });
+
+    await _exitController.forward();
+
+    if (!mounted || _hasNavigated) return;
+
+    _hasNavigated = true;
+
+    // Navigate to splash root and let GoRouter's redirect decide
+    // whether to go to /welcome (unauthenticated) or /traveler/home (authenticated).
+    context.go(AppRoutes.splash);
   }
+
+  // ============================================================
+  // LOGO
+  // ============================================================
+
+  Widget _buildLogo() {
+    return AnimatedBuilder(
+      animation: _logoController,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _logoScale.value,
+          child: Opacity(
+            opacity: _logoFade.value,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                // ==================================================
+                // LOCAL
+                // ==================================================
+
+                Text(
+                  _localText,
+                  style: const TextStyle(
+                    color: localColor,
+                    fontSize: 46,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -2.6,
+                    height: 1,
+                  ),
+                ),
+
+                // ==================================================
+                // EXPERIENCE → LENS
+                // ==================================================
+
+                AnimatedSwitcher(
+                  duration: const Duration(
+                    milliseconds: 500,
+                  ),
+
+                  reverseDuration: const Duration(
+                    milliseconds: 400,
+                  ),
+
+                  switchInCurve: Curves.easeOutCubic,
+
+                  switchOutCurve: Curves.easeInCubic,
+
+                  transitionBuilder: (
+                    Widget child,
+                    Animation<double> animation,
+                  ) {
+                    final slideAnimation = Tween<Offset>(
+                      begin: const Offset(0.08, 0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                      ),
+                    );
+
+                    return FadeTransition(
+                      opacity: animation,
+                      child: SlideTransition(
+                        position: slideAnimation,
+                        child: child,
+                      ),
+                    );
+                  },
+
+                  child: _suffix.isEmpty
+                      ? const SizedBox(
+                          key: ValueKey('empty'),
+                        )
+                      : Text(
+                          _suffix,
+                          key: ValueKey(_suffix),
+                          style: const TextStyle(
+                            color: accentColor,
+                            fontSize: 46,
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: -2.2,
+                            height: 1,
+                          ),
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: GestureDetector(
-        onTap: () {
-          // Instant skip on tap
-          context.go(AppRoutes.welcome);
+      backgroundColor: background,
+
+      body: AnimatedBuilder(
+        animation: _exitController,
+
+        builder: (context, child) {
+          return Opacity(
+            opacity: _exitFade.value,
+
+            child: Transform.scale(
+              scale: _exitScale.value,
+
+              child: child,
+            ),
+          );
         },
+
         child: Stack(
           fit: StackFit.expand,
+
           children: [
-            // Full-bleed Mountain Landscape & Traveler Hero Image
-            Image.asset(
-              'assets/images/onboarding/splash_traveler.png',
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                decoration: const BoxDecoration(
-                  gradient: LocalLensColors.splashGradient,
-                ),
-              ),
+            // ==================================================
+            // BACKGROUND
+            // ==================================================
+
+            const ColoredBox(
+              color: background,
             ),
 
-            // Subtle gradient overlay for pristine brand logo contrast
-            Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.95),
-                    Colors.white.withValues(alpha: 0.65),
-                    Colors.transparent,
-                    Colors.black.withValues(alpha: 0.25),
-                  ],
-                  stops: const [0.0, 0.22, 0.55, 1.0],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                ),
-              ),
-            ),
+            // ==================================================
+            // SOFT PEACH BRAND GLOW
+            // ==================================================
 
-            // Top Animated Brand Header (LocalLens + "See More. Experience Local.")
-            SafeArea(
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 24),
-                  child: FadeTransition(
-                    opacity: _fadeAnim,
-                    child: ScaleTransition(
-                      scale: _scaleAnim,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(LocalLensDimensions.radiusFull),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
-                        ),
-                        child: const LocalLensLogo(
-                          size: 42,
-                          showTagline: true,
-                        ),
-                      ),
+            Center(
+              child: IgnorePointer(
+                child: Container(
+                  width: 320,
+                  height: 220,
+
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+
+                    color: softPeach.withValues(
+                      alpha: 0.20,
                     ),
                   ),
                 ),
               ),
             ),
 
-            // Bottom subtle pulsing loading indicator & LocalLens footer
-            Positioned(
-              bottom: 28,
-              left: 0,
-              right: 0,
-              child: SafeArea(
-                child: FadeTransition(
-                  opacity: _fadeAnim,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(3, (index) {
-                          return Container(
-                            margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: 8,
-                            height: 8,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: index == 1
-                                  ? LocalLensColors.accentOrange
-                                  : LocalLensColors.primaryTeal,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.25),
-                                  blurRadius: 6,
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        'LensRide • Discover Your World',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.9),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                          shadows: [
-                            Shadow(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+            // ==================================================
+            // LOGO
+            // ==================================================
+
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                ),
+
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+
+                  child: _buildLogo(),
                 ),
               ),
             ),
@@ -177,5 +398,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
         ),
       ),
     );
+  }
+
+  // ============================================================
+  // DISPOSE
+  // ============================================================
+
+  @override
+  void dispose() {
+    _logoController.dispose();
+    _exitController.dispose();
+
+    super.dispose();
   }
 }

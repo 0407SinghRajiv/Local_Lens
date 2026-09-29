@@ -114,13 +114,18 @@ class LocationService {
 
   static Timer? _liveTrackingTimer;
   static StreamSubscription<Position>? _positionSubscription;
-  static final StreamController<Position> _positionStreamController = StreamController<Position>.broadcast();
+  static StreamController<Position> _positionStreamController = StreamController<Position>.broadcast();
   static Stream<Position> get positionStream => _positionStreamController.stream;
 
   /// Start periodic & continuous real GPS location tracking and database syncing
   static void startLiveLocationTracking() async {
     _liveTrackingTimer?.cancel();
     await _positionSubscription?.cancel();
+
+    // Recreate the broadcast controller if closed, to prevent stale-stream errors on restart
+    if (_positionStreamController.isClosed) {
+      _positionStreamController = StreamController<Position>.broadcast();
+    }
 
     // 1. Immediate sync
     _syncCurrentLocation();
@@ -179,11 +184,14 @@ class LocationService {
         speedAccuracy: 0,
       ));
     }
-    await saveUserLiveLocationToDatabase(
-      latitude: resolved.latitude,
-      longitude: resolved.longitude,
-      address: resolved.displayAddress,
-    );
+    // Only persist to DB if we have a real GPS-resolved location, not the default fallback
+    if (resolved.isPermissionGranted) {
+      await saveUserLiveLocationToDatabase(
+        latitude: resolved.latitude,
+        longitude: resolved.longitude,
+        address: resolved.displayAddress,
+      );
+    }
   }
 
   static void stopLiveLocationTracking() {
@@ -191,6 +199,10 @@ class LocationService {
     _liveTrackingTimer = null;
     _positionSubscription?.cancel();
     _positionSubscription = null;
+    // Close the stream to release resources; will be recreated on next start
+    if (!_positionStreamController.isClosed) {
+      _positionStreamController.close();
+    }
   }
 
   /// Resolves current position using real device GPS or fallback
@@ -216,21 +228,13 @@ class LocationService {
       debugPrint('[LocationService] Real GPS lookup fallback: $e');
     }
 
-    // Fallback to default coordinates
-    const result = UserLocationResult(
+    // Fallback to default coordinates - do NOT save to DB, this is fake data
+    return const UserLocationResult(
       latitude: 18.9894,
       longitude: 73.1175,
       displayAddress: 'Panvel, Maharashtra',
       isPermissionGranted: false,
     );
-
-    saveUserLiveLocationToDatabase(
-      latitude: result.latitude,
-      longitude: result.longitude,
-      address: result.displayAddress,
-    );
-
-    return result;
   }
 }
 

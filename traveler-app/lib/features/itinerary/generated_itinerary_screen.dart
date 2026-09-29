@@ -31,10 +31,22 @@ class _GeneratedItineraryScreenState extends ConsumerState<GeneratedItineraryScr
   bool _isSaving = false;
   bool _isSaved = false;
 
-  String _selectedWeatherCondition = 'Live';
   bool _isWeatherAdapting = false;
+  String _selectedWeatherCondition = 'Live';
 
   final List<VehicleOption> _vehicles = VehicleOption.defaultOptions;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _selectedWeatherCondition = ref.read(itineraryProvider).activeWeatherCondition;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

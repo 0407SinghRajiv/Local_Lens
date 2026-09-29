@@ -57,6 +57,23 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
     _budgetController = TextEditingController(
         text: state.totalBudgetInr > 0 ? state.totalBudgetInr.toInt().toString() : '3000');
     _preferencesController = TextEditingController(text: state.preferences);
+
+    // Keep provider in sync as user types
+    _destinationController.addListener(() {
+      final text = _destinationController.text;
+      if (text.isNotEmpty) {
+        ref.read(itineraryProvider.notifier).setDestination(text);
+      }
+    });
+    _budgetController.addListener(() {
+      final budget = double.tryParse(_budgetController.text);
+      if (budget != null && budget > 0) {
+        ref.read(itineraryProvider.notifier).setBudget(budget);
+      }
+    });
+    _preferencesController.addListener(() {
+      ref.read(itineraryProvider.notifier).setPreferences(_preferencesController.text);
+    });
   }
 
   @override
@@ -97,6 +114,9 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
   }
 
   Future<void> _startRecommendationFlow() async {
+    // Clear any previous errors before starting
+    ref.read(itineraryProvider.notifier).clearError();
+
     setState(() {
       _isLoadingRecommendations = true;
     });
@@ -110,11 +130,26 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
       _isLoadingRecommendations = false;
     });
 
+    // Check for provider-level error message
+    final providerState = ref.read(itineraryProvider);
+    if (providerState.error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(providerState.error!),
+          backgroundColor: LocalLensColors.errorRed,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
     if (recs.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('No experiences found for this location. Please try other filters.'),
           backgroundColor: LocalLensColors.errorRed,
+          behavior: SnackBarBehavior.floating,
         ),
       );
       return;

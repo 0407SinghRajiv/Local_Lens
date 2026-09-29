@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
@@ -219,7 +220,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
   }
 
   Future<void> _fetchWeather() async {
-    const apiKey = '9fb8d155eeb443116f6d35e81215a121';
+    // Read API key from .env (WEATHER_API_KEY) with hardcoded fallback
+    final apiKey = dotenv.isInitialized
+        ? (dotenv.env['WEATHER_API_KEY'] ?? '9fb8d155eeb443116f6d35e81215a121')
+        : '9fb8d155eeb443116f6d35e81215a121';
     try {
       final loc = await LocationService.getCurrentResolvedLocation();
       final url = Uri.parse(
@@ -291,26 +295,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
       if (word.isEmpty) return '';
       return word[0].toUpperCase() + word.substring(1).toLowerCase();
     }).join(' ');
-  }
-
-  String _getOwmWeatherDescription(int id, String rawDesc, bool isDay) {
-    if (id >= 200 && id < 300) return 'Thunderstorm';
-    if (id >= 300 && id < 600) return 'Rain Showers';
-    if (id >= 600 && id < 700) return 'Snow';
-    if (id >= 700 && id < 800) return 'Hazy / Foggy';
-    if (id == 800) return isDay ? 'Clear & Sunny' : 'Clear Night';
-    if (id == 801 || id == 802) return 'Partly Cloudy';
-    if (id >= 803) return 'Overcast';
-    return rawDesc.isNotEmpty ? rawDesc[0].toUpperCase() + rawDesc.substring(1) : 'Pleasant';
-  }
-
-  IconData _getOwmWeatherIcon(int id, bool isDay) {
-    if (id >= 200 && id < 300) return Icons.thunderstorm_rounded;
-    if (id >= 300 && id < 600) return Icons.grain_rounded;
-    if (id >= 700 && id < 800) return Icons.cloud_queue_rounded;
-    if (id == 800) return isDay ? Icons.wb_sunny_rounded : Icons.nights_stay_rounded;
-    if (id >= 801 && id <= 802) return isDay ? Icons.wb_cloudy_rounded : Icons.cloud_queue_rounded;
-    return Icons.cloud_rounded;
   }
 
   void _refreshSponsored() {

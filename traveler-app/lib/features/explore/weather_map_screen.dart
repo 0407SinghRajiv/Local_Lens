@@ -271,16 +271,6 @@ class _WeatherMapScreenState extends ConsumerState<WeatherMapScreen> with Single
     }).join(' ');
   }
 
-  String _parseWeatherCode(int code) {
-    if (code == 0) return 'Clear Sky ☀️';
-    if (code >= 1 && code <= 3) return 'Partly Cloudy ⛅';
-    if (code == 45 || code == 48) return 'Fog & Haze 🌫️';
-    if (code >= 51 && code <= 67) return 'Light Rain Showers 🌧️';
-    if (code >= 80 && code <= 82) return 'Heavy Rain Downpour 🌧️';
-    if (code >= 95) return 'Severe Thunderstorm ⛈️';
-    return 'Overcast ☁️';
-  }
-
   IconData _getWeatherIcon(int code) {
     if (code == 0) return Icons.wb_sunny_rounded;
     if (code >= 1 && code <= 3) return Icons.wb_cloudy_rounded;
@@ -298,14 +288,6 @@ class _WeatherMapScreenState extends ConsumerState<WeatherMapScreen> with Single
     if (deg >= 202 && deg < 247) return 'SW';
     if (deg >= 247 && deg < 292) return 'W';
     return 'NW';
-  }
-
-  String _getUvCategory(double uv) {
-    if (uv <= 2) return 'Low';
-    if (uv <= 5) return 'Moderate';
-    if (uv <= 7) return 'High';
-    if (uv <= 10) return 'Very High';
-    return 'Extreme';
   }
 
   Set<Marker> _buildMapMarkers() {

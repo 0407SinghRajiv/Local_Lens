@@ -59,13 +59,15 @@ class _ItineraryGeneratingScreenState extends ConsumerState<ItineraryGeneratingS
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
 
+    // Progress bar animation: fills up over 12 seconds then loops back
+    // This way the bar never freezes regardless of backend latency.
     _progressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
-    )..forward();
+      duration: const Duration(seconds: 12),
+    )..repeat();
 
-    // Rotate messages every 400ms
-    _messageTimer = Timer.periodic(const Duration(milliseconds: 400), (timer) {
+    // Rotate messages every 1.5s for comfortable readability
+    _messageTimer = Timer.periodic(const Duration(milliseconds: 1500), (timer) {
       if (mounted) {
         setState(() {
           _messageIndex = (_messageIndex + 1) % _loadingMessages.length;
@@ -78,8 +80,8 @@ class _ItineraryGeneratingScreenState extends ConsumerState<ItineraryGeneratingS
       _startGeneration();
     });
 
-    // Generous fallback safety timer (15s max) to guarantee the screen never gets stuck if completely frozen
-    _fallbackTimer = Timer(const Duration(seconds: 15), () {
+    // Generous fallback safety timer (20s max) to guarantee the screen never gets stuck if completely frozen
+    _fallbackTimer = Timer(const Duration(seconds: 20), () {
       if (mounted && !_hasNavigated) {
         _navigateToResult();
       }

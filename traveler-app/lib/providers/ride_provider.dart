@@ -66,7 +66,7 @@ class RideState {
     double? dropLng,
     double? riderLat,
     double? riderLng,
-    String? errorMessage,
+    Object? errorMessage = _rideSentinel,
   }) {
     return RideState(
       status: status ?? this.status,
@@ -84,10 +84,14 @@ class RideState {
       dropLng: dropLng ?? this.dropLng,
       riderLat: riderLat ?? this.riderLat,
       riderLng: riderLng ?? this.riderLng,
-      errorMessage: errorMessage,
+      errorMessage:
+          identical(errorMessage, _rideSentinel) ? this.errorMessage : errorMessage as String?,
     );
   }
 }
+
+/// Sentinel for [RideState.copyWith] to allow explicitly clearing [RideState.errorMessage].
+const Object _rideSentinel = Object();
 
 class RideNotifier extends StateNotifier<RideState> {
   final TravelerRideRepository _repository;

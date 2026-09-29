@@ -112,8 +112,8 @@ class CreateItineraryState {
     String? tripDate,
     String? tripStartTime,
     ItineraryFormStatus? status,
-    String? error,
-    Itinerary? generatedItinerary,
+    Object? error = _sentinel,
+    Object? generatedItinerary = _sentinel,
     List<Itinerary>? savedTrips,
     String? activeWeatherCondition,
   }) {
@@ -139,13 +139,19 @@ class CreateItineraryState {
       tripDate: tripDate ?? this.tripDate,
       tripStartTime: tripStartTime ?? this.tripStartTime,
       status: status ?? this.status,
-      error: error,
-      generatedItinerary: generatedItinerary ?? this.generatedItinerary,
+      error: identical(error, _sentinel) ? this.error : error as String?,
+      generatedItinerary: identical(generatedItinerary, _sentinel)
+          ? this.generatedItinerary
+          : generatedItinerary as Itinerary?,
       savedTrips: savedTrips ?? this.savedTrips,
       activeWeatherCondition: activeWeatherCondition ?? this.activeWeatherCondition,
     );
   }
 }
+
+/// Sentinel value used by [CreateItineraryState.copyWith] to distinguish
+/// between "not provided" and "explicitly set to null".
+const Object _sentinel = Object();
 
 class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
   ItineraryNotifier() : super(const CreateItineraryState());
@@ -629,6 +635,8 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
     ItineraryApiService.saveItineraryToDatabase(updatedItin);
   }
 
+
+
   /// Sets the active itinerary for viewing and editing
   void setActiveItinerary(Itinerary itinerary) {
     state = state.copyWith(generatedItinerary: itinerary);
@@ -670,6 +678,21 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       generatedItinerary: updatedItin,
     );
     ItineraryApiService.saveItineraryToDatabase(updatedItin);
+  }
+
+  /// Clear the current error message without affecting other state
+  void clearError() {
+    state = state.copyWith(
+      error: null,
+      status: ItineraryFormStatus.initial,
+    );
+  }
+
+  /// Resets the itinerary provider to its initial state (for starting a new trip).
+  /// Preserves the savedTrips history.
+  void resetForNewTrip() {
+    final savedTrips = state.savedTrips;
+    state = CreateItineraryState(savedTrips: savedTrips);
   }
 }
 
