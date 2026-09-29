@@ -5,22 +5,65 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Known City Coordinates for India
+# Known City Coordinates for India & Major Destinations
 CITY_COORDINATES: Dict[str, tuple[float, float]] = {
-    "mumbai": (18.9894, 73.1175),
+    "mumbai": (19.0760, 72.8777),
+    "south mumbai": (18.9220, 72.8347),
     "navi mumbai": (19.0330, 73.0297),
+    "panvel": (18.9894, 73.1175),
+    "thane": (19.2183, 72.9781),
+    "pune": (18.5204, 73.8567),
+    "nashik": (19.9975, 73.7898),
+    "lonavala": (18.7557, 73.4091),
+    "khandala": (18.7610, 73.3757),
+    "alibaug": (18.6414, 72.8722),
+    "alibag": (18.6414, 72.8722),
+    "mahabaleshwar": (17.9237, 73.6586),
+    "matheran": (18.9866, 73.2678),
+    "karjat": (18.9102, 73.3283),
+    "ratnagiri": (16.9902, 73.3120),
+    "chiplun": (17.5323, 73.5186),
+    "malvan": (16.0592, 73.4699),
+    "tarkarli": (16.0357, 73.4913),
+    "dapoli": (17.7600, 73.1873),
     "delhi": (28.6139, 77.2090),
     "new delhi": (28.6139, 77.2090),
+    "jaipur": (26.9124, 75.7873),
+    "udaipur": (24.5854, 73.7125),
+    "jodhpur": (26.2389, 73.0243),
+    "jaisalmer": (26.9157, 70.9083),
+    "goa": (15.2993, 74.1240),
+    "north goa": (15.4909, 73.8278),
+    "south goa": (15.2736, 73.9582),
+    "panaji": (15.4909, 73.8278),
+    "calangute": (15.5439, 73.7553),
+    "baga": (15.5553, 73.7517),
     "bangalore": (12.9716, 77.5946),
     "bengaluru": (12.9716, 77.5946),
-    "goa": (15.2993, 74.1240),
-    "jaipur": (26.9124, 75.7873),
     "hyderabad": (17.3850, 78.4867),
     "kolkata": (22.5726, 88.3639),
     "chennai": (13.0827, 80.2707),
-    "pune": (18.5204, 73.8567),
+    "ahmedabad": (23.0225, 72.5714),
     "agra": (27.1767, 78.0081),
     "varanasi": (25.3176, 82.9739),
+    "kochi": (9.9312, 76.2673),
+    "cochin": (9.9312, 76.2673),
+    "munnar": (10.0889, 77.0595),
+    "alleppey": (9.4981, 76.3388),
+    "alappuzha": (9.4981, 76.3388),
+    "shimla": (31.1048, 77.1734),
+    "manali": (32.2432, 77.1892),
+    "rishikesh": (30.0869, 78.2676),
+    "haridwar": (29.9457, 78.1642),
+    "amritsar": (31.6340, 74.8723),
+    "mysore": (12.2958, 76.6394),
+    "mysuru": (12.2958, 76.6394),
+    "pondicherry": (11.9416, 79.8083),
+    "puducherry": (11.9416, 79.8083),
+    "darjeeling": (27.0410, 88.2663),
+    "gangtok": (27.3389, 88.6065),
+    "ooty": (11.4102, 76.6950),
+    "kodaikanal": (10.2381, 77.4892),
 }
 
 WMO_CODE_MAP = {
@@ -108,6 +151,21 @@ class WeatherService:
     """Service layer for weather ingestion and condition assessment."""
 
     @classmethod
+    def get_coordinates_for_destination(cls, destination: Optional[str]) -> Optional[tuple[float, float]]:
+        """Resolves destination text string into (latitude, longitude) anchor coordinates."""
+        if not destination or not destination.strip():
+            return None
+        dest_lower = destination.strip().lower()
+        # Direct key match
+        if dest_lower in CITY_COORDINATES:
+            return CITY_COORDINATES[dest_lower]
+        # Substring / partial match
+        for city_name, coords in CITY_COORDINATES.items():
+            if city_name in dest_lower or dest_lower in city_name:
+                return coords
+        return None
+
+    @classmethod
     def get_all_weather_conditions(cls) -> Dict[str, Dict[str, Any]]:
         """Returns standard meteorological scenarios for simulation and planning."""
         return WEATHER_CONDITION_PROFILES
@@ -121,23 +179,26 @@ class WeatherService:
         override_condition: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Fetches external meteorological data from Open-Meteo API or resolves a specified weather scenario.
+        Fetches external meteorological data from OpenWeatherMap / Open-Meteo API or resolves a specified weather scenario.
         Non-blocking with fast timeout and fallback.
+        Prioritizes trip destination over device location.
         """
-        # Resolve coordinates
-        target_lat = lat
-        target_lon = lon
+        # Resolve coordinates: Prioritize destination over foreign device GPS
+        target_lat = None
+        target_lon = None
 
-        if (target_lat is None or target_lon is None) and destination:
-            clean_dest = destination.strip().lower()
-            for city_name, coords in CITY_COORDINATES.items():
-                if city_name in clean_dest:
-                    target_lat, target_lon = coords
-                    break
+        if destination and destination.strip():
+            dest_coords = cls.get_coordinates_for_destination(destination)
+            if dest_coords:
+                target_lat, target_lon = dest_coords
 
         if target_lat is None or target_lon is None:
-            # Default to Mumbai / Navi Mumbai region
-            target_lat, target_lon = 18.9894, 73.1175
+            if lat is not None and lon is not None:
+                target_lat, target_lon = lat, lon
+            else:
+                target_lat, target_lon = 19.0760, 72.8777
+
+        logger.info(f"[WEATHER REQUEST] Destination: {destination or 'N/A'}, Lat: {target_lat}, Lng: {target_lon}")
 
         # Check if caller requested a specific weather condition scenario (exclude live GPS markers)
         if override_condition:
@@ -166,7 +227,7 @@ class WeatherService:
                     f"https://api.openweathermap.org/data/2.5/weather"
                     f"?lat={target_lat}&lon={target_lon}&appid={owm_key}&units=metric"
                 )
-                async with httpx.AsyncClient(timeout=4.0) as client:
+                async with httpx.AsyncClient(timeout=2.0) as client:
                     res = await client.get(owm_url)
                     if res.status_code == 200:
                         data = res.json()
@@ -219,7 +280,7 @@ class WeatherService:
                 f"?latitude={target_lat}&longitude={target_lon}"
                 f"&current_weather=true"
             )
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with httpx.AsyncClient(timeout=2.0) as client:
                 res = await client.get(url)
                 if res.status_code == 200:
                     data = res.json()
@@ -265,6 +326,182 @@ class WeatherService:
             "wind_speed_kmh": wind_str,
             "source": "live_gps_telemetry",
             "is_simulated": False,
+            "latitude": target_lat,
+            "longitude": target_lon,
+        }
+
+    @classmethod
+    def _parse_date_to_iso(cls, date_str: Optional[str]) -> Optional[str]:
+        """Normalize various date formats (e.g. '2026-10-05', '05 October 2026', '05/10/2026') to YYYY-MM-DD."""
+        if not date_str or not str(date_str).strip():
+            return None
+        clean_str = str(date_str).strip()
+        from datetime import datetime
+        # Try standard formats
+        for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d", "%d %B %Y", "%d %b %Y", "%B %d, %Y"):
+            try:
+                dt = datetime.strptime(clean_str, fmt)
+                return dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        # Check regex for YYYY-MM-DD
+        import re
+        m = re.search(r"(\d{4})-(\d{2})-(\d{2})", clean_str)
+        if m:
+            return m.group(0)
+        return None
+
+    @classmethod
+    async def get_weather_for_trip(
+        cls,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        destination: Optional[str] = None,
+        trip_date: Optional[str] = None,
+        override_condition: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Retrieves weather/forecast information specifically tailored for the trip location and trip date.
+        If forecast data is unavailable for the selected date (e.g. beyond forecast window),
+        returns status="unavailable" so recommendation engine does not fabricate forecast details.
+        """
+        # Resolve target coordinates: Prioritize trip destination over device GPS
+        target_lat = None
+        target_lon = None
+
+        if destination and destination.strip():
+            dest_coords = cls.get_coordinates_for_destination(destination)
+            if dest_coords:
+                target_lat, target_lon = dest_coords
+
+        if target_lat is None or target_lon is None:
+            if lat is not None and lon is not None:
+                target_lat, target_lon = lat, lon
+            else:
+                target_lat, target_lon = 19.0760, 72.8777
+
+        logger.info(f"[WEATHER REQUEST] City: {destination or 'Direct Coords'}, Lat: {target_lat}, Lng: {target_lon}, Date: {trip_date or 'today'}")
+
+        # Check for simulated / override weather condition first
+        if override_condition:
+            norm_cond = override_condition.strip().lower()
+            if norm_cond not in ("live", "live gps", "current", "gps", "none", ""):
+                for key, profile in WEATHER_CONDITION_PROFILES.items():
+                    if key in norm_cond or norm_cond in key:
+                        return {
+                            "status": "available",
+                            "condition": profile["condition"],
+                            "temperature_c": profile["temperature_c"],
+                            "temperature": profile["temperature"],
+                            "rainfall_mm": profile["rainfall_mm"],
+                            "precipitation_mm": profile["rainfall_mm"],
+                            "rain_probability": 80 if "rain" in key or "thunderstorm" in key else 0,
+                            "humidity_pct": profile["humidity_pct"],
+                            "wind_speed_kmh": profile["wind_speed_kmh"],
+                            "trip_date": trip_date,
+                            "summary": profile["summary"],
+                            "source": "simulated_scenario",
+                            "latitude": target_lat,
+                            "longitude": target_lon,
+                        }
+
+        iso_date = cls._parse_date_to_iso(trip_date)
+        from datetime import datetime, date
+
+        today = date.today()
+
+        # If trip date is specified, check date distance
+        if iso_date:
+            try:
+                trip_d = datetime.strptime(iso_date, "%Y-%m-%d").date()
+                days_diff = (trip_d - today).days
+
+                # Open-Meteo provides accurate forecasts for up to 16 days ahead (0 <= days_diff <= 16)
+                if 0 <= days_diff <= 16:
+                    url = (
+                        f"https://api.open-meteo.com/v1/forecast"
+                        f"?latitude={target_lat}&longitude={target_lon}"
+                        f"&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max"
+                        f"&start_date={iso_date}&end_date={iso_date}&timezone=auto"
+                    )
+                    try:
+                        async with httpx.AsyncClient(timeout=4.0) as client:
+                            res = await client.get(url)
+                            if res.status_code == 200:
+                                data = res.json()
+                                daily = data.get("daily", {})
+                                dates = daily.get("time", [])
+                                if iso_date in dates:
+                                    idx = dates.index(iso_date)
+                                    w_code = daily.get("weathercode", [0])[idx]
+                                    temp_max = daily.get("temperature_2m_max", [28.0])[idx]
+                                    temp_min = daily.get("temperature_2m_min", [22.0])[idx]
+                                    precip_sum = float(daily.get("precipitation_sum", [0.0])[idx] or 0.0)
+                                    rain_prob = int(daily.get("precipitation_probability_max", [0])[idx] or 0)
+                                    wind_max = float(daily.get("windspeed_10m_max", [10.0])[idx] or 10.0)
+
+                                    condition = WMO_CODE_MAP.get(int(w_code), "Clear Sky")
+                                    avg_temp = round((temp_max + temp_min) / 2.0, 1)
+
+                                    return {
+                                        "status": "available",
+                                        "condition": condition,
+                                        "temperature_c": avg_temp,
+                                        "temperature": f"{avg_temp}°C",
+                                        "temperature_max_c": temp_max,
+                                        "temperature_min_c": temp_min,
+                                        "rainfall_mm": precip_sum,
+                                        "precipitation_mm": precip_sum,
+                                        "rain_probability": rain_prob,
+                                        "humidity_pct": 80 if precip_sum > 2 else 55,
+                                        "wind_speed_kmh": f"{wind_max} km/h",
+                                        "trip_date": iso_date,
+                                        "source": "open-meteo-daily-forecast",
+                                        "latitude": target_lat,
+                                        "longitude": target_lon,
+                                    }
+                    except Exception as e:
+                        logger.debug(f"[WeatherService] Open-Meteo daily forecast request failed: {e}")
+
+                # If the date is beyond the 16-day forecast horizon or past date
+                return {
+                    "status": "unavailable",
+                    "condition": None,
+                    "temperature_c": None,
+                    "temperature": None,
+                    "rainfall_mm": None,
+                    "precipitation_mm": None,
+                    "rain_probability": None,
+                    "humidity_pct": None,
+                    "wind_speed_kmh": None,
+                    "trip_date": iso_date,
+                    "message": f"Weather forecast data unavailable for trip date {iso_date} (outside 16-day forecast window)",
+                    "latitude": target_lat,
+                    "longitude": target_lon,
+                }
+
+            except Exception as e:
+                logger.debug(f"[WeatherService] Date comparison error for {trip_date}: {e}")
+
+        # If no trip date was provided, get current live weather
+        current_weather = await cls.get_weather_forecast(
+            lat=target_lat,
+            lon=target_lon,
+            destination=destination,
+            override_condition=override_condition,
+        )
+        return {
+            "status": "available",
+            "condition": current_weather.get("condition", "Clear Sky"),
+            "temperature_c": current_weather.get("temperature_c", 28.0),
+            "temperature": current_weather.get("temperature", "28°C"),
+            "rainfall_mm": current_weather.get("rainfall_mm", 0.0),
+            "precipitation_mm": current_weather.get("rainfall_mm", 0.0),
+            "rain_probability": 80 if "rain" in str(current_weather.get("condition", "")).lower() else 10,
+            "humidity_pct": current_weather.get("humidity_pct", 60),
+            "wind_speed_kmh": current_weather.get("wind_speed_kmh", "10 km/h"),
+            "trip_date": str(today),
+            "source": current_weather.get("source", "current_weather"),
             "latitude": target_lat,
             "longitude": target_lon,
         }

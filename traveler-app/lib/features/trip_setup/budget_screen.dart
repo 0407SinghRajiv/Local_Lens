@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 7: Budget Preference Screen
-class BudgetScreen extends StatefulWidget {
+class BudgetScreen extends ConsumerStatefulWidget {
   const BudgetScreen({super.key});
 
   @override
-  State<BudgetScreen> createState() => _BudgetScreenState();
+  ConsumerState<BudgetScreen> createState() => _BudgetScreenState();
 }
 
-class _BudgetScreenState extends State<BudgetScreen> {
+class _BudgetScreenState extends ConsumerState<BudgetScreen> {
   RangeValues _currentRangeValues = const RangeValues(2500, 3500);
 
   @override
@@ -118,12 +120,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 isOrange: false,
                 icon: Icons.history_rounded,
                 onPressed: () {
+                  ref.read(itineraryProvider.notifier).setBudget(_currentRangeValues.end);
                   context.push(AppRoutes.travelHistory);
                 },
               ),
               const SizedBox(height: 12),
               TextButton(
                 onPressed: () {
+                  ref.read(itineraryProvider.notifier).setBudget(_currentRangeValues.end);
                   context.push(AppRoutes.aiPersonalization);
                 },
                 child: Text(

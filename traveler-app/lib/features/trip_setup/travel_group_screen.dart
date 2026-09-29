@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 5: Travel Group Selection Screen
-class TravelGroupScreen extends StatefulWidget {
+class TravelGroupScreen extends ConsumerStatefulWidget {
   const TravelGroupScreen({super.key});
 
   @override
-  State<TravelGroupScreen> createState() => _TravelGroupScreenState();
+  ConsumerState<TravelGroupScreen> createState() => _TravelGroupScreenState();
 }
 
-class _TravelGroupScreenState extends State<TravelGroupScreen> {
+class _TravelGroupScreenState extends ConsumerState<TravelGroupScreen> {
   String _selectedGroupId = 'couple';
 
   @override
@@ -149,6 +151,14 @@ class _TravelGroupScreenState extends State<TravelGroupScreen> {
                 text: 'Next',
                 isOrange: false,
                 onPressed: () {
+                  final (groupType, count) = switch (_selectedGroupId) {
+                    'solo' => ('Solo', 1),
+                    'couple' => ('Couple', 2),
+                    'friends' => ('Friends', 4),
+                    'family' => ('Family', 4),
+                    _ => ('Couple', 2),
+                  };
+                  ref.read(itineraryProvider.notifier).setGroup(groupType, count);
                   context.push(AppRoutes.interestSelection);
                 },
               ),

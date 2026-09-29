@@ -1,27 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 4: Trip Setup Screen
-class TripSetupScreen extends StatefulWidget {
+class TripSetupScreen extends ConsumerStatefulWidget {
   const TripSetupScreen({super.key});
 
   @override
-  State<TripSetupScreen> createState() => _TripSetupScreenState();
+  ConsumerState<TripSetupScreen> createState() => _TripSetupScreenState();
 }
 
-class _TripSetupScreenState extends State<TripSetupScreen> {
-  String _selectedCity = 'Panvel';
+class _TripSetupScreenState extends ConsumerState<TripSetupScreen> {
+  late TextEditingController _searchController;
+  String _selectedCity = 'Mumbai';
   String _selectedDuration = '3 hrs';
 
   final List<String> _popularCities = [
-    'Panvel',
-    'Goa',
     'Mumbai',
-    'Bengaluru',
+    'Delhi',
     'Jaipur',
+    'Goa',
+    'Bengaluru',
+    'Pune',
   ];
 
   final List<String> _durations = [
@@ -32,14 +36,30 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
     'Multiple days',
   ];
 
-  DateTime _selectedDate = DateTime(2025, 10, 12);
+  late DateTime _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    final state = ref.read(itineraryProvider);
+    _selectedCity = state.destination.isNotEmpty ? state.destination : 'Mumbai';
+    _searchController = TextEditingController(text: _selectedCity);
+    _selectedDate = DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickDate() async {
+    final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDate: _selectedDate.isBefore(now) ? now : _selectedDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -98,8 +118,14 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
                   borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
                 ),
                 child: TextField(
+                  controller: _searchController,
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedCity = val;
+                    });
+                  },
                   decoration: InputDecoration(
-                    hintText: 'Search destination (e.g. Panvel, Goa)',
+                    hintText: 'Search destination (e.g. Mumbai, Goa, Jaipur)',
                     hintStyle: LocalLensTypography.bodyMedium,
                     prefixIcon: const Icon(Icons.search_rounded, color: LocalLensColors.textMuted),
                     border: InputBorder.none,
@@ -120,7 +146,12 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
                   return ChoiceChip(
                     label: Text(city),
                     selected: isSelected,
-                    onSelected: (_) => setState(() => _selectedCity = city),
+                    onSelected: (_) {
+                      setState(() {
+                        _selectedCity = city;
+                        _searchController.text = city;
+                      });
+                    },
                     selectedColor: LocalLensColors.primaryTeal,
                     backgroundColor: LocalLensColors.surfaceSecondary,
                     labelStyle: TextStyle(
@@ -206,6 +237,19 @@ class _TripSetupScreenState extends State<TripSetupScreen> {
                 text: 'Next',
                 isOrange: false,
                 onPressed: () {
+                  final durationHours = switch (_selectedDuration) {
+                    '1 hr' => 1,
+                    '3 hrs' => 3,
+                    'Half day' => 5,
+                    'Full day' => 9,
+                    'Multiple days' => 16,
+                    _ => 3,
+                  };
+                  final isoDate = '${_selectedDate.year}-${_selectedDate.month.toString().padLeft(2, '0')}-${_selectedDate.day.toString().padLeft(2, '0')}';
+                  final notifier = ref.read(itineraryProvider.notifier);
+                  notifier.setDestination(_selectedCity.trim().isNotEmpty ? _selectedCity.trim() : 'Mumbai');
+                  notifier.setTime(durationHours.toString(), 'Hours');
+                  notifier.setTripDate(isoDate);
                   context.push(AppRoutes.travelGroup);
                 },
               ),

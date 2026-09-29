@@ -1,6 +1,9 @@
 """
-Recommendation Service.
+Recommendation Service (ML Pipeline).
 Coordinates between ML recommendation model, Supabase experience catalog, and traveler preferences.
+
+# ML recommendation system retained for future integration.
+# Currently disconnected from the active recommendation pipeline.
 """
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -12,6 +15,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# ML recommendation system retained for future integration.
+# Currently disconnected from the active recommendation pipeline.
 from ml.recommendation.engine import RecommendationEngine
 from backend.app.services.supabase_service import SupabaseService
 try:
@@ -144,7 +149,8 @@ class RecommendationService:
         if (user_lat is None or user_lon is None) and city_filter:
             clean_city = str(city_filter).strip().lower()
             city_anchors = {
-                "mumbai": (18.9894, 73.1175),
+                "mumbai": (19.0760, 72.8777),
+                "panvel": (18.9894, 73.1175),
                 "navi mumbai": (19.0330, 73.0297),
                 "delhi": (28.6139, 77.2090),
                 "new delhi": (28.6139, 77.2090),

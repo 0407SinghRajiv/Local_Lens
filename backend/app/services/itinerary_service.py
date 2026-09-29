@@ -27,6 +27,7 @@ try:
     from backend.app.services.recommendation_service import RecommendationService
     from backend.app.services.routing_service import RoutingService
     from backend.app.services.place_image_resolver import PlaceImageResolver
+    from backend.app.services.weather_service import WeatherService
 except ImportError:
     from app.schemas.itinerary_schemas import (
         ItineraryGenerateRequest,
@@ -37,6 +38,7 @@ except ImportError:
     from app.services.recommendation_service import RecommendationService
     from app.services.routing_service import RoutingService
     from app.services.place_image_resolver import PlaceImageResolver
+    from app.services.weather_service import WeatherService
 
 logger = logging.getLogger(__name__)
 
@@ -63,28 +65,13 @@ class ItineraryService:
         # Resolve geographic anchor coordinates if user coordinates are not provided
         anchor_lat = request.user_lat
         anchor_lon = request.user_lon
-        if (anchor_lat is None or anchor_lon is None) and (request.destination or request.start_location):
-            dest_lower = (request.destination or request.start_location or "").strip().lower()
-            city_anchors = {
-                "mumbai": (18.9894, 73.1175),
-                "navi mumbai": (19.0330, 73.0297),
-                "delhi": (28.6139, 77.2090),
-                "new delhi": (28.6139, 77.2090),
-                "bangalore": (12.9716, 77.5946),
-                "bengaluru": (12.9716, 77.5946),
-                "goa": (15.2993, 74.1240),
-                "jaipur": (26.9124, 75.7873),
-                "hyderabad": (17.3850, 78.4867),
-                "kolkata": (22.5726, 88.3639),
-                "chennai": (13.0827, 80.2707),
-                "pune": (18.5204, 73.8567),
-                "agra": (27.1767, 78.0081),
-                "varanasi": (25.3176, 82.9739),
-            }
-            for c_name, coords in city_anchors.items():
-                if c_name in dest_lower or dest_lower in c_name:
-                    anchor_lat, anchor_lon = coords
-                    break
+        dest_text = (request.destination or request.start_location or "").strip()
+        if dest_text:
+            coords = WeatherService.get_coordinates_for_destination(dest_text)
+            if coords:
+                anchor_lat, anchor_lon = coords
+        if anchor_lat is None or anchor_lon is None:
+            anchor_lat, anchor_lon = 19.0760, 72.8777
 
         if selected_ids:
             # Match IDs with flexible prefix handling ('EXP-' or standard)
@@ -193,25 +180,19 @@ class ItineraryService:
             c_lat = c.get("latitude")
             c_lon = c.get("longitude")
             if c_lat is None or pd.isna(c_lat) or str(c_lat).strip() == "" or str(c_lat) == "nan":
-                # Fallback to city or default coordinates
-                city_val = str(c.get("city", "")).lower()
-                if "delhi" in city_val:
-                    c["latitude"] = 28.6139 + (len(str(c.get("experience_id", ""))) % 5) * 0.01
-                    c["longitude"] = 77.2090 + (len(str(c.get("experience_name", ""))) % 5) * 0.01
-                elif "mumbai" in city_val or "raigad" in city_val or "panvel" in city_val:
-                    c["latitude"] = 18.9894 + (len(str(c.get("experience_id", ""))) % 5) * 0.01
-                    c["longitude"] = 73.1175 + (len(str(c.get("experience_name", ""))) % 5) * 0.01
-                else:
-                    c["latitude"] = 18.9894
-                    c["longitude"] = 73.1175
+                # Fallback to city or destination anchor coordinates
+                city_val = str(c.get("city") or request.destination or "").lower()
+                c_coords = WeatherService.get_coordinates_for_destination(city_val) or (anchor_lat, anchor_lon)
+                c["latitude"] = c_coords[0] + (len(str(c.get("experience_id", ""))) % 5) * 0.005
+                c["longitude"] = c_coords[1] + (len(str(c.get("experience_name", ""))) % 5) * 0.005
 
-        # If start coordinates are not provided, use the first experience's coordinate
+        # If start coordinates are not provided, use the first experience's coordinate or destination anchor
         if (start_lat is None or start_lon is None) and candidates:
-            start_lat = float(candidates[0].get("latitude", 18.9894))
-            start_lon = float(candidates[0].get("longitude", 73.1175))
+            start_lat = float(candidates[0].get("latitude") or anchor_lat)
+            start_lon = float(candidates[0].get("longitude") or anchor_lon)
         elif start_lat is None or start_lon is None:
-            start_lat = 18.9894
-            start_lon = 73.1175
+            start_lat = anchor_lat
+            start_lon = anchor_lon
 
         ordered_candidates = cls._order_candidates_spatially(candidates, start_lat, start_lon)
 
@@ -241,10 +222,10 @@ class ItineraryService:
 
             total_est_transit = sum(transit_estimates)
             # Available activity budget
-            avail_act_mins = max(max_duration_minutes - total_est_transit, num_candidates * 20)
+            avail_act_mins = max(max_duration_minutes - total_est_transit, num_candidates * 15)
 
             raw_durs = [
-                max(20, int(round(float(c.get("duration_hours_clean", c.get("duration_hours", 1.5))) * 60)))
+                max(15, int(round(float(c.get("duration_hours_clean", c.get("duration_hours", 1.5))) * 60)))
                 for c in ordered_candidates
             ]
             total_raw_act = sum(raw_durs)
@@ -252,7 +233,7 @@ class ItineraryService:
             if total_raw_act > avail_act_mins:
                 # Scale down durations proportionally so every requested experience fits in the schedule
                 scale_factor = avail_act_mins / float(total_raw_act)
-                min_stop_mins = 20 if num_candidates >= 4 else 25
+                min_stop_mins = 15 if num_candidates >= 4 else 20
                 for c, r_d in zip(ordered_candidates, raw_durs):
                     scaled = max(min_stop_mins, int(round(r_d * scale_factor)))
                     allocated_durations[str(c.get("experience_id"))] = scaled
@@ -305,8 +286,9 @@ class ItineraryService:
             # Projected time window for this experience
             activity_start_dt = current_dt + timedelta(minutes=transit_mins)
 
-            # Check 1: Strict Total Trip Duration Constraint
-            if request.available_time_hours and request.available_time_hours > 0:
+            # Check 1: Total Trip Duration Constraint
+            is_explicit_selection = bool(request.selected_experience_ids)
+            if request.available_time_hours and request.available_time_hours > 0 and not is_explicit_selection:
                 # If start time is literally past the trip end limit, then skip
                 if activity_start_dt >= trip_end_limit_dt:
                     skipped.append(SkippedExperience(
@@ -330,6 +312,10 @@ class ItineraryService:
                             reason=f"Insufficient remaining time in your {request.available_time_hours:g} hr schedule",
                         ))
                         continue
+            elif is_explicit_selection:
+                # For explicitly selected experiences, preserve all user selections
+                duration_mins = max(10, duration_mins)
+                duration_hrs = round(duration_mins / 60.0, 2)
 
             activity_end_dt = activity_start_dt + timedelta(minutes=duration_mins)
 

@@ -37,6 +37,15 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     GROQ_API_KEY: str = ""
 
+    # Gemini Recommendation Engine Configuration
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-1.5-flash"
+
+    # Supabase Configuration
+    SUPABASE_URL: str = "https://mvokdnefwukzouuttsvz.supabase.co"
+    SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_ANON_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12b2tkbmVmd3Vrem91dXR0c3Z6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTA1NzksImV4cCI6MjEwNTkyNjU3OX0.KsNjS6EP6hyw2-JZlKgvV3AdqpZudVGCI7guH0YE9w4"
+
     # Nugen AI Integration (Post-generation enhancement & validation layer)
     NUGEN_ENABLED: bool = False
     NUGEN_API_KEY: str = ""

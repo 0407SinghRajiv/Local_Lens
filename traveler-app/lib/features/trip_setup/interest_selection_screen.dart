@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../data/mock_data.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 6: Interest / Discovery Preferences Screen
-class InterestSelectionScreen extends StatefulWidget {
+class InterestSelectionScreen extends ConsumerStatefulWidget {
   const InterestSelectionScreen({super.key});
 
   @override
-  State<InterestSelectionScreen> createState() => _InterestSelectionScreenState();
+  ConsumerState<InterestSelectionScreen> createState() => _InterestSelectionScreenState();
 }
 
-class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
+class _InterestSelectionScreenState extends ConsumerState<InterestSelectionScreen> {
   final Set<String> _selectedInterests = {'Food', 'Culture'};
 
   final Map<String, IconData> _interestIcons = {
@@ -148,6 +150,7 @@ class _InterestSelectionScreenState extends State<InterestSelectionScreen> {
                 text: 'Next',
                 isOrange: false,
                 onPressed: () {
+                  ref.read(itineraryProvider.notifier).setInterests(_selectedInterests.toList());
                   context.push(AppRoutes.budget);
                 },
               ),

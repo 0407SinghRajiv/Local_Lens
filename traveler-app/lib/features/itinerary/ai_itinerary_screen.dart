@@ -1,16 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
-import '../../data/mock_data.dart';
+import '../../models/itinerary_model.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../widgets/common/locallens_components.dart';
+import '../../widgets/itinerary_map.dart';
 
 /// Screen 15: AI Itinerary Synthesis Screen
-class AIItineraryScreen extends StatelessWidget {
+class AIItineraryScreen extends ConsumerStatefulWidget {
   const AIItineraryScreen({super.key});
 
   @override
+  ConsumerState<AIItineraryScreen> createState() => _AIItineraryScreenState();
+}
+
+class _AIItineraryScreenState extends ConsumerState<AIItineraryScreen> {
+  int? _selectedStopIndex;
+
+  @override
   Widget build(BuildContext context) {
+    final itineraryState = ref.watch(itineraryProvider);
+    final itinerary = itineraryState.generatedItinerary;
+    final items = itinerary?.items ?? <ItineraryItem>[];
+
+    final totalHours = itinerary != null ? (itinerary.totalDurationMinutes / 60.0) : itineraryState.durationHours;
+    final totalCost = itinerary?.totalEstimatedCost ?? itineraryState.totalBudgetInr;
+    final itemCount = items.length;
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -23,7 +42,15 @@ class AIItineraryScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.share_outlined, color: LocalLensColors.textPrimary),
-            onPressed: () {},
+            onPressed: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Itinerary link copied to clipboard!'),
+                  backgroundColor: LocalLensColors.primaryTeal,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -41,84 +68,205 @@ class AIItineraryScreen extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Built around your time, budget and interests.',
+                itinerary?.destination.isNotEmpty == true
+                    ? 'AI optimized itinerary for ${itinerary!.destination} based on your preferences & weather.'
+                    : 'Built around your time, budget, weather and interests.',
                 style: LocalLensTypography.bodyMedium,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               // Metric Badges (Duration, Budget, Experience count)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildMetricBadge(Icons.schedule_rounded, '6h 30m'),
+                    _buildMetricBadge(
+                      Icons.schedule_rounded,
+                      '${totalHours.toStringAsFixed(1)}h',
+                    ),
                     const SizedBox(width: 8),
-                    _buildMetricBadge(Icons.currency_rupee_rounded, '₹1,450'),
+                    _buildMetricBadge(
+                      Icons.currency_rupee_rounded,
+                      '₹${totalCost.toInt()}',
+                    ),
                     const SizedBox(width: 8),
-                    _buildMetricBadge(Icons.local_activity_rounded, '4 experiences'),
+                    _buildMetricBadge(
+                      Icons.local_activity_rounded,
+                      '$itemCount experiences',
+                    ),
+                    if (itineraryState.tripDate.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      _buildMetricBadge(
+                        Icons.calendar_today_rounded,
+                        itineraryState.tripDate,
+                      ),
+                    ],
                   ],
                 ),
               ),
 
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
+
+              // Interactive Route Map
+              if (items.isNotEmpty)
+                Container(
+                  height: 200,
+                  margin: const EdgeInsets.only(bottom: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+                    boxShadow: LocalLensDimensions.softCardShadow,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: ItineraryMapWidget(
+                    items: items,
+                    startLocation: (itineraryState.latitude != null && itineraryState.longitude != null && itineraryState.latitude != 0.0 && itineraryState.longitude != 0.0)
+                        ? LatLng(itineraryState.latitude!, itineraryState.longitude!)
+                        : null,
+                    startAddress: itineraryState.displayAddress.isNotEmpty
+                        ? itineraryState.displayAddress
+                        : (itineraryState.destination.isNotEmpty ? itineraryState.destination : 'Start'),
+                    selectedIndex: _selectedStopIndex,
+                    height: 200,
+                    onExperienceSelected: (index) {
+                      setState(() {
+                        _selectedStopIndex = index;
+                      });
+                    },
+                  ),
+                ),
 
               // Timeline List of Stops
               Expanded(
-                child: ListView.separated(
-                  itemCount: 4,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (context, index) {
-                    final stop = LocalLensMockData.dayItineraryStops[index];
-                    return Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
-                        border: Border.all(color: LocalLensColors.border),
-                        boxShadow: LocalLensDimensions.softCardShadow,
-                      ),
-                      child: Row(
-                        children: [
-                          // Time Pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: LocalLensColors.primaryTealSoft,
-                              borderRadius: BorderRadius.circular(8),
+                child: items.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.map_rounded, size: 48, color: LocalLensColors.textMuted),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No stops generated yet.',
+                              style: LocalLensTypography.titleMedium,
                             ),
-                            child: Text(
-                              stop.time,
-                              style: const TextStyle(
-                                color: LocalLensColors.primaryTeal,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
+                            const SizedBox(height: 6),
+                            Text(
+                              'Swipe on recommendations to build your route.',
+                              style: LocalLensTypography.bodyMedium.copyWith(color: LocalLensColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      )
+                    : ListView.separated(
+                        itemCount: items.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 10),
+                        itemBuilder: (context, index) {
+                          final stop = items[index];
+                          final isSelected = _selectedStopIndex == index;
+                          return GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _selectedStopIndex = index;
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isSelected ? LocalLensColors.primaryTealSoft : Colors.white,
+                                borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+                                border: Border.all(
+                                  color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.border,
+                                  width: isSelected ? 1.5 : 1.0,
+                                ),
+                                boxShadow: LocalLensDimensions.softCardShadow,
+                              ),
+                              child: Row(
+                                children: [
+                                  // Stop Number / Time Pill
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? LocalLensColors.primaryTeal : LocalLensColors.primaryTealSoft,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '#${index + 1}',
+                                          style: TextStyle(
+                                            color: isSelected ? Colors.white : LocalLensColors.primaryTeal,
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 11,
+                                          ),
+                                        ),
+                                        if (stop.startTime.isNotEmpty)
+                                          Text(
+                                            stop.startTime,
+                                            style: TextStyle(
+                                              color: isSelected ? Colors.white70 : LocalLensColors.textSecondary,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+
+                                  // Place Image Thumbnail
+                                  if (stop.image.isNotEmpty)
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        stop.image,
+                                        width: 50,
+                                        height: 50,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Container(
+                                          width: 50,
+                                          height: 50,
+                                          color: LocalLensColors.surfaceSecondary,
+                                          child: const Icon(Icons.place_rounded, color: LocalLensColors.primaryTeal, size: 22),
+                                        ),
+                                      ),
+                                    ),
+                                  if (stop.image.isNotEmpty) const SizedBox(width: 10),
+
+                                  // Place Name & Details
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          stop.experienceName,
+                                          style: LocalLensTypography.titleMedium.copyWith(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          '${(stop.durationMinutes / 60.0).toStringAsFixed(1)} hrs • ₹${stop.price.toInt()} • ${stop.category}',
+                                          style: LocalLensTypography.caption,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: LocalLensColors.textMuted),
+                                ],
                               ),
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  stop.title,
-                                  style: LocalLensTypography.titleMedium.copyWith(fontSize: 14),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  '${stop.durationHours} hrs • ₹${stop.priceInr.toInt()}',
-                                  style: LocalLensTypography.caption,
-                                ),
-                              ],
-                            ),
-                          ),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: LocalLensColors.textMuted),
-                        ],
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
+
+              const SizedBox(height: 8),
 
               // Start Trip Button
               LocalLensPrimaryButton(

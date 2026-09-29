@@ -12,12 +12,17 @@ class RecommendationRequest(BaseModel):
     Supports exact parameters from Jupyter Notebook & Flutter app.
     """
     # Location coordinates
-    user_lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Traveler latitude")
-    user_lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Traveler longitude")
-    start_lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Traveler latitude alias")
-    start_lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Traveler longitude alias")
-    start_location: Optional[str] = Field(default=None, description="Starting text address or landmark")
     destination: Optional[str] = Field(default="", description="Target destination or city")
+    destination_city: Optional[str] = Field(default=None, description="Target destination city name alias")
+    destination_lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Destination latitude")
+    destination_lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Destination longitude")
+    
+    # User / Origin Coordinates (for pickup, distance from current location, etc.)
+    user_lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Traveler phone GPS latitude")
+    user_lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Traveler phone GPS longitude")
+    start_lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Traveler start latitude alias")
+    start_lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Traveler start longitude alias")
+    start_location: Optional[str] = Field(default=None, description="Starting text address or landmark")
     
     # Budget & Duration
     budget_inr: Optional[float] = Field(default=None, ge=0, description="Total budget in INR")
@@ -35,6 +40,10 @@ class RecommendationRequest(BaseModel):
     accessibility: Optional[List[str]] = Field(default_factory=list, description="Accessibility requirements")
     additional_preferences: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional preference notes")
     
+    # Date & Weather
+    trip_date: Optional[str] = Field(default=None, description="Trip date in YYYY-MM-DD or readable format")
+    weather_condition: Optional[str] = Field(default=None, description="Optional simulated or override weather condition")
+
     # Filtering parameters
     city: Optional[str] = Field(default=None, description="Optional city filter")
     category: Optional[str] = Field(default=None, description="Optional category filter")

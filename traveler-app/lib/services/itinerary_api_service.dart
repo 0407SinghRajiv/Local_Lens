@@ -34,6 +34,7 @@ class ItineraryApiService {
     } catch (_) {}
 
     // Wi-Fi LAN & Hotspot host IPs for physical devices
+    list.add('http://10.255.207.227:8000');
     list.add('http://192.168.137.210:8000');
     list.add('http://192.168.137.1:8000');
 
@@ -94,7 +95,7 @@ class ItineraryApiService {
 
   static String get baseUrl => _cachedBaseUrl ?? (candidateUrls.isNotEmpty ? candidateUrls.first : 'http://127.0.0.1:8000');
 
-  /// 1. Fetch ML Recommendations
+  /// 1. Fetch Recommendations via Backend (Powered by Gemini AI)
   static Future<List<RecommendationModel>> fetchRecommendations({
     required String destination,
     String? startLocation,
@@ -106,6 +107,7 @@ class ItineraryApiService {
     required String travelerType,
     required List<String> interests,
     String? preferences,
+    String? tripDate,
     List<String>? excludedCategories,
     int? topN,
   }) async {
@@ -126,6 +128,7 @@ class ItineraryApiService {
       'traveler_type': travelerType,
       'group_type': travelerType,
       'interests': interests,
+      'trip_date': tripDate,
       'excluded_categories': excludedCategories ?? [],
       'radius_km': 25.0,
       'additional_preferences': preferences != null && preferences.isNotEmpty ? {'notes': preferences} : {},

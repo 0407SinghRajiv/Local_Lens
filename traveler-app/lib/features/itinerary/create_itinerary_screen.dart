@@ -1,11 +1,14 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
 import '../../providers/itinerary_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/geocoding_service.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 1 — Create Itinerary & Recommendation Discovery
@@ -22,9 +25,22 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
   late TextEditingController _budgetController;
   late TextEditingController _preferencesController;
 
+  late DateTime _selectedTripDate;
+  late TimeOfDay _selectedStartTime;
+
   bool _isResolvingLocation = false;
   bool _isLoadingRecommendations = false;
+  bool _isLoadingWeather = false;
   String? _locationError;
+
+  // Live/Forecast Weather Info for Selected Date & Destination
+  String _weatherTemp = '28°C';
+  String _weatherCondition = 'Clear & Sunny';
+  String _weatherRainChance = '10%';
+  String _weatherAdvice = 'Ideal outdoor sightseeing conditions. Great for walking tours & open viewpoints.';
+  IconData _weatherIcon = Icons.wb_sunny_rounded;
+  Color _weatherColor = const Color(0xFFE65100);
+  Color _weatherBgColor = const Color(0xFFFFF3E0);
 
   final List<String> _interestOptions = [
     'Food',
@@ -74,6 +90,186 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
     _preferencesController.addListener(() {
       ref.read(itineraryProvider.notifier).setPreferences(_preferencesController.text);
     });
+
+    final now = DateTime.now();
+    if (state.tripDate.isNotEmpty) {
+      try {
+        _selectedTripDate = DateTime.parse(state.tripDate);
+      } catch (_) {
+        _selectedTripDate = now;
+      }
+    } else {
+      _selectedTripDate = now;
+    }
+
+    _selectedStartTime = const TimeOfDay(hour: 10, minute: 30);
+
+    // Initial weather forecast fetch
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _syncDateAndFetchWeather();
+    });
+  }
+
+  void _syncDateAndFetchWeather() {
+    final formattedDate =
+        '${_selectedTripDate.year}-${_selectedTripDate.month.toString().padLeft(2, '0')}-${_selectedTripDate.day.toString().padLeft(2, '0')}';
+    ref.read(itineraryProvider.notifier).setTripDate(formattedDate);
+    _fetchWeatherForecastForTrip();
+  }
+
+  Future<void> _fetchWeatherForecastForTrip() async {
+    setState(() {
+      _isLoadingWeather = true;
+    });
+
+    final state = ref.read(itineraryProvider);
+    final targetDest = state.locationMode == LocationMode.exact
+        ? state.displayAddress
+        : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
+
+    final coords = GeocodingService.resolveCoordinatesForCity(targetDest);
+    double lat = state.locationMode == LocationMode.exact ? (state.latitude ?? coords.latitude) : coords.latitude;
+    double lon = state.locationMode == LocationMode.exact ? (state.longitude ?? coords.longitude) : coords.longitude;
+    final formattedDate =
+        '${_selectedTripDate.year}-${_selectedTripDate.month.toString().padLeft(2, '0')}-${_selectedTripDate.day.toString().padLeft(2, '0')}';
+
+    debugPrint('[WEATHER REQUEST] City: $targetDest, Lat: $lat, Lng: $lon, Date: $formattedDate');
+
+    const apiKey = '9fb8d155eeb443116f6d35e81215a121';
+
+    try {
+      final url = Uri.parse(
+        'https://api.openweathermap.org/data/2.5/weather?lat=$lat&lon=$lon&appid=$apiKey&units=metric',
+      );
+      final response = await http.get(url).timeout(const Duration(seconds: 4));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final main = data['main'];
+        final weatherList = data['weather'] as List?;
+
+        if (main != null && weatherList != null && weatherList.isNotEmpty) {
+          final temp = (main['temp'] as num).round();
+          final item = weatherList.first;
+          final desc = (item['description'] as String?) ?? 'Clear Sky';
+          final descLower = desc.toLowerCase();
+
+          IconData icon = Icons.wb_sunny_rounded;
+          Color col = const Color(0xFFE65100);
+          Color bg = const Color(0xFFFFF3E0);
+          String advice = 'Sunny conditions. Perfect for outdoor sightseeing & beaches.';
+          String rainChance = '5%';
+
+          if (descLower.contains('rain') || descLower.contains('drizzle')) {
+            icon = Icons.water_drop_rounded;
+            col = const Color(0xFF0288D1);
+            bg = const Color(0xFFE1F5FE);
+            advice = 'Rain expected. Indoor museums, food walks & covered stops prioritized.';
+            rainChance = '75%';
+          } else if (descLower.contains('thunder') || descLower.contains('storm')) {
+            icon = Icons.thunderstorm_rounded;
+            col = const Color(0xFF4A148C);
+            bg = const Color(0xFFEDE7F6);
+            advice = 'Stormy weather. Safe sheltered cultural stops & cozy dining recommended.';
+            rainChance = '90%';
+          } else if (descLower.contains('cloud')) {
+            icon = Icons.cloud_rounded;
+            col = const Color(0xFF37474F);
+            bg = const Color(0xFFECEFF1);
+            advice = 'Pleasant cloud cover. Comfortable for both indoor & outdoor exploration.';
+            rainChance = '25%';
+          }
+
+          if (mounted) {
+            setState(() {
+              _weatherTemp = '$temp°C';
+              _weatherCondition = desc.split(' ').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' ');
+              _weatherRainChance = rainChance;
+              _weatherAdvice = advice;
+              _weatherIcon = icon;
+              _weatherColor = col;
+              _weatherBgColor = bg;
+              _isLoadingWeather = false;
+            });
+            return;
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) {
+      setState(() {
+        _isLoadingWeather = false;
+      });
+    }
+  }
+
+  Future<void> _pickTripDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedTripDate.isBefore(now) ? now : _selectedTripDate,
+      firstDate: now,
+      lastDate: now.add(const Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: LocalLensColors.primaryTeal,
+              onPrimary: Colors.white,
+              onSurface: LocalLensColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedTripDate = picked;
+      });
+      _syncDateAndFetchWeather();
+    }
+  }
+
+  Future<void> _pickStartTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedStartTime,
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: LocalLensColors.primaryTeal,
+              onPrimary: Colors.white,
+              onSurface: LocalLensColors.textPrimary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedStartTime = picked;
+      });
+      final period = picked.period == DayPeriod.am ? 'AM' : 'PM';
+      final hour = picked.hourOfPeriod == 0 ? 12 : picked.hourOfPeriod;
+      final minute = picked.minute.toString().padLeft(2, '0');
+      final formattedTime = '$hour:$minute $period';
+      ref.read(itineraryProvider.notifier).setTripStartTime(formattedTime);
+    }
+  }
+
+  String _formatDisplayDate(DateTime date) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final dayName = days[date.weekday - 1];
+    final monthName = months[date.month - 1];
+    return '$dayName, ${date.day} $monthName ${date.year}';
+>>>>>>> 25fcca8 (fix(location): enforce destination as single source of truth for weather, recommendations, itinerary and map)
   }
 
   @override
@@ -246,7 +442,17 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
 
                     const SizedBox(height: 24),
 
-                    // SECTION 2: AVAILABLE TIME
+                    // SECTION 2: TRIP DATE, TIME & WEATHER FORECAST
+                    _buildSectionHeader(
+                      icon: Icons.calendar_month_rounded,
+                      title: 'When are you traveling & Weather',
+                    ),
+                    const SizedBox(height: 12),
+                    _buildDateAndWeatherSelector(state, notifier),
+
+                    const SizedBox(height: 24),
+
+                    // SECTION 3: AVAILABLE TIME
                     _buildSectionHeader(
                       icon: Icons.schedule_rounded,
                       title: 'How much time do you have?',
@@ -256,7 +462,7 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
 
                     const SizedBox(height: 24),
 
-                    // SECTION 3: TOTAL BUDGET
+                    // SECTION 4: TOTAL BUDGET
                     _buildSectionHeader(
                       icon: Icons.currency_rupee_rounded,
                       title: 'What\'s your total budget?',
@@ -266,7 +472,7 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
 
                     const SizedBox(height: 24),
 
-                    // SECTION 4: TRAVELERS & NUMBER OF PERSONS
+                    // SECTION 5: TRAVELERS & NUMBER OF PERSONS
                     _buildSectionHeader(
                       icon: Icons.groups_rounded,
                       title: 'Who\'s traveling & How many persons?',
@@ -566,9 +772,10 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
                     controller: _destinationController,
                     onChanged: (val) {
                       notifier.setDestination(val);
+                      _syncDateAndFetchWeather();
                     },
                     decoration: InputDecoration(
-                      hintText: 'Search destination (e.g. Mumbai, Delhi, Panvel)',
+                      hintText: 'Search destination (e.g. Mumbai, Delhi, Jaipur)',
                       hintStyle: LocalLensTypography.bodyMedium.copyWith(color: LocalLensColors.textMuted),
                       prefixIcon: const Icon(Icons.location_city_rounded, color: LocalLensColors.primaryTeal, size: 20),
                       filled: true,
@@ -590,6 +797,219 @@ class _CreateItineraryScreenState extends ConsumerState<CreateItineraryScreen> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateAndWeatherSelector(CreateItineraryState state, ItineraryNotifier notifier) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(LocalLensDimensions.radiusMedium),
+        border: Border.all(color: LocalLensColors.border),
+        boxShadow: LocalLensDimensions.softCardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Date & Time Selectors Row
+          Row(
+            children: [
+              // Trip Date Picker Button
+              Expanded(
+                child: GestureDetector(
+                  onTap: _pickTripDate,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.surfaceSecondary,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: LocalLensColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_month_rounded, color: LocalLensColors.primaryTeal, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Trip Date',
+                                style: LocalLensTypography.caption.copyWith(
+                                  color: LocalLensColors.textSecondary,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _formatDisplayDate(_selectedTripDate),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  color: LocalLensColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.keyboard_arrow_down_rounded, color: LocalLensColors.textMuted, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+
+              // Start Time Picker Button
+              Expanded(
+                child: GestureDetector(
+                  onTap: _pickStartTime,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: LocalLensColors.surfaceSecondary,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: LocalLensColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.access_time_rounded, color: LocalLensColors.accentOrange, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Start Time',
+                                style: LocalLensTypography.caption.copyWith(
+                                  color: LocalLensColors.textSecondary,
+                                  fontSize: 10,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${_selectedStartTime.hourOfPeriod == 0 ? 12 : _selectedStartTime.hourOfPeriod}:${_selectedStartTime.minute.toString().padLeft(2, '0')} ${_selectedStartTime.period == DayPeriod.am ? 'AM' : 'PM'}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                  color: LocalLensColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.keyboard_arrow_down_rounded, color: LocalLensColors.textMuted, size: 18),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          // Live / Forecast Weather Card for Selected Date & Destination
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _weatherBgColor,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _weatherColor.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: _weatherColor.withValues(alpha: 0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(_weatherIcon, color: _weatherColor, size: 18),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Text(
+                            _weatherTemp,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 14,
+                              color: _weatherColor,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '• $_weatherCondition',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: _weatherColor,
+                            ),
+                          ),
+                          if (_isLoadingWeather) ...[
+                            const SizedBox(width: 6),
+                            SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                valueColor: AlwaysStoppedAnimation<Color>(_weatherColor),
+                              ),
+                            ),
+                          ],
+                          const Spacer(),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _weatherColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.water_drop_rounded, size: 10, color: _weatherColor),
+                                const SizedBox(width: 2),
+                                Text(
+                                  _weatherRainChance,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w800,
+                                    color: _weatherColor,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _weatherAdvice,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: _weatherColor.withValues(alpha: 0.9),
+                    height: 1.3,
+                  ),
+                ),
+              ],
             ),
           ),
         ],

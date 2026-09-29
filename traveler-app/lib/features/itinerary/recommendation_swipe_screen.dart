@@ -71,6 +71,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
           interests: state.interests,
           preferences: state.preferences,
           excludedCategories: state.excludedCategories,
+          tripDate: state.tripDate,
           topN: 50,
         );
       } catch (e) {
@@ -130,6 +131,7 @@ class _RecommendationSwipeScreenState extends ConsumerState<RecommendationSwipeS
         interests: state.interests,
         preferences: state.preferences,
         excludedCategories: state.excludedCategories,
+        tripDate: state.tripDate,
         topN: 50,
       );
 

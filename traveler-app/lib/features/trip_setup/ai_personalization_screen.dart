@@ -1,33 +1,38 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/routes/app_routes.dart';
 import '../../core/theme/locallens_design_system.dart';
+import '../../providers/itinerary_provider.dart';
 import '../../widgets/common/locallens_components.dart';
 
 /// Screen 9: AI Personalization & Itinerary Building Screen
-class AIPersonalizationScreen extends StatefulWidget {
+class AIPersonalizationScreen extends ConsumerStatefulWidget {
   const AIPersonalizationScreen({super.key});
 
   @override
-  State<AIPersonalizationScreen> createState() => _AIPersonalizationScreenState();
+  ConsumerState<AIPersonalizationScreen> createState() => _AIPersonalizationScreenState();
 }
 
-class _AIPersonalizationScreenState extends State<AIPersonalizationScreen> {
+class _AIPersonalizationScreenState extends ConsumerState<AIPersonalizationScreen> {
   int _completedSteps = 0;
   Timer? _timer;
 
   final List<String> _steps = [
     'Understanding your preferences',
-    'Finding local experiences',
-    'Checking time & budget',
-    'Building your itinerary',
+    'Checking live weather & forecast',
+    'Finding local experiences & photos',
+    'Building your AI recommendations',
   ];
 
   @override
   void initState() {
     super.initState();
     _startAnimation();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(itineraryProvider.notifier).fetchRecommendations();
+    });
   }
 
   void _startAnimation() {
@@ -130,11 +135,11 @@ class _AIPersonalizationScreenState extends State<AIPersonalizationScreen> {
 
               // Explore Now CTA
               LocalLensPrimaryButton(
-                text: 'View Your Itinerary',
+                text: 'Explore Recommendations',
                 isOrange: true,
                 icon: Icons.auto_awesome_rounded,
                 onPressed: () {
-                  context.push(AppRoutes.aiItinerary);
+                  context.push(AppRoutes.recommendationSwipe);
                 },
               ),
               const SizedBox(height: 16),

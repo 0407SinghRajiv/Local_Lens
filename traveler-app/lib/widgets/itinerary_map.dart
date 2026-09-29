@@ -273,7 +273,7 @@ class ItineraryMapWidgetState extends State<ItineraryMapWidget> {
     }
     final initialPos = (validItems.isNotEmpty)
         ? LatLng(validItems.first.latitude!, validItems.first.longitude!)
-        : (widget.startLocation ?? const LatLng(18.9894, 73.1175));
+        : (widget.startLocation ?? const LatLng(19.0760, 72.8777));
 
     return Container(
       height: widget.height,

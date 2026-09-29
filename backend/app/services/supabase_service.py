@@ -61,7 +61,7 @@ class SupabaseService:
 
         try:
             req = urllib.request.Request(endpoint, headers=headers)
-            with urllib.request.urlopen(req, timeout=12) as resp:
+            with urllib.request.urlopen(req, timeout=3) as resp:
                 if resp.status in (200, 206):
                     data = json.loads(resp.read().decode("utf-8"))
                     if data and len(data) > 0:
@@ -73,7 +73,7 @@ class SupabaseService:
                     else:
                         logger.info("Supabase experience table returned 0 rows.")
         except Exception as e:
-            logger.warning(f"Failed to query Supabase experience table: {e}")
+            logger.warning(f"Failed to query Supabase experience table (using local cache/seed fallback): {e}")
 
         return None
 

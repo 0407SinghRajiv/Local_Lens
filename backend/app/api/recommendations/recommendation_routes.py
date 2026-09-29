@@ -1,8 +1,17 @@
 """
 Recommendation API Endpoints.
-Exposes POST /api/recommendations to score and rank experiences using the ML model.
+Exposes POST /api/recommendations to score and rank experiences using Gemini AI and Supabase context.
 """
 from fastapi import APIRouter, HTTPException, status
+import logging
+
+# ML recommendation system retained for future integration.
+# Currently disconnected from the active recommendation pipeline.
+try:
+    from backend.app.services.recommendation_service import RecommendationService
+except ImportError:
+    from app.services.recommendation_service import RecommendationService
+
 try:
     from backend.app.schemas.recommendation_schemas import (
         RecommendationRequest,
@@ -10,8 +19,7 @@ try:
         SmartSearchRequest,
         SmartSearchResponse,
     )
-    from backend.app.services.recommendation_service import RecommendationService
-    from backend.app.services.smart_search_service import SmartSearchService
+    from backend.app.services.gemini_recommendation_service import GeminiRecommendationService
 except ImportError:
     from app.schemas.recommendation_schemas import (
         RecommendationRequest,
@@ -19,9 +27,7 @@ except ImportError:
         SmartSearchRequest,
         SmartSearchResponse,
     )
-    from app.services.recommendation_service import RecommendationService
-    from app.services.smart_search_service import SmartSearchService
-import logging
+    from app.services.gemini_recommendation_service import GeminiRecommendationService
 
 logger = logging.getLogger(__name__)
 
@@ -33,18 +39,18 @@ router = APIRouter(tags=["Recommendations"])
 async def get_recommendations(request: RecommendationRequest):
     """
     Score and rank personalized experience recommendations for traveler preferences.
-    Uses the trained ML model, ColumnTransformer pipeline, and cleaned experience dataset.
+    Uses Gemini AI recommendation engine, Supabase context data, trip-date weather forecast, and real image discovery.
     """
     try:
-        response = RecommendationService.get_recommendations(request)
+        response = await GeminiRecommendationService.get_recommendations(request)
         return response
     except Exception as e:
-        logger.error(f"Error generating recommendations: {e}", exc_info=True)
+        logger.error(f"Error generating Gemini recommendations: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
                 "code": "RECOMMENDATION_FAILED",
-                "message": f"Failed to score recommendations: {str(e)}",
+                "message": f"Failed to generate recommendations: {str(e)}",
             },
         )
 
@@ -53,11 +59,11 @@ async def get_recommendations(request: RecommendationRequest):
 async def smart_search_recommendations(request: SmartSearchRequest):
     """
     NLP & Semantic Intent Search for Traveler Home Screen Search Bar.
-    Uses Groq LLM to extract duration, budget, group size, destination, and interests
-    from natural language queries and immediately returns ranked ML recommendations.
+    Extracts travel intent and parameters from natural language queries
+    and immediately returns ranked recommendations via Gemini.
     """
     try:
-        response = SmartSearchService.execute_smart_search(request)
+        response = await GeminiRecommendationService.execute_smart_search(request)
         return response
     except Exception as e:
         logger.error(f"Error executing smart search: {e}", exc_info=True)

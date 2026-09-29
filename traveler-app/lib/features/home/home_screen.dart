@@ -15,6 +15,7 @@ import '../../models/user_profile.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/itinerary_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/geocoding_service.dart';
 import '../../services/sponsor_service.dart';
 import '../../services/itinerary_api_service.dart';
 import '../../models/recommendation_model.dart';
@@ -60,6 +61,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
 
   final TextEditingController _smartSearchController = TextEditingController();
   bool _isSmartSearching = false;
+  List<ExperienceItem> _dynamicExperiences = [];
 
   @override
   void initState() {
@@ -67,6 +69,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     _scrollController = ScrollController();
     _scrollController.addListener(_onScroll);
     _refreshSponsored();
+    _fetchDynamicExperiences();
 
     _sponsoredPageController = PageController(viewportFraction: 0.93);
     _sponsoredAutoTimer = Timer.periodic(const Duration(milliseconds: 3800), (_) {
@@ -99,6 +102,57 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _promptLocationOnAppOpen();
     });
+  }
+
+  Future<void> _fetchDynamicExperiences() async {
+    if (!mounted) return;
+    try {
+      final itinState = ref.read(itineraryProvider);
+      final targetDest = itinState.destination.isNotEmpty ? itinState.destination : 'Mumbai';
+      final coords = GeocodingService.resolveCoordinatesForCity(targetDest);
+
+      final recs = await ItineraryApiService.fetchRecommendations(
+        destination: targetDest,
+        startLocation: targetDest,
+        startLat: coords.latitude,
+        startLon: coords.longitude,
+        budget: 5000,
+        durationHours: 6,
+        travelerCount: 2,
+        travelerType: 'Couple',
+        interests: const ['Culture', 'Food', 'Nature'],
+        topN: 30,
+      );
+      if (recs.isNotEmpty && mounted) {
+        setState(() {
+          _dynamicExperiences = recs.map((r) => ExperienceItem(
+            id: r.experienceId,
+            title: r.name,
+            category: r.category,
+            subCategory: r.subCategory?.isNotEmpty == true ? r.subCategory! : r.category,
+            rating: r.rating ?? 4.5,
+            reviewCount: r.reviewCount ?? 120,
+            durationHours: r.durationHours > 0 ? r.durationHours : 2.0,
+            distanceKm: r.distanceKm ?? 3.5,
+            priceInr: r.price,
+            location: r.location.isNotEmpty ? r.location : '$targetDest, India',
+            description: r.reason.isNotEmpty ? r.reason : 'Authentic local experience in $targetDest',
+            imageUrl: r.imageUrl?.isNotEmpty == true ? r.imageUrl! : r.image,
+            isSaved: false,
+            isSoldOut: false,
+            matchReasons: r.reason.isNotEmpty ? [r.reason] : const [],
+          )).toList();
+        });
+        return;
+      }
+    } catch (e) {
+      debugPrint('[HomeScreen] Dynamic experiences fetch error: $e');
+    }
+    if (mounted) {
+      setState(() {
+        _dynamicExperiences = LocalLensMockData.featuredExperiences;
+      });
+    }
   }
 
   void _onScroll() {
@@ -886,10 +940,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> with TickerProviderStat
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final userProfile = ref.watch(currentUserProfileProvider);
 
+    final allExperiences = _dynamicExperiences.isNotEmpty
+        ? _dynamicExperiences
+        : LocalLensMockData.featuredExperiences;
+
     // Filter Experiences based on Selected Category Chip
     final filteredExperiences = _selectedCategory == 'All'
-        ? LocalLensMockData.featuredExperiences
-        : LocalLensMockData.featuredExperiences.where((exp) {
+        ? allExperiences
+        : allExperiences.where((exp) {
             final catLower = _selectedCategory.toLowerCase();
             return exp.category.toLowerCase() == catLower ||
                 exp.subCategory.toLowerCase().contains(catLower);

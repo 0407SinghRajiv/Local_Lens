@@ -184,13 +184,7 @@ class PlaceImageResolver:
                 if len(known_name) > 4 and (norm_name in known_name or known_name in norm_name):
                     return img
 
-        # LEVEL 4: Gemini Matching Fallback (Identifies CSV ID only)
-        if norm_name and settings and getattr(settings, "LLM_API_KEY", None):
-            gemini_id = self._gemini_match_csv_id(name=name or "", location=location or "", category=category)
-            if gemini_id and gemini_id.upper() in self._id_map:
-                return self._id_map[gemini_id.upper()]
-
-        # LEVEL 5: Professional Category Fallback Placeholder
+        # LEVEL 4: Professional Category Fallback Placeholder
         cat_key = str(category or "Local Experience").strip()
         for known_cat, fallback_url in self.CATEGORY_FALLBACKS.items():
             if known_cat.lower() in cat_key.lower():

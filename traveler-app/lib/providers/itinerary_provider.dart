@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/itinerary_model.dart';
 import '../models/recommendation_model.dart';
+import '../services/geocoding_service.dart';
 import '../services/itinerary_api_service.dart';
 
 enum LocationMode { exact, destination }
@@ -48,10 +49,10 @@ class CreateItineraryState {
 
   const CreateItineraryState({
     this.locationMode = LocationMode.destination,
-    this.latitude = 18.9894,
-    this.longitude = 73.1175,
+    this.latitude = 19.0760,
+    this.longitude = 72.8777,
     this.destination = 'Mumbai',
-    this.displayAddress = 'Panvel, Maharashtra',
+    this.displayAddress = 'Mumbai, Maharashtra',
     this.availableTime = '6',
     this.availableTimeUnit = 'Hours',
     this.availableTimeMinutes = 360,
@@ -65,7 +66,7 @@ class CreateItineraryState {
     this.recommendations = const [],
     this.selectedExperienceIds = const {},
     this.selectedPlaces = const [],
-    this.tripDate = '2026-09-26',
+    this.tripDate = '',
     this.tripStartTime = '10:30 AM',
     this.status = ItineraryFormStatus.initial,
     this.error,
@@ -171,8 +172,15 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
   }
 
   void setDestination(String destination) {
+    final cleanDest = destination.trim().isNotEmpty ? destination.trim() : 'Mumbai';
+    final coords = GeocodingService.resolveCoordinatesForCity(cleanDest);
+    debugPrint('[TRIP INPUT] Destination City: $cleanDest');
+    debugPrint('[DESTINATION RESOLUTION] City: $cleanDest, Lat: ${coords.latitude}, Lng: ${coords.longitude}');
     state = state.copyWith(
-      destination: destination,
+      destination: cleanDest,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      displayAddress: cleanDest,
       locationMode: LocationMode.destination,
     );
   }
@@ -218,6 +226,10 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
 
   void setDesiredExperienceCount(int count) {
     state = state.copyWith(desiredExperienceCount: count.clamp(1, 12));
+  }
+
+  void setInterests(List<String> interests) {
+    state = state.copyWith(interests: interests);
   }
 
   void toggleInterest(String interest) {
@@ -373,6 +385,14 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
           ? state.displayAddress
           : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
 
+      final now = DateTime.now();
+      final effectiveDate = state.tripDate.isNotEmpty
+          ? state.tripDate
+          : '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+
+      debugPrint('[WEATHER REQUEST] City: $dest, Lat: ${state.latitude}, Lng: ${state.longitude}, Date: $effectiveDate');
+      debugPrint('[RECOMMENDATION REQUEST] Destination: $dest, Lat: ${state.latitude}, Lng: ${state.longitude}');
+
       final recs = await ItineraryApiService.fetchRecommendations(
         destination: dest,
         startLocation: state.displayAddress,
@@ -384,6 +404,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
         travelerType: state.groupType,
         interests: state.interests,
         preferences: state.preferences,
+        tripDate: effectiveDate,
         excludedCategories: state.excludedCategories,
         topN: 50,
       );
@@ -479,7 +500,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
               ? state.selectedExperienceIds.toList()
               : (state.recommendations.isNotEmpty
                   ? state.recommendations.take(targetCount).map((r) => r.experienceId).toList()
-                  : List.generate(targetCount, (i) => 'EXP-DELHI-${(i + 1).toString().padLeft(3, '0')}')));
+                  : List.generate(targetCount, (i) => 'EXP-MUM-${(i + 1).toString().padLeft(3, '0')}')));
 
       debugPrint('[ItineraryProvider] Requested: $targetCount, Selected: ${selectedPlacesList.length}, Sent to backend: ${selectedList.length}');
 
@@ -524,7 +545,7 @@ class ItineraryNotifier extends StateNotifier<CreateItineraryState> {
       // Fallback generator ensures user is never blocked
       final dest = state.locationMode == LocationMode.exact
           ? state.displayAddress
-          : (state.destination.isNotEmpty ? state.destination : 'Panvel, Maharashtra');
+          : (state.destination.isNotEmpty ? state.destination : 'Mumbai');
       final fallbackItin = ItineraryApiService.generateItinerary(
         destination: dest,
         tripDate: state.tripDate,
