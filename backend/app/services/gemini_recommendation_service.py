@@ -238,9 +238,21 @@ class GeminiRecommendationService:
                 weather_info=weather_info,
             )
 
-        # Step 6: If LLM produced 0 results or failed, use graceful rule-based fallback ranking
+        # Step 6: If LLM produced 0 results or was offline, execute trained Random Forest ML model
         if not recommended_items:
-            logger.info(f"[GeminiRec] Using rule-based ranking for {dest_city} with real image resolver.")
+            try:
+                from backend.app.services.recommendation_service import RecommendationService
+                logger.info(f"[RecOrchestrator] Executing trained RandomForest ML Model for {dest_city}...")
+                ml_resp = RecommendationService.get_recommendations(request)
+                if ml_resp and ml_resp.recommendations:
+                    recommended_items = ml_resp.recommendations
+                    logger.info(f"[RecOrchestrator] Successfully inferred {len(recommended_items)} recommendations via RandomForest ML pipeline.")
+            except Exception as e:
+                logger.warning(f"[RecOrchestrator] ML engine execution fallback: {e}")
+
+        # Step 6b: If ML model also produced 0 results, use rule-based fallback ranking
+        if not recommended_items:
+            logger.info(f"[RecOrchestrator] Using rule-based ranking for {dest_city} with real image resolver.")
             recommended_items = await cls._build_fallback_recommendations(
                 candidates_df=candidates_df,
                 request=request,
@@ -249,6 +261,7 @@ class GeminiRecommendationService:
                 dest_lon=dest_lon,
                 weather_info=weather_info,
             )
+
 
         # Step 7: Limit to top_n
         final_items = recommended_items[:request.top_n]

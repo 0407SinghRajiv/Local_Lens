@@ -704,6 +704,129 @@ export const ApiService = {
       return null;
     }
   },
+
+  async fetchExperiences(params?: {
+    destination?: string;
+    category?: string;
+    minBudget?: number;
+    maxBudget?: number;
+    lat?: number;
+    lon?: number;
+    radiusKm?: number;
+    q?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/experiences`, {
+        params: {
+          destination: params?.destination,
+          category: params?.category,
+          min_budget: params?.minBudget,
+          max_budget: params?.maxBudget,
+          lat: params?.lat,
+          lon: params?.lon,
+          radius_km: params?.radiusKm,
+          q: params?.q,
+          page: params?.page || 1,
+          page_size: params?.pageSize || 50,
+        },
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.fetchExperiences failed:', e);
+      return { success: false, count: 0, total: 0, experiences: [] };
+    }
+  },
+
+  async fetchExperienceById(id: string) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/experiences/${id}`, {
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      console.warn(`ApiService.fetchExperienceById failed for ${id}:`, e);
+      return null;
+    }
+  },
+
+  async calculateRoute(params: {
+    origin: { lat: number; lng: number; name?: string };
+    destination: { lat: number; lng: number; name?: string };
+    waypoints?: Array<{ lat: number; lng: number; name?: string }>;
+    travelMode?: string;
+  }) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.post(
+        `${activeBase}/api/v1/maps/route`,
+        {
+          origin: params.origin,
+          destination: params.destination,
+          waypoints: params.waypoints,
+          travel_mode: params.travelMode || 'driving',
+        },
+        { timeout: 5000 }
+      );
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.calculateRoute failed:', e);
+      return null;
+    }
+  },
+
+  async fetchNearbyPlaces(params: { lat: number; lon: number; radiusKm?: number; category?: string; limit?: number }) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/maps/nearby`, {
+        params: {
+          lat: params.lat,
+          lon: params.lon,
+          radius_km: params.radiusKm || 15,
+          category: params.category,
+          limit: params.limit || 20,
+        },
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.fetchNearbyPlaces failed:', e);
+      return null;
+    }
+  },
+
+  async fetchDiscoveryCategories() {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/discovery/categories`, {
+        timeout: 4000,
+      });
+      return res.data?.categories || [];
+    } catch (e) {
+      console.warn('ApiService.fetchDiscoveryCategories failed:', e);
+      return [];
+    }
+  },
+
+  async regenerateItineraryDay(itineraryId: string, dayId: number) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.post(
+        `${activeBase}/api/v1/itineraries/${itineraryId}/days/${dayId}/regenerate`,
+        {},
+        { headers: authHeader, timeout: API_TIMEOUT }
+      );
+      return res.data;
+    } catch (e) {
+      console.warn(`ApiService.regenerateItineraryDay failed for day ${dayId}:`, e);
+      return null;
+    }
+  },
 };
 
 // ------------------------------------------------------------------------------

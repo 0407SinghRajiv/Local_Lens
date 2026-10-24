@@ -41,9 +41,13 @@ def test_14_ml_files_and_system_still_exist():
     assert hasattr(engine, "get_experiences_df")
 
 
-def test_15_ml_is_not_called_by_active_recommendation_endpoint():
-    """Verify that the active POST /api/recommendations endpoint does NOT call ML RecommendationEngine.recommend."""
-    with patch.object(RecommendationEngine, "recommend") as mock_ml_recommend:
+def test_15_ml_orchestration_is_active_and_verified():
+    """Verify that the active POST /api/recommendations endpoint orchestrates ML RecommendationEngine."""
+    with patch.object(RecommendationEngine, "recommend", wraps=RecommendationEngine(
+        model_dir="ml/models",
+        dataset_dir="ml/datasets",
+        dataset_filename="all_experiences_with_photos.csv",
+    ).recommend) as mock_ml_recommend:
         payload = {
             "destination": "Mumbai",
             "budget": 2000,
@@ -56,8 +60,9 @@ def test_15_ml_is_not_called_by_active_recommendation_endpoint():
         data = resp.json()
         assert data["success"] is True
         assert len(data["recommendations"]) > 0
-        # Assert ML engine was NOT called in live recommendation flow
-        mock_ml_recommend.assert_not_called()
+        # Verify ML engine is actively orchestrated
+        assert mock_ml_recommend.called is True
+
 
 
 @pytest.mark.asyncio

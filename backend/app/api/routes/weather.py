@@ -1,12 +1,13 @@
 """
-Weather Engine API Endpoints.
+Weather Engine API Endpoints (V1).
 Provides current conditions, forecast horizon, and trip summaries.
 """
 from typing import Optional
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Body, HTTPException, Query, status
 from backend.app.schemas.weather_schemas import (
     WeatherCurrentResponse,
     WeatherForecastResponse,
+    WeatherTripSummaryRequest,
     WeatherTripSummaryResponse,
 )
 from backend.app.services.weather_service import WeatherService
@@ -29,7 +30,6 @@ async def get_current_weather(
         destination=destination,
     )
     if res.get("status") == "unavailable" or res.get("latitude") is None:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unable to resolve geographic coordinates for destination '{destination}'.",
@@ -65,7 +65,6 @@ async def get_weather_forecast(
         days=days,
     )
     if series.get("status") == "unavailable" or series.get("coordinates", {}).get("lat") == 0.0:
-        from fastapi import HTTPException, status
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Unable to resolve geographic coordinates for destination '{destination}'.",
@@ -74,7 +73,7 @@ async def get_weather_forecast(
 
 
 @router.get("/trip-summary", response_model=WeatherTripSummaryResponse)
-async def get_weather_trip_summary(
+async def get_weather_trip_summary_query(
     destination: str = Query(..., description="Destination name (e.g. 'Jaipur')"),
     start_date: Optional[str] = Query(None, description="Trip start date (YYYY-MM-DD)"),
     days: int = Query(3, ge=1, le=16),
@@ -82,7 +81,7 @@ async def get_weather_trip_summary(
     lon: Optional[float] = Query(None, ge=-180.0, le=180.0),
 ):
     """
-    Get consolidated weather summary and recommendations guidance for a specific trip duration.
+    Get consolidated weather summary and recommendations guidance for a specific trip duration via GET query.
     """
     summary = await WeatherService.get_trip_summary(
         destination=destination,
@@ -90,5 +89,22 @@ async def get_weather_trip_summary(
         days=days,
         lat=lat,
         lon=lon,
+    )
+    return WeatherTripSummaryResponse(**summary)
+
+
+@router.post("/trip-summary", response_model=WeatherTripSummaryResponse)
+async def get_weather_trip_summary_post(
+    payload: WeatherTripSummaryRequest = Body(...),
+):
+    """
+    Get consolidated weather summary and recommendations guidance for a specific trip duration via POST body.
+    """
+    summary = await WeatherService.get_trip_summary(
+        destination=payload.destination,
+        start_date=payload.start_date,
+        days=payload.days,
+        lat=payload.lat,
+        lon=payload.lon,
     )
     return WeatherTripSummaryResponse(**summary)

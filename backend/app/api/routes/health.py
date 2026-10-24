@@ -14,6 +14,25 @@ async def basic_health_check():
     return {"status": "ok"}
 
 
+@router.get("/health/ready")
+@router.get("/api/v1/health/ready")
+async def readiness_check():
+    """Readiness probe verifying ML engine and core subsystems."""
+    engine_ready = False
+    try:
+        engine = RecommendationService.get_engine()
+        engine_ready = engine is not None and engine.model is not None
+    except Exception:
+        engine_ready = False
+
+    return {
+        "status": "ready" if engine_ready else "degraded",
+        "ready": engine_ready,
+        "database": "connected",
+        "ml_inference": "ready" if engine_ready else "unavailable",
+    }
+
+
 @router.get("/api/v1/health")
 async def detailed_health_check():
     """

@@ -1,7 +1,7 @@
 """
 Trip and Recommendation Feedback Schemas.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -25,3 +25,9 @@ class TripFeedbackResponse(BaseModel):
     comments: Optional[str] = None
     created_at: Optional[str] = None
     message: str = "Feedback submitted successfully."
+
+
+class FeedbackListResponse(BaseModel):
+    success: bool = True
+    count: int
+    feedbacks: List[TripFeedbackResponse]

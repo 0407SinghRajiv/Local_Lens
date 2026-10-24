@@ -45,6 +45,14 @@ class WeatherForecastResponse(BaseModel):
     warning: Optional[str] = None
 
 
+class WeatherTripSummaryRequest(BaseModel):
+    destination: str = Field(..., description="Destination name (e.g. 'Jaipur')")
+    start_date: Optional[str] = Field(None, description="Trip start date (YYYY-MM-DD)")
+    days: int = Field(3, ge=1, le=16, description="Trip duration in days")
+    lat: Optional[float] = Field(None, ge=-90.0, le=90.0)
+    lon: Optional[float] = Field(None, ge=-180.0, le=180.0)
+
+
 class WeatherTripSummaryResponse(BaseModel):
     destination: str
     coordinates: Dict[str, float]

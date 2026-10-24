@@ -117,3 +117,15 @@ class GeocodingService:
         if results:
             return results[0].coordinates
         return None
+
+    @classmethod
+    async def get_destination_by_id(cls, destination_id: str) -> Optional[DestinationSearchResult]:
+        """Returns destination details for destination name, slug, or ID."""
+        clean_id = destination_id.strip()
+        if not clean_id:
+            return None
+        results = await cls.search_destination(clean_id)
+        if results:
+            return results[0]
+        return None
+

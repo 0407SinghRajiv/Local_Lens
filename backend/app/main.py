@@ -38,6 +38,9 @@ from backend.app.api.routes.discovery import router as discovery_router
 from backend.app.api.routes.itineraries import router as itineraries_v1_router
 from backend.app.api.routes.saved_places import router as saved_places_router
 from backend.app.api.routes.feedback import router as feedback_router
+from backend.app.api.routes.experiences import router as experiences_router
+from backend.app.api.routes.maps import router as maps_router
+from backend.app.api.routes.preferences import router as preferences_router
 
 # Setup structured logging
 setup_logging()
@@ -76,12 +79,15 @@ app.include_router(health_router)
 
 # V1 API Routes
 app.include_router(profiles_router, prefix=settings.API_V1_STR)
+app.include_router(preferences_router, prefix=settings.API_V1_STR)
 app.include_router(destinations_router, prefix=settings.API_V1_STR)
 app.include_router(weather_router, prefix=settings.API_V1_STR)
+app.include_router(experiences_router, prefix=settings.API_V1_STR)
 app.include_router(discovery_router, prefix=settings.API_V1_STR)
 app.include_router(itineraries_v1_router, prefix=settings.API_V1_STR)
 app.include_router(saved_places_router, prefix=settings.API_V1_STR)
 app.include_router(feedback_router, prefix=settings.API_V1_STR)
+app.include_router(maps_router, prefix=settings.API_V1_STR)
 
 # Existing / Backwards-compatibility Routes (used by existing web & mobile screens)
 app.include_router(recommendation_router, prefix="/api/recommendations")

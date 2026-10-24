@@ -128,14 +128,34 @@ async def regenerate_itinerary(
             detail=f"Itinerary '{itinerary_id}' not found or access denied.",
         )
 
+    dest = existing.get("destination_name")
+    if not dest:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Itinerary record is missing a valid destination.",
+        )
+
     # Re-run generator with same parameters
     req = ItineraryV1GenerateRequest(
-        destination=existing.get("destination_name", "Mumbai"),
+        destination=dest,
         start_date=existing.get("start_date", "2026-11-05"),
         days=existing.get("days_count", 1),
         pace=existing.get("pace", "balanced"),
-        traveler_type=existing.get("traveler_type", "couple"),
-        interests=existing.get("interests", ["food", "heritage"]),
+        traveler_type=existing.get("traveler_type", "solo"),
+        interests=existing.get("interests", ["food", "culture"]),
     )
     new_itin = await ItineraryService.generate_multiday_itinerary(req, user_id=user_id)
     return new_itin
+
+
+@router.post("/{itinerary_id}/days/{day_id}/regenerate", response_model=ItineraryV1Response)
+async def regenerate_itinerary_day(
+    itinerary_id: str,
+    day_id: int,
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    Regenerates a specific day schedule within an existing itinerary.
+    """
+    return await regenerate_itinerary(itinerary_id=itinerary_id, day_number=day_id, user_id=user_id)
+

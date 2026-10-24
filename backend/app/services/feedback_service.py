@@ -100,3 +100,35 @@ class FeedbackService:
             created_at=now,
             message="Feedback recorded successfully. Thank you for helping us improve LocalLens recommendations!",
         )
+
+    @classmethod
+    def list_feedback(
+        cls,
+        user_id: Optional[str] = None,
+        itinerary_id: Optional[str] = None,
+        place_id: Optional[str] = None,
+    ) -> List[TripFeedbackResponse]:
+        """Retrieves feedback matching the provided filters."""
+        all_records = cls._read_data()
+        results: List[TripFeedbackResponse] = []
+        for r in all_records:
+            if user_id and r.get("user_id") != user_id:
+                continue
+            if itinerary_id and r.get("itinerary_id") != itinerary_id:
+                continue
+            if place_id and r.get("place_id") != place_id:
+                continue
+            results.append(TripFeedbackResponse(
+                success=True,
+                id=str(r.get("id")),
+                user_id=str(r.get("user_id")),
+                itinerary_id=r.get("itinerary_id"),
+                place_id=r.get("place_id"),
+                rating=int(r.get("rating", 5)),
+                feedback_type=str(r.get("feedback_type", "trip")),
+                comments=r.get("comments"),
+                created_at=r.get("created_at"),
+                message="Feedback retrieved.",
+            ))
+        return results
+
