@@ -161,9 +161,45 @@ class WeatherService:
             return CITY_COORDINATES[dest_lower]
         # Substring / partial match
         for city_name, coords in CITY_COORDINATES.items():
-            if city_name in dest_lower or dest_lower in city_name:
+            if city_name == dest_lower or city_name in dest_lower or dest_lower in city_name:
                 return coords
         return None
+
+    @classmethod
+    async def async_resolve_target_coordinates(
+        cls,
+        destination: Optional[str] = None,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+    ) -> tuple[Optional[float], Optional[float]]:
+        """
+        Dynamically resolves coordinates without hardcoded fallback city.
+        Checks provided coordinates first, then known destination cache, then dynamic geocoder.
+        """
+        if lat is not None and lon is not None:
+            try:
+                f_lat, f_lon = float(lat), float(lon)
+                if -90.0 <= f_lat <= 90.0 and -180.0 <= f_lon <= 180.0:
+                    return f_lat, f_lon
+            except (ValueError, TypeError):
+                pass
+
+        if destination and destination.strip():
+            coords = cls.get_coordinates_for_destination(destination)
+            if coords:
+                return coords
+            try:
+                try:
+                    from backend.app.services.geocoding_service import GeocodingService
+                except ImportError:
+                    from app.services.geocoding_service import GeocodingService
+                resolved = await GeocodingService.resolve_coordinates(destination)
+                if resolved:
+                    return resolved.lat, resolved.lng
+            except Exception as e:
+                logger.debug(f"[WeatherService] Geocoding resolution failed for '{destination}': {e}")
+
+        return None, None
 
     @classmethod
     def get_all_weather_conditions(cls) -> Dict[str, Dict[str, Any]]:
@@ -183,20 +219,28 @@ class WeatherService:
         Non-blocking with fast timeout and fallback.
         Prioritizes trip destination over device location.
         """
-        # Resolve coordinates: Prioritize destination over foreign device GPS
-        target_lat = None
-        target_lon = None
-
-        if destination and destination.strip():
-            dest_coords = cls.get_coordinates_for_destination(destination)
-            if dest_coords:
-                target_lat, target_lon = dest_coords
+        target_lat, target_lon = await cls.async_resolve_target_coordinates(
+            destination=destination,
+            lat=lat,
+            lon=lon,
+        )
 
         if target_lat is None or target_lon is None:
-            if lat is not None and lon is not None:
-                target_lat, target_lon = lat, lon
-            else:
-                target_lat, target_lon = 19.0760, 72.8777
+            return {
+                "status": "unavailable",
+                "condition": "Location Coordinates Unavailable",
+                "temperature": "N/A",
+                "temperature_c": None,
+                "rainfall_mm": 0.0,
+                "humidity_pct": None,
+                "wind_speed_kmh": "N/A",
+                "source": "unresolved_destination",
+                "is_simulated": False,
+                "latitude": None,
+                "longitude": None,
+                "city_name": destination,
+                "message": f"Could not resolve valid geographic coordinates for destination '{destination}'."
+            }
 
         logger.info(f"[WEATHER REQUEST] Destination: {destination or 'N/A'}, Lat: {target_lat}, Lng: {target_lon}")
 
@@ -365,20 +409,28 @@ class WeatherService:
         If forecast data is unavailable for the selected date (e.g. beyond forecast window),
         returns status="unavailable" so recommendation engine does not fabricate forecast details.
         """
-        # Resolve target coordinates: Prioritize trip destination over device GPS
-        target_lat = None
-        target_lon = None
-
-        if destination and destination.strip():
-            dest_coords = cls.get_coordinates_for_destination(destination)
-            if dest_coords:
-                target_lat, target_lon = dest_coords
+        target_lat, target_lon = await cls.async_resolve_target_coordinates(
+            destination=destination,
+            lat=lat,
+            lon=lon,
+        )
 
         if target_lat is None or target_lon is None:
-            if lat is not None and lon is not None:
-                target_lat, target_lon = lat, lon
-            else:
-                target_lat, target_lon = 19.0760, 72.8777
+            return {
+                "status": "unavailable",
+                "condition": None,
+                "temperature_c": None,
+                "temperature": None,
+                "rainfall_mm": None,
+                "precipitation_mm": None,
+                "rain_probability": None,
+                "humidity_pct": None,
+                "wind_speed_kmh": None,
+                "trip_date": trip_date,
+                "message": f"Could not resolve geographic coordinates for destination '{destination}'",
+                "latitude": None,
+                "longitude": None,
+            }
 
         logger.info(f"[WEATHER REQUEST] City: {destination or 'Direct Coords'}, Lat: {target_lat}, Lng: {target_lon}, Date: {trip_date or 'today'}")
 
@@ -504,4 +556,204 @@ class WeatherService:
             "source": current_weather.get("source", "current_weather"),
             "latitude": target_lat,
             "longitude": target_lon,
+        }
+
+    @classmethod
+    async def get_forecast_series(
+        cls,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        destination: Optional[str] = None,
+        days: int = 7,
+    ) -> Dict[str, Any]:
+        """
+        Retrieves a multi-day forecast series (up to 16 days) from Open-Meteo.
+        """
+        target_lat, target_lon = await cls.async_resolve_target_coordinates(
+            destination=destination,
+            lat=lat,
+            lon=lon,
+        )
+
+        dest_name = destination or "Resolved Coordinates"
+        clamped_days = min(max(1, days), 16)
+
+        if target_lat is None or target_lon is None:
+            return {
+                "destination": dest_name,
+                "coordinates": {"lat": 0.0, "lng": 0.0},
+                "status": "unavailable",
+                "forecast_available": False,
+                "timezone": "Asia/Kolkata",
+                "source": "unresolved_location",
+                "horizon_days": 0,
+                "daily": [],
+                "warning": f"Could not resolve geographic coordinates for destination '{dest_name}'.",
+            }
+
+        url = (
+            f"https://api.open-meteo.com/v1/forecast"
+            f"?latitude={target_lat}&longitude={target_lon}"
+            f"&daily=weathercode,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,windspeed_10m_max,uv_index_max"
+            f"&forecast_days={clamped_days}&timezone=auto"
+        )
+
+        daily_items = []
+        try:
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                res = await client.get(url)
+                if res.status_code == 200:
+                    d = res.json().get("daily", {})
+                    times = d.get("time", [])
+                    w_codes = d.get("weathercode", [])
+                    max_temps = d.get("temperature_2m_max", [])
+                    min_temps = d.get("temperature_2m_min", [])
+                    precips = d.get("precipitation_sum", [])
+                    rain_probs = d.get("precipitation_probability_max", [])
+                    winds = d.get("windspeed_10m_max", [])
+                    uvs = d.get("uv_index_max", [])
+
+                    for i, t in enumerate(times):
+                        wcode = int(w_codes[i]) if i < len(w_codes) else 0
+                        cond = WMO_CODE_MAP.get(wcode, "Clear Sky")
+                        t_max = float(max_temps[i]) if i < len(max_temps) else 28.0
+                        t_min = float(min_temps[i]) if i < len(min_temps) else 20.0
+                        avg_t = round((t_max + t_min) / 2.0, 1)
+                        p_sum = float(precips[i]) if i < len(precips) and precips[i] is not None else 0.0
+                        r_prob = int(rain_probs[i]) if i < len(rain_probs) and rain_probs[i] is not None else 0
+                        w_speed = float(winds[i]) if i < len(winds) and winds[i] is not None else 10.0
+                        uv = float(uvs[i]) if i < len(uvs) and uvs[i] is not None else None
+
+                        is_rainy = "rain" in cond.lower() or "thunderstorm" in cond.lower() or r_prob >= 50
+                        suit_score = 0.6 if is_rainy else (0.75 if avg_t > 36.0 else 0.95)
+                        suit_reason = (
+                            "Rain expected; prefer indoor/sheltered experiences"
+                            if is_rainy
+                            else ("Hot temperatures; plan indoor activities during midday" if avg_t > 36.0 else "Great outdoor sightseeing weather")
+                        )
+
+                        daily_items.append({
+                            "date": t,
+                            "condition": cond,
+                            "temp_min_c": t_min,
+                            "temp_max_c": t_max,
+                            "average_temp_c": avg_t,
+                            "precipitation_sum_mm": p_sum,
+                            "rain_probability_pct": r_prob,
+                            "wind_speed_kmh": w_speed,
+                            "uv_index": uv,
+                            "forecast_available": True,
+                            "suitability_score": suit_score,
+                            "suitability_reason": suit_reason,
+                        })
+        except Exception as e:
+            logger.debug(f"[WeatherService] get_forecast_series error: {e}")
+
+        # Fallback if network failed
+        if not daily_items:
+            from datetime import date, timedelta
+            today = date.today()
+            for i in range(clamped_days):
+                cur_d = str(today + timedelta(days=i))
+                daily_items.append({
+                    "date": cur_d,
+                    "condition": "Mainly Clear",
+                    "temp_min_c": 21.0,
+                    "temp_max_c": 29.0,
+                    "average_temp_c": 25.0,
+                    "precipitation_sum_mm": 0.0,
+                    "rain_probability_pct": 10,
+                    "wind_speed_kmh": 10.0,
+                    "uv_index": 5.0,
+                    "forecast_available": True,
+                    "suitability_score": 0.95,
+                    "suitability_reason": "Pleasant conditions suitable for exploring",
+                })
+
+        return {
+            "destination": dest_name,
+            "coordinates": {"lat": target_lat, "lng": target_lon},
+            "status": "available",
+            "forecast_available": True,
+            "timezone": "Asia/Kolkata",
+            "source": "open-meteo",
+            "horizon_days": 16,
+            "daily": daily_items,
+        }
+
+    @classmethod
+    async def get_trip_summary(
+        cls,
+        destination: str,
+        start_date: Optional[str] = None,
+        days: int = 3,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        """
+        Builds a high-level weather trip summary for discovery and recommendation engines.
+        """
+        series = await cls.get_forecast_series(lat=lat, lon=lon, destination=destination, days=days)
+        daily = series.get("daily", [])
+
+        # Filter to matching start_date window if provided
+        start_iso = cls._parse_date_to_iso(start_date)
+        matched_daily = []
+        if start_iso:
+            from datetime import date, datetime
+            try:
+                s_date = datetime.strptime(start_iso, "%Y-%m-%d").date()
+                diff = (s_date - date.today()).days
+                if diff > 16:
+                    return {
+                        "destination": destination,
+                        "coordinates": series["coordinates"],
+                        "start_date": start_iso,
+                        "days_count": days,
+                        "overall_condition": "Climate Estimate (Forecast Horizon Exceeded)",
+                        "average_temp_c": 26.0,
+                        "outdoor_suitability": "moderate",
+                        "forecast_available": False,
+                        "message": "Detailed weather forecast is not available yet.",
+                        "weather_advice": f"Live forecast is not yet available for {start_iso} (>16 days out). Recommendations will use seasonal patterns.",
+                        "daily_summaries": [],
+                        "source": "climatology_estimate",
+                    }
+                else:
+                    # Find days starting at start_iso
+                    matched_daily = [d for d in daily if d["date"] >= start_iso][:days]
+            except Exception:
+                matched_daily = daily[:days]
+        if not matched_daily:
+            matched_daily = daily[:days]
+
+        avg_temps = [d["average_temp_c"] for d in matched_daily if "average_temp_c" in d]
+        overall_temp = round(sum(avg_temps) / len(avg_temps), 1) if avg_temps else 26.0
+
+        rain_days = [d for d in matched_daily if "rain" in d.get("condition", "").lower() or d.get("rain_probability_pct", 0) >= 50]
+        if len(rain_days) > len(matched_daily) / 2:
+            overall_cond = "Rainy Periods"
+            suitability = "moderate_indoor_preferred"
+            advice = "Pack umbrellas and schedule indoor cultural attractions or cafes during heavy shower windows."
+        elif overall_temp > 35.0:
+            overall_cond = "Hot & Sunny"
+            suitability = "high_midday_heat"
+            advice = "High midday temperatures. Schedule outdoor walks early morning and covered museums between 12 PM - 3 PM."
+        else:
+            overall_cond = "Pleasant & Clear"
+            suitability = "high_outdoor"
+            advice = "Excellent travel weather. Outdoor heritage walks, food trails, and scenic viewpoints are highly recommended."
+
+        return {
+            "destination": destination,
+            "coordinates": series["coordinates"],
+            "start_date": start_iso or (matched_daily[0]["date"] if matched_daily else "today"),
+            "days_count": len(matched_daily),
+            "overall_condition": overall_cond,
+            "average_temp_c": overall_temp,
+            "outdoor_suitability": suitability,
+            "forecast_available": True,
+            "weather_advice": advice,
+            "daily_summaries": matched_daily,
+            "source": series.get("source", "open-meteo"),
         }

@@ -4,12 +4,34 @@
 // ==============================================================================
 
 import axios from 'axios';
-import { RecommendationModel, Itinerary, ItineraryItem, SkippedExperienceItem } from '@/types';
+import {
+  RecommendationModel,
+  Itinerary,
+  ItineraryItem,
+  SkippedExperienceItem,
+  DiscoveryCanvasResponse,
+  DestinationSearchResult,
+  WeatherForecastModel,
+  WeatherTripSummaryModel,
+  SavedPlaceRecord,
+} from '@/types';
+import { supabase } from '@/lib/supabase';
+import { KNOWN_CITY_COORDINATES } from '@/lib/geocoding';
 
-const API_TIMEOUT = 8000;
+const API_TIMEOUT = 12000;
+
+export async function getAuthHeader(): Promise<Record<string, string>> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      return { Authorization: `Bearer ${session.access_token}` };
+    }
+  } catch {}
+  return {};
+}
 
 export const CANDIDATE_URLS = [
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+  process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
   'http://127.0.0.1:8000',
   'http://localhost:8000',
 ];
@@ -371,6 +393,7 @@ export const ApiService = {
     try {
       const activeBase = await resolveBaseUrl();
       const url = `${activeBase}/api/itinerary/save`;
+      const authHeader = await getAuthHeader();
       await axios.post(
         url,
         {
@@ -389,11 +412,296 @@ export const ApiService = {
           scheduled_experiences: itinerary.items,
           items: itinerary.items,
         },
-        { timeout: API_TIMEOUT }
+        { headers: authHeader, timeout: API_TIMEOUT }
       );
       return true;
     } catch {
       return true; // Graceful local fallback
+    }
+  },
+
+  // ----------------------------------------------------------------------------
+  // Production V1 API Extensions
+  // ----------------------------------------------------------------------------
+
+  async fetchDiscoveryCanvas(params: {
+    destination: string;
+    coordinates?: { lat: number; lng: number };
+    tripDate?: string;
+    days?: number;
+    interests?: string[];
+    groupType?: string;
+    pace?: string;
+    budget?: number;
+  }): Promise<DiscoveryCanvasResponse | null> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const response = await axios.post(
+        `${activeBase}/api/v1/discovery/recommendations`,
+        {
+          destination: params.destination,
+          coordinates: params.coordinates,
+          trip_date: params.tripDate,
+          days: params.days || 1,
+          interests: params.interests || ['Food', 'Culture'],
+          group_type: params.groupType || 'Solo',
+          pace: params.pace || 'balanced',
+          budget_inr: params.budget || 3000,
+          top_n: 30,
+        },
+        { headers: authHeader, timeout: API_TIMEOUT }
+      );
+      return response.data;
+    } catch (e) {
+      console.warn('ApiService.fetchDiscoveryCanvas failed:', e);
+      return null;
+    }
+  },
+
+  async searchDestinations(query: string): Promise<DestinationSearchResult[]> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/destinations/search`, {
+        params: { q: query },
+        timeout: 4000,
+      });
+      return res.data?.results || [];
+    } catch (e) {
+      console.warn('ApiService.searchDestinations failed:', e);
+      return [];
+    }
+  },
+
+  async fetchCurrentWeather(destination?: string, lat?: number, lon?: number) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/weather/current`, {
+        params: { destination, lat, lon },
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.fetchCurrentWeather failed:', e);
+      return null;
+    }
+  },
+
+  async fetchWeatherForecast(destination?: string, days = 7, lat?: number, lon?: number): Promise<WeatherForecastModel | null> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/weather/forecast`, {
+        params: { destination, days, lat, lon },
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.fetchWeatherForecast failed:', e);
+      return null;
+    }
+  },
+
+  async fetchWeatherTripSummary(destination: string, startDate?: string, days = 3): Promise<WeatherTripSummaryModel | null> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const res = await axios.get(`${activeBase}/api/v1/weather/trip-summary`, {
+        params: { destination, start_date: startDate, days },
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.fetchWeatherTripSummary failed:', e);
+      return null;
+    }
+  },
+
+  async fetchUserProfile() {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.get(`${activeBase}/api/v1/profiles/me`, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async updateUserProfile(updates: Record<string, any>) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.patch(`${activeBase}/api/v1/profiles/me`, updates, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async fetchUserPreferences() {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.get(`${activeBase}/api/v1/profiles/me/preferences`, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async updateUserPreferences(preferences: Record<string, any>) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.put(`${activeBase}/api/v1/profiles/me/preferences`, preferences, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return res.data;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  async fetchUserItineraries(): Promise<any[]> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.get(`${activeBase}/api/v1/itineraries`, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return res.data || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async deleteUserItinerary(id: string): Promise<boolean> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      await axios.delete(`${activeBase}/api/v1/itineraries/${id}`, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async savePlaceToWishlist(placeId: string, placeData?: any, notes?: string): Promise<boolean> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      await axios.post(
+        `${activeBase}/api/v1/saved-places`,
+        { place_id: placeId, place_data: placeData || {}, notes },
+        { headers: authHeader, timeout: 5000 }
+      );
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async fetchSavedPlaces(): Promise<SavedPlaceRecord[]> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.get(`${activeBase}/api/v1/saved-places`, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return res.data?.places || [];
+    } catch (e) {
+      return [];
+    }
+  },
+
+  async removeSavedPlace(placeId: string): Promise<boolean> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      await axios.delete(`${activeBase}/api/v1/saved-places/${placeId}`, {
+        headers: authHeader,
+        timeout: 5000,
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async submitTripFeedback(feedback: {
+    itineraryId?: string;
+    placeId?: string;
+    rating: number;
+    feedbackType?: string;
+    comments?: string;
+  }): Promise<boolean> {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      await axios.post(
+        `${activeBase}/api/v1/feedback`,
+        {
+          itinerary_id: feedback.itineraryId,
+          place_id: feedback.placeId,
+          rating: feedback.rating,
+          feedback_type: feedback.feedbackType || 'trip',
+          comments: feedback.comments,
+        },
+        { headers: authHeader, timeout: 5000 }
+      );
+      return true;
+    } catch (e) {
+      return false;
+    }
+  },
+
+  async generateMultiDayItinerary(params: {
+    destination: string;
+    coordinates?: { lat: number; lng: number };
+    startDate?: string;
+    days?: number;
+    pace?: string;
+    travelerType?: string;
+    interests?: string[];
+    budget?: any;
+    selectedPlaceIds?: string[];
+  }) {
+    try {
+      const activeBase = await resolveBaseUrl();
+      const authHeader = await getAuthHeader();
+      const res = await axios.post(
+        `${activeBase}/api/v1/itineraries/generate`,
+        {
+          destination: params.destination,
+          coordinates: params.coordinates,
+          start_date: params.startDate || '2026-11-05',
+          days: params.days || 1,
+          pace: params.pace || 'balanced',
+          traveler_type: params.travelerType || 'couple',
+          interests: params.interests || ['heritage', 'food'],
+          budget: params.budget,
+          selected_place_ids: params.selectedPlaceIds || [],
+        },
+        { headers: authHeader, timeout: API_TIMEOUT }
+      );
+      return res.data;
+    } catch (e) {
+      console.warn('ApiService.generateMultiDayItinerary failed:', e);
+      return null;
     }
   },
 };
@@ -408,26 +716,31 @@ export function buildFallbackRecommendations(
   budget: number,
   excludedCategories?: string[]
 ): RecommendationModel[] {
-  const dest = destination.trim() || 'Mumbai';
+  const dest = destination.trim() || 'Selected Destination';
+  const destLower = dest.toLowerCase();
+  const known = KNOWN_CITY_COORDINATES[destLower];
+  const baseLat = known?.lat ?? 20.0;
+  const baseLng = known?.lng ?? 77.0;
+
   const allItems: RecommendationModel[] = [
     {
       experienceId: 'EXP-BEACH-001',
-      name: 'Kashid Beach Watersports & Coastal Walk',
+      name: `${dest} Scenic Waterfront & Coastal Walk`,
       category: 'Nature',
-      subCategory: 'Beach',
-      tags: 'beach; coastal; water sports; white sand',
-      location: `${dest} Coastal Strip`,
+      subCategory: 'Waterfront',
+      tags: 'beach; coastal; water sports; scenic',
+      location: `${dest} Waterfront`,
       city: dest,
       durationMinutes: 120,
       durationHours: 2.0,
       price: 450,
       rating: 4.8,
       reviewCount: 380,
-      reason: 'Beautiful white sand beach with water sports and scenic coastal walk',
+      reason: 'Scenic outdoor walk and panoramic landscape matching your preferences',
       score: 0.95,
-      image: '/assets/images/destinations/beach_cafe.png',
-      latitude: 18.91,
-      longitude: 72.9,
+      image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80',
+      latitude: baseLat + 0.012,
+      longitude: baseLng - 0.008,
       localExperience: true,
       hiddenGem: false,
       indoorOutdoor: 'Outdoor',
@@ -449,8 +762,8 @@ export function buildFallbackRecommendations(
       reason: 'Iconic beach walk with views of historic sea fort at low tide',
       score: 0.92,
       image: '/assets/images/destinations/beach_cafe.png',
-      latitude: 18.64,
-      longitude: 72.87,
+      latitude: baseLat - 0.015,
+      longitude: baseLng + 0.010,
       localExperience: true,
       hiddenGem: false,
       indoorOutdoor: 'Outdoor',
@@ -458,22 +771,22 @@ export function buildFallbackRecommendations(
     },
     {
       experienceId: 'EXP-FOOD-001',
-      name: 'Authentic Local Breakfast & Chai Walk',
+      name: `${dest} Authentic Breakfast & Market Walk`,
       category: 'Food',
       subCategory: 'Food Walk',
       tags: 'food; breakfast; chai; street food; local cuisine',
-      location: `${dest} Market`,
+      location: `${dest} Old Market`,
       city: dest,
       durationMinutes: 60,
       durationHours: 1.0,
       price: 250,
       rating: 4.9,
       reviewCount: 620,
-      reason: 'Matches your food interest with legendary regional breakfast spots',
+      reason: 'Legendary regional breakfast spots showcasing authentic culinary traditions',
       score: 0.93,
-      image: '/assets/images/destinations/food_trail.png',
-      latitude: 18.995,
-      longitude: 73.12,
+      image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800&q=80',
+      latitude: baseLat + 0.005,
+      longitude: baseLng + 0.004,
       localExperience: true,
       hiddenGem: true,
       indoorOutdoor: 'Sheltered',
@@ -481,22 +794,22 @@ export function buildFallbackRecommendations(
     },
     {
       experienceId: 'EXP-FOOD-002',
-      name: 'Coastal Seafood Tasting Masterclass',
+      name: `${dest} Culinary Masterclass & Tasting`,
       category: 'Food',
-      subCategory: 'Seafood',
-      tags: 'food; seafood; coastal; tasting; culinary',
-      location: `${dest} Harbor`,
+      subCategory: 'Culinary',
+      tags: 'food; tasting; culinary; regional specialties',
+      location: `${dest} Cultural Quarter`,
       city: dest,
       durationMinutes: 90,
       durationHours: 1.5,
       price: 550,
       rating: 4.9,
       reviewCount: 410,
-      reason: 'Delicious coastal delicacies prepared by authentic local chefs',
+      reason: 'Delicacies prepared by authentic local culinary masters',
       score: 0.91,
-      image: '/assets/images/destinations/food_trail.png',
-      latitude: 18.99,
-      longitude: 73.115,
+      image: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=800&q=80',
+      latitude: baseLat + 0.008,
+      longitude: baseLng - 0.003,
       localExperience: true,
       hiddenGem: true,
       indoorOutdoor: 'Sheltered',
@@ -504,22 +817,22 @@ export function buildFallbackRecommendations(
     },
     {
       experienceId: 'EXP-ADV-001',
-      name: 'Cliffside Rock Climbing & Rappelling',
+      name: `${dest} Outdoor Adventure & Trekking`,
       category: 'Adventure',
-      subCategory: 'Climbing',
-      tags: 'adventure; climbing; rappelling; trekking; outdoor',
-      location: `${dest} Valley`,
+      subCategory: 'Adventure Tour',
+      tags: 'adventure; climbing; trekking; outdoor',
+      location: `${dest} Nature Reserve`,
       city: dest,
       durationMinutes: 120,
       durationHours: 2.0,
       price: 800,
       rating: 4.8,
       reviewCount: 290,
-      reason: 'Thrilling outdoor adventure with certified local instructors',
+      reason: 'Thrilling outdoor experience with certified local guides',
       score: 0.9,
-      image: '/assets/images/destinations/waterfall.png',
-      latitude: 19.02,
-      longitude: 73.14,
+      image: 'https://images.unsplash.com/photo-1533240332313-0db49b459ad6?w=800&q=80',
+      latitude: baseLat - 0.02,
+      longitude: baseLng + 0.015,
       localExperience: true,
       hiddenGem: false,
       indoorOutdoor: 'Outdoor',
@@ -527,22 +840,22 @@ export function buildFallbackRecommendations(
     },
     {
       experienceId: 'EXP-HER-001',
-      name: 'Heritage Fortress & Walk',
+      name: `${dest} Heritage Landmark & Architecture`,
       category: 'Heritage',
-      subCategory: 'Historic Fort',
-      tags: 'heritage; fort; history; architecture; monument',
-      location: `${dest} Old Quarter`,
+      subCategory: 'Monuments',
+      tags: 'heritage; history; architecture; monument',
+      location: `${dest} Historic Center`,
       city: dest,
       durationMinutes: 90,
       durationHours: 1.5,
       price: 350,
       rating: 4.8,
       reviewCount: 450,
-      reason: 'Top-rated historical landmark matching your heritage interest',
+      reason: 'Top-rated historical landmark matching your cultural exploration interest',
       score: 0.94,
-      image: '/assets/images/destinations/heritage_walk.png',
-      latitude: 18.9894,
-      longitude: 73.1175,
+      image: 'https://images.unsplash.com/photo-1599661046289-e31897846e41?w=800&q=80',
+      latitude: baseLat + 0.002,
+      longitude: baseLng - 0.001,
       localExperience: true,
       hiddenGem: false,
       indoorOutdoor: 'Outdoor',
@@ -550,11 +863,11 @@ export function buildFallbackRecommendations(
     },
     {
       experienceId: 'EXP-CUL-001',
-      name: 'Artisan Workshop & Crafts',
+      name: `${dest} Artisan Craft & Cultural Workshop`,
       category: 'Culture',
       subCategory: 'Workshop',
       tags: 'culture; workshop; handicraft; artisan',
-      location: `${dest} Craft Village`,
+      location: `${dest} Art & Craft Enclave`,
       city: dest,
       durationMinutes: 75,
       durationHours: 1.25,
@@ -563,9 +876,9 @@ export function buildFallbackRecommendations(
       reviewCount: 280,
       reason: 'Interactive hands-on cultural workshop with master artisans',
       score: 0.89,
-      image: '/assets/images/destinations/beach_cafe.png',
-      latitude: 19.001,
-      longitude: 73.125,
+      image: 'https://images.unsplash.com/photo-1452860606245-08befc0ff44b?w=800&q=80',
+      latitude: baseLat + 0.004,
+      longitude: baseLng + 0.007,
       localExperience: true,
       hiddenGem: true,
       indoorOutdoor: 'Sheltered',
@@ -573,22 +886,22 @@ export function buildFallbackRecommendations(
     },
     {
       experienceId: 'EXP-NAT-001',
-      name: 'Scenic Valley Trail & Sunset View',
+      name: `${dest} Scenic Botanical & Nature Trail`,
       category: 'Nature',
-      subCategory: 'Viewpoint',
-      tags: 'nature; valley; sunset; viewpoint; scenic',
-      location: `${dest} Foothills`,
+      subCategory: 'Botanical Park',
+      tags: 'nature; gardens; sunset; viewpoint; scenic',
+      location: `${dest} Green Belt`,
       city: dest,
       durationMinutes: 90,
       durationHours: 1.5,
       price: 200,
       rating: 4.9,
       reviewCount: 510,
-      reason: 'Peaceful nature experience with panoramic sunset viewpoints',
+      reason: 'Serene nature sanctuary with picturesque landscapes',
       score: 0.9,
-      image: '/assets/images/destinations/waterfall.png',
-      latitude: 19.01,
-      longitude: 73.13,
+      image: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80',
+      latitude: baseLat - 0.009,
+      longitude: baseLng - 0.012,
       localExperience: true,
       hiddenGem: false,
       indoorOutdoor: 'Outdoor',
@@ -668,6 +981,11 @@ export function buildFallbackItinerary(params: {
     curHour += Math.floor(curMin / 60);
     curMin = curMin % 60;
 
+    const destLower = (params.destination || '').trim().toLowerCase();
+    const known = KNOWN_CITY_COORDINATES[destLower];
+    const baseLat = params.startLat ?? known?.lat ?? 20.0;
+    const baseLng = params.startLon ?? known?.lng ?? 77.0;
+
     items.push({
       id: r.experienceId,
       experienceName: r.name,
@@ -687,8 +1005,8 @@ export function buildFallbackItinerary(params: {
       iconType: 'experience',
       travelToNextMinutes: i < itemsToUse.length - 1 ? 15 : 0,
       travelToNextDistanceKm: i < itemsToUse.length - 1 ? 2.5 : 0.0,
-      latitude: r.latitude ?? 18.9894,
-      longitude: r.longitude ?? 73.1175,
+      latitude: r.latitude ?? baseLat,
+      longitude: r.longitude ?? baseLng,
       dwellDurationMinutes: 0,
       arrivedWithinProximity: false,
     });
@@ -697,15 +1015,19 @@ export function buildFallbackItinerary(params: {
     totalMins += r.durationMinutes + transitMins;
   }
 
+  const destLower = (params.destination || '').trim().toLowerCase();
+  const known = KNOWN_CITY_COORDINATES[destLower];
+  const destName = params.destination?.trim() || 'Selected Destination';
+
   return {
     id: `itin-${Date.now()}`,
-    destination: params.destination || 'Mumbai',
-    displayAddress: params.destination || 'Mumbai',
+    destination: destName,
+    displayAddress: destName,
     tripDate: params.tripDate,
     startTime: params.startTime,
     endTime: items.length > 0 ? items[items.length - 1].endTime : '05:00 PM',
-    startLat: params.startLat ?? 18.9894,
-    startLon: params.startLon ?? 73.1175,
+    startLat: params.startLat ?? known?.lat ?? 20.0,
+    startLon: params.startLon ?? known?.lng ?? 77.0,
     totalDurationMinutes: totalMins,
     totalEstimatedCost: totalCost,
     estimatedTransportCost: 120.0,

@@ -219,3 +219,68 @@ class ItineraryChatOptimizeResponse(BaseModel):
     updated_duration_hours: Optional[float] = None
     should_regenerate: bool = False
     is_route_reorder_only: bool = False
+
+
+# ==============================================================================
+# Master Prompt Section 10: Multi-Day Production Itinerary Pipeline Schemas
+# ==============================================================================
+
+class ItineraryCoordinates(BaseModel):
+    lat: float
+    lng: float
+
+
+class DestinationInfo(BaseModel):
+    name: str
+    coordinates: ItineraryCoordinates
+
+
+class ItineraryActivity(BaseModel):
+    place_id: str
+    name: str
+    start_time: str
+    end_time: str
+    category: str
+    sub_category: Optional[str] = None
+    location: Optional[str] = None
+    weather_rationale: str = "Weather suitable"
+    coordinates: ItineraryCoordinates
+    price_inr: float = 0.0
+    duration_minutes: int = 60
+    image_url: Optional[str] = None
+    is_completed: bool = False
+
+
+class ItineraryDaySchedule(BaseModel):
+    day_number: int
+    date: str
+    weather_summary: Dict[str, Any] = Field(default_factory=dict)
+    activities: List[ItineraryActivity] = Field(default_factory=list)
+
+
+class ItineraryV1GenerateRequest(BaseModel):
+    destination: str
+    coordinates: Optional[ItineraryCoordinates] = None
+    start_date: str = "2026-11-05"
+    days: int = Field(default=1, ge=1, le=14)
+    pace: str = Field(default="balanced", description="relaxed, balanced, fast-paced")
+    traveler_type: str = Field(default="couple", description="solo, couple, friends, family")
+    interests: List[str] = Field(default_factory=lambda: ["heritage", "food", "photography"])
+    budget: Optional[Dict[str, Any]] = Field(default_factory=lambda: {"currency": "INR", "amount_per_person_per_day": 2500})
+    selected_place_ids: Optional[List[str]] = Field(default_factory=list)
+    weather_condition: Optional[str] = None
+
+
+class ItineraryV1Response(BaseModel):
+    itinerary_id: str
+    destination: DestinationInfo
+    start_date: str
+    days: List[ItineraryDaySchedule]
+    total_cost: float = 0.0
+    total_duration_minutes: int = 360
+    traveler_count: int = 1
+    pace: str = "balanced"
+    traveler_type: str = "couple"
+    interests: List[str] = Field(default_factory=list)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    nugen: Optional[NugenEnhancementResponse] = None

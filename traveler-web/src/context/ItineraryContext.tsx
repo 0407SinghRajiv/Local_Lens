@@ -1,10 +1,11 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { RecommendationModel, Itinerary, ItineraryItem } from '@/types';
+import { RecommendationModel, Itinerary, ItineraryItem, CanonicalDestination } from '@/types';
 import { ApiService } from '@/lib/api';
 import { GeocodingService } from '@/lib/geocoding';
 import { StorageService } from '@/lib/storage';
+import { useTheme } from '@/context/ThemeContext';
 
 interface ItineraryContextType {
   locationMode: 'destination' | 'exact';
@@ -12,6 +13,8 @@ interface ItineraryContextType {
   displayAddress: string;
   latitude: number;
   longitude: number;
+  canonicalDestination: CanonicalDestination | null;
+  isDestinationResolved: boolean;
   availableTime: string;
   availableTimeUnit: 'Hours' | 'Days';
   availableTimeMinutes: number;
@@ -35,7 +38,8 @@ interface ItineraryContextType {
 
   // Actions
   setLocationMode: (mode: 'destination' | 'exact') => void;
-  setDestination: (dest: string) => void;
+  setDestination: (dest: string) => Promise<void>;
+  setCanonicalDestination: (dest: CanonicalDestination) => void;
   setExactLocation: (lat: number, lon: number, address: string) => void;
   setTime: (value: string, unit: 'Hours' | 'Days') => void;
   setBudget: (budget: number) => void;
@@ -73,11 +77,15 @@ interface ItineraryContextType {
 const ItineraryContext = createContext<ItineraryContextType | undefined>(undefined);
 
 export function ItineraryProvider({ children }: { children: ReactNode }) {
+  const { updateWeatherForLocation } = useTheme();
+
   const [locationMode, setLocationMode] = useState<'destination' | 'exact'>('destination');
-  const [destination, setDestinationState] = useState('Mumbai');
-  const [displayAddress, setDisplayAddress] = useState('Mumbai, Maharashtra');
-  const [latitude, setLatitude] = useState(19.076);
-  const [longitude, setLongitude] = useState(72.8777);
+  const [destination, setDestinationState] = useState('');
+  const [displayAddress, setDisplayAddress] = useState('');
+  const [latitude, setLatitude] = useState(0);
+  const [longitude, setLongitude] = useState(0);
+  const [canonicalDestination, setCanonicalDestinationState] = useState<CanonicalDestination | null>(null);
+  const [isDestinationResolved, setIsDestinationResolved] = useState(false);
 
   const [availableTime, setAvailableTime] = useState('6');
   const [availableTimeUnit, setAvailableTimeUnit] = useState<'Hours' | 'Days'>('Hours');
@@ -91,7 +99,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
   const [excludedCategories, setExcludedCategories] = useState<string[]>([]);
   const [preferences, setPreferences] = useState('');
 
-  const [tripDate, setTripDate] = useState(() => {
+  const [tripDate, setTripDateState] = useState(() => {
     const d = new Date();
     return d.toISOString().split('T')[0];
   });
@@ -111,20 +119,90 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
     const trips = StorageService.getSavedTrips();
     setSavedTrips(trips);
     if (trips.length > 0 && !generatedItinerary) {
-      setGeneratedItinerary(trips[0]);
+      const lastTrip = trips[0];
+      setGeneratedItinerary(lastTrip);
+      if (lastTrip.destination) {
+        setDestinationState(lastTrip.destination);
+        setDisplayAddress(lastTrip.displayAddress || lastTrip.destination);
+        if (lastTrip.startLat && lastTrip.startLon) {
+          setLatitude(lastTrip.startLat);
+          setLongitude(lastTrip.startLon);
+          setIsDestinationResolved(true);
+          updateWeatherForLocation(lastTrip.startLat, lastTrip.startLon, lastTrip.destination);
+        }
+      }
     }
     const wish = StorageService.getSavedWishlist();
     setWishlist(wish);
   }, []);
 
-  function setDestination(dest: string) {
-    const clean = dest.trim() || 'Mumbai';
-    const coords = GeocodingService.resolveCoordinatesForCity(clean);
+  function setCanonicalDestination(dest: CanonicalDestination) {
+    // Invalidate destination-dependent cached data
+    setRecommendations([]);
+    setSelectedPlacesState([]);
+    setSelectedExperienceIds([]);
+    setGeneratedItinerary(null);
+
+    setCanonicalDestinationState(dest);
+    setDestinationState(dest.name);
+    setDisplayAddress(dest.displayName || dest.name);
+    setLatitude(dest.latitude);
+    setLongitude(dest.longitude);
+    setLocationMode('destination');
+    setIsDestinationResolved(true);
+
+    // Sync live weather for this destination
+    updateWeatherForLocation(dest.latitude, dest.longitude, dest.name);
+  }
+
+  async function setDestination(dest: string) {
+    const clean = dest.trim();
+    if (!clean) {
+      setDestinationState('');
+      setDisplayAddress('');
+      setLatitude(0);
+      setLongitude(0);
+      setCanonicalDestinationState(null);
+      setIsDestinationResolved(false);
+      setRecommendations([]);
+      setSelectedPlacesState([]);
+      setSelectedExperienceIds([]);
+      setGeneratedItinerary(null);
+      return;
+    }
+
     setDestinationState(clean);
     setDisplayAddress(clean);
-    setLatitude(coords.latitude);
-    setLongitude(coords.longitude);
     setLocationMode('destination');
+
+    // Invalidate destination-dependent data
+    setRecommendations([]);
+    setSelectedPlacesState([]);
+    setSelectedExperienceIds([]);
+    setGeneratedItinerary(null);
+
+    try {
+      const canonical = await GeocodingService.resolveDestination(clean);
+      if (canonical) {
+        setCanonicalDestinationState(canonical);
+        setLatitude(canonical.latitude);
+        setLongitude(canonical.longitude);
+        setDisplayAddress(canonical.displayName || canonical.name);
+        setIsDestinationResolved(true);
+        updateWeatherForLocation(canonical.latitude, canonical.longitude, canonical.name);
+        return;
+      }
+    } catch {}
+
+    const coords = GeocodingService.resolveCoordinatesForCity(clean);
+    if (coords) {
+      setLatitude(coords.latitude);
+      setLongitude(coords.longitude);
+      setIsDestinationResolved(true);
+      updateWeatherForLocation(coords.latitude, coords.longitude, clean);
+    } else {
+      setIsDestinationResolved(false);
+    }
   }
 
   function setExactLocation(lat: number, lon: number, addr: string) {
@@ -132,6 +210,19 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
     setLongitude(lon);
     setDisplayAddress(addr);
     setLocationMode('exact');
+    setIsDestinationResolved(true);
+    setRecommendations([]);
+    setSelectedPlacesState([]);
+    setSelectedExperienceIds([]);
+    setGeneratedItinerary(null);
+    updateWeatherForLocation(lat, lon, addr);
+  }
+
+  function setTripDate(date: string) {
+    setTripDateState(date);
+    if (latitude && longitude) {
+      updateWeatherForLocation(latitude, longitude, destination);
+    }
   }
 
   function setTime(value: string, unit: 'Hours' | 'Days') {
@@ -190,6 +281,9 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
 
   async function fetchRecommendations(): Promise<RecommendationModel[]> {
     const dest = locationMode === 'exact' ? displayAddress : destination;
+    if (!dest || !isDestinationResolved || latitude === 0) {
+      return [];
+    }
     const durationHours = availableTimeMinutes / 60;
 
     const recs = await ApiService.fetchRecommendations({
@@ -215,9 +309,13 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
   }
 
   async function generateFinalItinerary(weatherOverride?: string): Promise<Itinerary> {
+    const dest = locationMode === 'exact' ? displayAddress : destination;
+    if (!dest || !isDestinationResolved || latitude === 0) {
+      throw new Error("Please select a recognized destination with valid coordinates before generating an itinerary.");
+    }
+
     setIsGenerating(true);
     try {
-      const dest = locationMode === 'exact' ? displayAddress : destination;
       const durationHours = availableTimeMinutes / 60;
 
       const targetCount = desiredExperienceCount > 0 ? desiredExperienceCount : 4;
@@ -390,6 +488,8 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
         displayAddress,
         latitude,
         longitude,
+        canonicalDestination,
+        isDestinationResolved,
         availableTime,
         availableTimeUnit,
         availableTimeMinutes,
@@ -412,6 +512,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
         activeWeatherCondition,
         setLocationMode,
         setDestination,
+        setCanonicalDestination,
         setExactLocation,
         setTime,
         setBudget,

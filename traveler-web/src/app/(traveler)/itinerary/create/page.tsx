@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useItinerary } from '@/context/ItineraryContext';
 import { CATEGORIES } from '@/components/home/CategoryChips';
+import { DestinationSearchAutocomplete } from '@/components/home/DestinationSearchAutocomplete';
 import {
   Compass,
   MapPin,
@@ -23,6 +24,10 @@ export default function CreateItineraryPage() {
   const {
     destination,
     setDestination,
+    setCanonicalDestination,
+    isDestinationResolved,
+    latitude,
+    longitude,
     tripDate,
     setTripDate,
     tripStartTime,
@@ -54,7 +59,14 @@ export default function CreateItineraryPage() {
     'Family',
   ];
 
+  const [validationError, setValidationError] = useState<string | null>(null);
+
   async function handleProceed() {
+    if (!destination || !isDestinationResolved || latitude === 0) {
+      setValidationError('Please select a destination from the search suggestions before proceeding.');
+      return;
+    }
+    setValidationError(null);
     setIsLoading(true);
     try {
       await fetchRecommendations();
@@ -83,21 +95,22 @@ export default function CreateItineraryPage() {
       </div>
 
       <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-[#EAE8E3] dark:border-slate-700 shadow-soft space-y-6">
-        {/* Destination City */}
+        {/* Destination City Autocomplete */}
         <div>
           <label className="text-xs font-bold uppercase tracking-wider text-ink-secondary dark:text-slate-400 block mb-2">
             Destination City
           </label>
-          <div className="relative">
-            <MapPin className="w-4 h-4 text-primary absolute left-4 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="e.g. Mumbai, Alibaug, Goa, Jaipur"
-              className="w-full h-12 pl-11 pr-4 rounded-xl bg-surface-muted dark:bg-slate-700 border border-transparent focus:border-primary focus:bg-white dark:focus:bg-slate-800 focus:outline-none text-sm font-semibold text-[#1A1A1A] dark:text-white"
-            />
-          </div>
+          <DestinationSearchAutocomplete
+            value={destination}
+            onSelect={(selected) => {
+              setCanonicalDestination(selected);
+              setValidationError(null);
+            }}
+            placeholder="Search destination (e.g. Pune, Jaipur, Goa, Delhi, Bengaluru)..."
+          />
+          {validationError && (
+            <p className="text-xs text-rose-500 font-medium mt-1.5">{validationError}</p>
+          )}
         </div>
 
         {/* Date & Start Time */}

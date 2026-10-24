@@ -255,3 +255,119 @@ export interface GroqOptimizationResult {
   hasInterestChanges?: boolean;
 }
 
+// ------------------------------------------------------------------------------
+// V1 Architecture Types & Discovery Canvas
+// ------------------------------------------------------------------------------
+
+export interface DestinationSearchResult {
+  name: string;
+  normalized_name?: string;
+  display_name?: string;
+  city: string;
+  state?: string | null;
+  country: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+  timezone: string;
+  confidence: number;
+  source: string;
+}
+
+export interface CanonicalDestination {
+  name: string;
+  normalizedName: string;
+  displayName: string;
+  city: string;
+  state?: string | null;
+  country: string;
+  latitude: number;
+  longitude: number;
+  timezone: string;
+  source?: string;
+  confidence?: number;
+}
+
+export interface WeatherForecastModel {
+  destination: string;
+  coordinates: { lat: number; lng: number };
+  status: string;
+  forecastAvailable: boolean;
+  timezone: string;
+  daily: Array<{
+    date: string;
+    condition: string;
+    tempMinC: number;
+    tempMaxC: number;
+    averageTempC: number;
+    precipitationSumMm: number;
+    rainProbabilityPct: number;
+    windSpeedKmh: number;
+    uvIndex?: number | null;
+    suitabilityScore: number;
+    suitabilityReason: string;
+  }>;
+}
+
+export interface WeatherTripSummaryModel {
+  destination: string;
+  coordinates: { lat: number; lng: number };
+  startDate: string;
+  daysCount: number;
+  overallCondition: string;
+  averageTempC: number;
+  outdoorSuitability: string;
+  forecastAvailable: boolean;
+  weatherAdvice: string;
+  dailySummaries: any[];
+}
+
+export interface DiscoveryPlaceItem {
+  placeId: string;
+  name: string;
+  category: string;
+  subCategory?: string | null;
+  description?: string | null;
+  coordinates: { lat: number; lng: number };
+  address?: string | null;
+  city?: string | null;
+  openingHours?: string | null;
+  estimatedVisitDurationMinutes: number;
+  priceInr: number;
+  rating?: number | null;
+  reviewCount?: number | null;
+  imageUrl?: string | null;
+  weatherSuitability: string;
+  weatherRationale?: string | null;
+  recommendationScore: number;
+  matchReasons: string[];
+  isIndoor: boolean;
+  isHiddenGem: boolean;
+}
+
+export interface DiscoveryCategorySection {
+  categoryId: string;
+  title: string;
+  places: DiscoveryPlaceItem[];
+}
+
+export interface DiscoveryCanvasResponse {
+  success: boolean;
+  destination: string;
+  coordinates: { lat: number; lng: number };
+  weatherContext: Record<string, any>;
+  totalCandidates: number;
+  categories: DiscoveryCategorySection[];
+  allPlaces: DiscoveryPlaceItem[];
+}
+
+export interface SavedPlaceRecord {
+  id: string;
+  userId: string;
+  placeId: string;
+  placeData: Record<string, any>;
+  notes?: string | null;
+  createdAt?: string | null;
+}
+

@@ -268,7 +268,7 @@ class SmartSearchService:
 
         # Build recommendation request from parsed intent
         rec_req = RecommendationRequest(
-            destination=intent.destination or request.city or "Mumbai",
+            destination=intent.destination or request.city or None,
             city=intent.destination or request.city,
             user_lat=request.user_lat,
             user_lon=request.user_lon,

@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = "https://mvokdnefwukzouuttsvz.supabase.co"
     SUPABASE_SERVICE_ROLE_KEY: str = ""
     SUPABASE_ANON_KEY: str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im12b2tkbmVmd3Vrem91dXR0c3Z6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAzNTA1NzksImV4cCI6MjEwNTkyNjU3OX0.KsNjS6EP6hyw2-JZlKgvV3AdqpZudVGCI7guH0YE9w4"
+    SUPABASE_JWT_SECRET: str = ""
+    SUPABASE_JWT_ISSUER: str = "https://mvokdnefwukzouuttsvz.supabase.co/auth/v1"
+    SUPABASE_JWT_JWKS_URL: str = "https://mvokdnefwukzouuttsvz.supabase.co/auth/v1/.well-known/jwks.json"
+    GEOCODING_API_KEY: str = ""
 
     # Nugen AI Integration (Post-generation enhancement & validation layer)
     NUGEN_ENABLED: bool = False
@@ -53,7 +57,7 @@ class Settings(BaseSettings):
     NUGEN_API_URL: str = ""
 
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001"]
 
     model_config = SettingsConfigDict(
         env_file=".env",

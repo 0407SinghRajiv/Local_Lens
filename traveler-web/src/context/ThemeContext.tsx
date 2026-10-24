@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { WeatherData, WeatherService, WEATHER_SCENARIOS } from '@/lib/weather';
 
 interface ThemeContextType {
@@ -8,29 +8,38 @@ interface ThemeContextType {
   weather: WeatherData;
   toggleStormDemo: () => void;
   applyWeatherScenario: (key: string) => void;
+  updateWeatherForLocation: (lat: number, lon: number, destination?: string) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [isStormy, setIsStormy] = useState(false);
+  const [activeCoords, setActiveCoords] = useState<{ lat: number; lon: number; destination?: string } | null>(null);
   const [weather, setWeather] = useState<WeatherData>({
-    tempCelsius: '27°C',
-    description: 'Clear Sky',
+    tempCelsius: '26°C',
+    description: 'Pleasant & Clear',
     condition: 'Clear',
-    humidity: '55%',
-    windSpeed: '12 km/h',
+    humidity: '50%',
+    windSpeed: '10 km/h',
     rainMm: '0.0 mm',
     isStormy: false,
     iconName: 'Sun',
   });
 
-  useEffect(() => {
-    WeatherService.fetchLiveWeather(19.076, 72.8777).then((w) => {
-      setWeather(w);
-      if (w.isStormy) setIsStormy(true);
-    });
-  }, []);
+  async function updateWeatherForLocation(lat: number, lon: number, destination?: string) {
+    if (!lat || !lon) return;
+    setActiveCoords({ lat, lon, destination });
+    try {
+      const live = await WeatherService.fetchLiveWeather(lat, lon, destination);
+      setWeather(live);
+      if (live.isStormy) {
+        setIsStormy(true);
+      } else {
+        setIsStormy(false);
+      }
+    } catch {}
+  }
 
   function toggleStormDemo() {
     setIsStormy((prev) => {
@@ -46,8 +55,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
           isStormy: true,
           iconName: 'CloudRain',
         });
+      } else if (activeCoords) {
+        WeatherService.fetchLiveWeather(activeCoords.lat, activeCoords.lon, activeCoords.destination).then(setWeather);
       } else {
-        WeatherService.fetchLiveWeather(19.076, 72.8777).then(setWeather);
+        setWeather({
+          tempCelsius: '26°C',
+          description: 'Clear Sky',
+          condition: 'Clear',
+          humidity: '50%',
+          windSpeed: '10 km/h',
+          rainMm: '0.0 mm',
+          isStormy: false,
+          iconName: 'Sun',
+        });
       }
       return next;
     });
@@ -69,7 +89,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <ThemeContext.Provider value={{ isStormy, weather, toggleStormDemo, applyWeatherScenario }}>
+    <ThemeContext.Provider value={{ isStormy, weather, toggleStormDemo, applyWeatherScenario, updateWeatherForLocation }}>
       <div className={isStormy ? 'dark' : ''}>{children}</div>
     </ThemeContext.Provider>
   );

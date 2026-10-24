@@ -49,14 +49,14 @@ export const VEHICLE_OPTIONS: VehicleOption[] = [
 
 export const DEFAULT_RIDER: Rider = {
   id: 'rider-yahya-01',
-  name: 'Yahya Rawal',
+  name: 'Local Driver Partner',
   rating: 4.9,
-  vehicleType: 'Sedan (Maruti Dzire)',
-  vehicleNumber: 'MH 04 AB 1234',
+  vehicleType: 'Sedan (AC)',
+  vehicleNumber: 'DL 01 AB 1234',
   profileImage: '/assets/images/characters/solo.png',
   phone: '+91 98201 23456',
-  latitude: 19.076,
-  longitude: 72.8777,
+  latitude: 0,
+  longitude: 0,
 };
 
 interface RideContextType {
@@ -89,14 +89,14 @@ export function RideProvider({ children }: { children: ReactNode }) {
     routeProgress: 0.0,
     etaMinutes: 5,
     etaText: '5 min away',
-    pickupLocation: 'Panvel Station, Mumbai',
-    dropLocation: 'Local Food Experience, Bandra',
-    pickupLat: 19.076,
-    pickupLng: 72.8777,
-    dropLat: 19.0596,
-    dropLng: 72.8295,
-    riderLat: 19.076,
-    riderLng: 72.8777,
+    pickupLocation: 'Selected Pickup Point',
+    dropLocation: 'Destination Experience',
+    pickupLat: 0,
+    pickupLng: 0,
+    dropLat: 0,
+    dropLng: 0,
+    riderLat: 0,
+    riderLng: 0,
   });
 
   // Calculate fare when locations or vehicle change
@@ -268,14 +268,14 @@ export function RideProvider({ children }: { children: ReactNode }) {
       routeProgress: 0.0,
       etaMinutes: 5,
       etaText: '5 min away',
-      pickupLocation: 'Panvel Station, Mumbai',
-      dropLocation: 'Local Food Experience, Bandra',
-      pickupLat: 19.076,
-      pickupLng: 72.8777,
-      dropLat: 19.0596,
-      dropLng: 72.8295,
-      riderLat: 19.076,
-      riderLng: 72.8777,
+      pickupLocation: 'Selected Pickup Point',
+      dropLocation: 'Destination Experience',
+      pickupLat: 0,
+      pickupLng: 0,
+      dropLat: 0,
+      dropLng: 0,
+      riderLat: 0,
+      riderLng: 0,
     });
   }
 

@@ -133,6 +133,21 @@ class RecommendationEngine:
                 return cat_defaults.get(cat, "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80")
             self.experiences_df["image_url"] = self.experiences_df.apply(_resolve_img, axis=1)
 
+        # Auto-merge curated destination experiences to ensure cities like Jaipur, Pune, Goa, Bengaluru, Hyderabad are always available
+        try:
+            try:
+                from backend.app.data.curated_destination_experiences import CURATED_DESTINATION_EXPERIENCES
+            except ImportError:
+                from app.data.curated_destination_experiences import CURATED_DESTINATION_EXPERIENCES
+            existing_ids = set(self.experiences_df["experience_id"].astype(str)) if "experience_id" in self.experiences_df.columns else set()
+            new_rows = [exp for exp in CURATED_DESTINATION_EXPERIENCES if str(exp.get("experience_id")) not in existing_ids]
+            if new_rows:
+                curated_df = pd.DataFrame(new_rows)
+                self.experiences_df = pd.concat([self.experiences_df, curated_df], ignore_index=True)
+                logger.info(f"Merged {len(new_rows)} curated destination experiences into engine DataFrame.")
+        except Exception as e:
+            logger.debug(f"Curated experiences auto-merge skipped: {e}")
+
         logger.info(f"Loaded {len(self.experiences_df)} experiences with images.")
 
     def get_experiences_df(self) -> pd.DataFrame:
@@ -143,7 +158,19 @@ class RecommendationEngine:
         """Update the in-memory experiences DataFrame (e.g. from Supabase sync)."""
         if df is not None and not df.empty:
             self.experiences_df = df
-            logger.info(f"Updated in-memory experiences DataFrame with {len(df)} records.")
+            try:
+                try:
+                    from backend.app.data.curated_destination_experiences import CURATED_DESTINATION_EXPERIENCES
+                except ImportError:
+                    from app.data.curated_destination_experiences import CURATED_DESTINATION_EXPERIENCES
+                existing_ids = set(self.experiences_df["experience_id"].astype(str)) if "experience_id" in self.experiences_df.columns else set()
+                new_rows = [exp for exp in CURATED_DESTINATION_EXPERIENCES if str(exp.get("experience_id")) not in existing_ids]
+                if new_rows:
+                    curated_df = pd.DataFrame(new_rows)
+                    self.experiences_df = pd.concat([self.experiences_df, curated_df], ignore_index=True)
+            except Exception:
+                pass
+            logger.info(f"Updated in-memory experiences DataFrame with {len(self.experiences_df)} records.")
 
     def reload_dataset(self) -> None:
         """Reload the experiences dataset from disk."""

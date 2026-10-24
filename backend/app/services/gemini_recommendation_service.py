@@ -123,7 +123,7 @@ class GeminiRecommendationService:
         ).strip()
 
     @classmethod
-    def resolve_destination(cls, request: RecommendationRequest) -> Tuple[str, float, float]:
+    def resolve_destination(cls, request: RecommendationRequest) -> Tuple[str, Optional[float], Optional[float]]:
         """
         Resolves trip destination text and coordinates.
         Destination is the single source of truth for weather, Supabase queries, and Gemini recommendations.
@@ -132,21 +132,19 @@ class GeminiRecommendationService:
             request.destination
             or request.destination_city
             or request.city
-            or "Mumbai"
+            or ""
         ).strip()
 
         # Resolve destination coordinates
         dest_lat = request.destination_lat
         dest_lon = request.destination_lon
 
-        if dest_lat is None or dest_lon is None:
+        if (dest_lat is None or dest_lon is None) and dest_city:
             dest_coords = WeatherService.get_coordinates_for_destination(dest_city)
             if dest_coords:
                 dest_lat, dest_lon = dest_coords
             elif request.user_lat is not None and request.user_lon is not None and not request.destination:
                 dest_lat, dest_lon = request.user_lat, request.user_lon
-            else:
-                dest_lat, dest_lon = 19.0760, 72.8777  # Default to Mumbai anchor
 
         return dest_city, dest_lat, dest_lon
 
@@ -739,15 +737,38 @@ class GeminiRecommendationService:
             cat = str(row.get("category", "")).lower()
             indoor_out = str(row.get("indoor_outdoor", "Flexible")).lower()
 
-            # City/destination alignment
+            # City/destination alignment (mandatory requirement)
             if target_city:
                 row_city = str(row.get("city", "")).lower()
                 row_dist = str(row.get("district", "")).lower()
                 row_loc = str(row.get("location", "")).lower()
-                if target_city in row_city or target_city in row_dist or target_city in row_loc:
+                is_city_match = (
+                    target_city == row_city
+                    or target_city in row_city
+                    or row_city in target_city
+                    or target_city in row_dist
+                    or row_dist in target_city
+                    or target_city in row_loc
+                    or row_loc in target_city
+                )
+
+                r_lat = row.get("latitude")
+                r_lon = row.get("longitude")
+                is_geo_match = False
+                if dest_lat is not None and dest_lon is not None and pd.notna(r_lat) and pd.notna(r_lon):
+                    try:
+                        d = _haversine_distance(float(dest_lat), float(dest_lon), float(r_lat), float(r_lon))
+                        if d <= 50.0:
+                            is_geo_match = True
+                            score += max(0.0, (50.0 - d) / 100.0)
+                    except Exception:
+                        pass
+
+                if not is_city_match and not is_geo_match:
+                    return 0.0  # Strictly exclude places from other destinations
+
+                if is_city_match:
                     score += 0.35
-                elif row_city in target_city or row_dist in target_city:
-                    score += 0.25
 
             # Weather suitability
             if is_rainy:
@@ -774,7 +795,7 @@ class GeminiRecommendationService:
 
         candidates_df = candidates_df.copy()
         candidates_df["_score"] = candidates_df.apply(score_fallback, axis=1)
-        sorted_df = candidates_df.sort_values(by="_score", ascending=False).head(request.top_n)
+        sorted_df = candidates_df[candidates_df["_score"] > 0].sort_values(by="_score", ascending=False).head(request.top_n)
 
         items: List[RecommendationItem] = []
         for _, row in sorted_df.iterrows():
@@ -879,7 +900,7 @@ class GeminiRecommendationService:
         intent = SmartSearchService.parse_intent_with_groq(request.query)
 
         rec_req = RecommendationRequest(
-            destination=intent.destination or request.city or "Mumbai",
+            destination=intent.destination or request.city or "",
             city=intent.destination or request.city,
             user_lat=request.user_lat,
             user_lon=request.user_lon,

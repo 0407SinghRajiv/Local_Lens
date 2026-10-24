@@ -25,7 +25,7 @@ interface InteractiveMapProps {
 
 export function InteractiveMap({
   markers = [],
-  center = [19.076, 72.8777],
+  center,
   zoom = 13,
   showPolyline = true,
   className = 'h-72 w-full rounded-2xl overflow-hidden',
@@ -33,12 +33,19 @@ export function InteractiveMap({
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
 
+  const effectiveCenter: [number, number] =
+    center && center[0] && center[1]
+      ? center
+      : markers.length > 0 && markers[0].latitude && markers[0].longitude
+      ? [markers[0].latitude, markers[0].longitude]
+      : [20.5937, 78.9629];
+
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
-        center,
+        center: effectiveCenter,
         zoom,
         zoomControl: false,
       });
@@ -51,7 +58,7 @@ export function InteractiveMap({
       L.control.zoom({ position: 'bottomright' }).addTo(map);
       mapInstanceRef.current = map;
     } else {
-      mapInstanceRef.current.setView(center, zoom);
+      mapInstanceRef.current.setView(effectiveCenter, zoom);
     }
 
     const map = mapInstanceRef.current;

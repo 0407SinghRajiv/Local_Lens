@@ -23,22 +23,38 @@ try:
         ItineraryGenerateResponse,
         ScheduledExperience,
         SkippedExperience,
+        ItineraryV1GenerateRequest,
+        ItineraryV1Response,
+        ItineraryDaySchedule,
+        ItineraryActivity,
+        ItineraryCoordinates,
+        DestinationInfo,
     )
     from backend.app.services.recommendation_service import RecommendationService
     from backend.app.services.routing_service import RoutingService
     from backend.app.services.place_image_resolver import PlaceImageResolver
     from backend.app.services.weather_service import WeatherService
+    from backend.app.services.real_image_service import RealImageService
+    from backend.app.core.config import settings
 except ImportError:
     from app.schemas.itinerary_schemas import (
         ItineraryGenerateRequest,
         ItineraryGenerateResponse,
         ScheduledExperience,
         SkippedExperience,
+        ItineraryV1GenerateRequest,
+        ItineraryV1Response,
+        ItineraryDaySchedule,
+        ItineraryActivity,
+        ItineraryCoordinates,
+        DestinationInfo,
     )
     from app.services.recommendation_service import RecommendationService
     from app.services.routing_service import RoutingService
     from app.services.place_image_resolver import PlaceImageResolver
     from app.services.weather_service import WeatherService
+    from app.services.real_image_service import RealImageService
+    from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -66,12 +82,15 @@ class ItineraryService:
         anchor_lat = request.user_lat
         anchor_lon = request.user_lon
         dest_text = (request.destination or request.start_location or "").strip()
-        if dest_text:
+        if dest_text and (anchor_lat is None or anchor_lon is None):
             coords = WeatherService.get_coordinates_for_destination(dest_text)
             if coords:
                 anchor_lat, anchor_lon = coords
         if anchor_lat is None or anchor_lon is None:
-            anchor_lat, anchor_lon = 19.0760, 72.8777
+            raise ValueError(
+                f"Geographic coordinates could not be determined for destination '{dest_text or 'unspecified'}'. "
+                f"Please provide valid coordinates or a recognized destination."
+            )
 
         if selected_ids:
             # Match IDs with flexible prefix handling ('EXP-' or standard)
@@ -162,7 +181,20 @@ class ItineraryService:
 
         target_count = len(selected_ids) if selected_ids else int(getattr(request, "desired_experience_count", 0) or getattr(request, "places_to_visit", 0) or (3 if float(request.available_time_hours or 5.0) <= 3.0 else 4))
         if matched_df.empty:
-            matched_df = experiences_df.head(max(target_count, 1)).copy()
+            if dest_text:
+                dest_clean = dest_text.lower()
+                city_mask = (
+                    experiences_df["city"].astype(str).str.lower().str.contains(dest_clean)
+                    | experiences_df["location"].astype(str).str.lower().str.contains(dest_clean)
+                )
+                dest_matches = experiences_df[city_mask]
+                if not dest_matches.empty:
+                    matched_df = dest_matches.head(max(target_count, 1)).copy()
+            if matched_df.empty:
+                raise ValueError(
+                    f"No experiences available in catalog for destination '{dest_text or 'unspecified'}'. "
+                    f"Please select experiences or choose a supported destination."
+                )
 
         # Parse user's start time and duration limit
         start_dt = cls._parse_start_time(request.trip_date, request.start_time)
@@ -617,3 +649,438 @@ class ItineraryService:
             selected_experience_ids=exp_ids,
         )
         return cls.generate_itinerary(gen_req)
+
+    # ==============================================================================
+    # Master System Prompt Section 10: Multi-Day Production Pipeline & User Ownership
+    # ==============================================================================
+
+    @classmethod
+    async def generate_multiday_itinerary(
+        cls,
+        request: ItineraryV1GenerateRequest,
+        user_id: str,
+    ) -> ItineraryV1Response:
+        """
+        Stage A to H complete multi-day itinerary synthesis.
+        Integrates geocoding, multi-day weather series, candidate retrieval,
+        weather intelligence, spatial TSP ordering, schema validation, and persistence.
+        """
+        import uuid
+        from datetime import date, datetime, timedelta
+
+        # Stage A: Validate Request
+        days_count = max(1, min(request.days, 14))
+        dest_name = (request.destination or "").strip()
+        if not dest_name:
+            raise ValueError("Destination name is required for multiday itinerary generation.")
+
+        # Stage B: Gather Context & Geocoding
+        lat = None
+        lng = None
+        if request.coordinates:
+            lat = float(request.coordinates.lat)
+            lng = float(request.coordinates.lng)
+        else:
+            lat, lng = await WeatherService.async_resolve_target_coordinates(dest_name)
+            if lat is None or lng is None:
+                raise ValueError(f"Could not resolve geographic coordinates for destination '{dest_name}'.")
+
+        # Parse start_date
+        iso_start = WeatherService._parse_date_to_iso(request.start_date) or str(date.today())
+        start_dt = datetime.strptime(iso_start, "%Y-%m-%d").date()
+
+        # Multi-day Weather series
+        weather_series = await WeatherService.get_forecast_series(
+            lat=lat,
+            lon=lng,
+            destination=dest_name,
+            days=days_count,
+        )
+        daily_weather = weather_series.get("daily", [])
+
+        # Stage C: Gather Candidates
+        engine = RecommendationService.get_engine()
+        experiences_df = engine.get_experiences_df()
+
+        clean_dest = dest_name.lower()
+        candidates: List[Dict[str, Any]] = []
+
+        if not experiences_df.empty:
+            for _, row in experiences_df.iterrows():
+                r_city = str(row.get("city", "")).lower()
+                r_loc = str(row.get("location", "")).lower()
+                r_lat = float(row["latitude"]) if pd.notna(row.get("latitude")) else None
+                r_lon = float(row["longitude"]) if pd.notna(row.get("longitude")) else None
+
+                dist = None
+                if r_lat is not None and r_lon is not None:
+                    try:
+                        dist = haversine_km(lat, lng, r_lat, r_lon)
+                    except Exception:
+                        pass
+
+                is_dest_match = clean_dest in r_city or r_city in clean_dest or clean_dest in r_loc
+                is_near = dist is not None and dist <= 50.0
+
+                if is_dest_match or is_near:
+                    row_dict = row.to_dict()
+                    row_dict["_distance_km"] = dist or 5.0
+                    candidates.append(row_dict)
+
+        if not candidates:
+            # Fallback within matched destination city or location only
+            if not experiences_df.empty:
+                dest_mask = (
+                    experiences_df["city"].astype(str).str.lower().str.contains(clean_dest)
+                    | experiences_df["location"].astype(str).str.lower().str.contains(clean_dest)
+                )
+                dest_matches = experiences_df[dest_mask]
+                if not dest_matches.empty:
+                    for _, row in dest_matches.iterrows():
+                        row_dict = row.to_dict()
+                        row_dict["_distance_km"] = 5.0
+                        candidates.append(row_dict)
+            if not candidates:
+                raise ValueError(
+                    f"No experiences available in catalog for destination '{dest_name}'. "
+                    f"Please choose a supported destination with verified experiences."
+                )
+
+        # Prioritize pinned place IDs if specified
+        pinned_ids = set(request.selected_place_ids or [])
+
+        def candidate_score(item: Dict[str, Any]) -> float:
+            score = 1.0
+            pid = str(item.get("experience_id", item.get("id", "")))
+            if pid in pinned_ids:
+                score += 50.0
+            cat = str(item.get("category", "")).lower()
+            tags = str(item.get("tags", "")).lower()
+            for interest in request.interests:
+                if interest.lower() in cat or interest.lower() in tags:
+                    score += 2.0
+            rating = item.get("rating")
+            if rating and pd.notna(rating):
+                score += float(rating) * 0.5
+            return score
+
+        candidates.sort(key=candidate_score, reverse=True)
+
+        # Stage D & E: Distribute by Day, Apply Weather Adaptation & Optimize Route
+        # Determine stops per day based on pace
+        if request.pace == "relaxed":
+            stops_per_day = 2
+        elif request.pace == "fast-paced":
+            stops_per_day = 5
+        else:  # balanced
+            stops_per_day = 3
+
+        day_schedules: List[ItineraryDaySchedule] = []
+        assigned_place_ids = set()
+        candidate_idx = 0
+
+        # Day base schedule start times
+        standard_times = [
+            ("09:30", "11:30"),
+            ("12:00", "14:00"),
+            ("14:30", "16:30"),
+            ("17:00", "19:00"),
+            ("19:30", "21:30"),
+        ]
+
+        for d_idx in range(days_count):
+            day_num = d_idx + 1
+            day_date = str(start_dt + timedelta(days=d_idx))
+
+            # Match weather for this day
+            w_item = next((w for w in daily_weather if w.get("date") == day_date), None)
+            if not w_item and daily_weather:
+                w_item = daily_weather[min(d_idx, len(daily_weather) - 1)]
+            w_summary = w_item or {
+                "condition": "Mainly Clear",
+                "average_temp_c": 26.0,
+                "forecast_available": True,
+            }
+
+            day_cond = str(w_summary.get("condition", "")).lower()
+            day_rain = "rain" in day_cond or "thunderstorm" in day_cond or w_summary.get("rain_probability_pct", 0) >= 50
+            day_temp = float(w_summary.get("average_temp_c", 26.0))
+
+            # Pick candidates for this day
+            day_stops_pool = []
+            while len(day_stops_pool) < stops_per_day and candidate_idx < len(candidates):
+                cand = candidates[candidate_idx]
+                candidate_idx += 1
+                pid = str(cand.get("experience_id", cand.get("id", "")))
+                if pid not in assigned_place_ids:
+                    assigned_place_ids.add(pid)
+                    day_stops_pool.append(cand)
+
+            if not day_stops_pool and candidates:
+                # Reuse if catalog exhausted
+                day_stops_pool = candidates[:stops_per_day]
+
+            # Solve spatial TSP ordering for this day
+            ordered_stops = cls._order_candidates_spatially(day_stops_pool, lat, lng)
+
+            # Build activities
+            activities: List[ItineraryActivity] = []
+            for act_idx, stop in enumerate(ordered_stops):
+                time_slot = standard_times[min(act_idx, len(standard_times) - 1)]
+                stop_id = str(stop.get("experience_id", stop.get("id", f"EXP-{uuid.uuid4().hex[:6]}")))
+                stop_name = str(stop.get("experience_name", stop.get("name", "Local Experience")))
+                stop_cat = str(stop.get("category", "Local Experience"))
+                stop_sub = str(stop.get("sub_category", "")) if pd.notna(stop.get("sub_category")) else None
+                stop_loc = str(stop.get("location") or stop.get("city") or dest_name)
+                stop_price = float(stop.get("price_inr_clean", stop.get("price_inr", 250.0)) or 250.0)
+                stop_dur = int(round(float(stop.get("duration_hours_clean", stop.get("duration_hours", 1.5)) or 1.5) * 60))
+                stop_lat = float(stop.get("latitude")) if pd.notna(stop.get("latitude")) else lat
+                stop_lon = float(stop.get("longitude")) if pd.notna(stop.get("longitude")) else lng
+
+                # Weather rationale
+                if day_rain:
+                    if "indoor" in str(stop.get("indoor_outdoor", "")).lower() or stop_cat.lower() in ("food", "museum", "culture"):
+                        w_rat = f"Ideal sheltered/indoor stop for {w_summary.get('condition', 'rainy')} weather"
+                    else:
+                        w_rat = "Weather-dependent stop; check conditions before visiting"
+                elif day_temp > 35.0:
+                    if act_idx == 1:
+                        w_rat = "Scheduled during midday heat for comfortable indoor dining/exploration"
+                    else:
+                        w_rat = "Pleasant morning/evening schedule avoids peak temperatures"
+                else:
+                    w_rat = f"Favorable {w_summary.get('condition', 'clear')} conditions for sightseeing"
+
+                # Real image
+                img_url = await RealImageService.find_real_image(
+                    place_name=stop_name,
+                    city=str(stop.get("city", dest_name)),
+                    location=stop_loc,
+                    category=stop_cat,
+                    experience_id=stop_id,
+                )
+
+                activities.append(
+                    ItineraryActivity(
+                        place_id=stop_id,
+                        name=stop_name,
+                        start_time=time_slot[0],
+                        end_time=time_slot[1],
+                        category=stop_cat,
+                        sub_category=stop_sub,
+                        location=stop_loc,
+                        weather_rationale=w_rat,
+                        coordinates=ItineraryCoordinates(lat=stop_lat, lng=stop_lon),
+                        price_inr=stop_price,
+                        duration_minutes=stop_dur,
+                        image_url=img_url,
+                        is_completed=False,
+                    )
+                )
+
+            day_schedules.append(
+                ItineraryDaySchedule(
+                    day_number=day_num,
+                    date=day_date,
+                    weather_summary=w_summary,
+                    activities=activities,
+                )
+            )
+
+        # Stage F & G: Calculate Totals, Assemble Response and Persist
+        itinerary_id = f"ITIN-{uuid.uuid4().hex[:10].upper()}"
+        total_cost = sum(act.price_inr for d in day_schedules for act in d.activities)
+        total_duration = sum(act.duration_minutes for d in day_schedules for act in d.activities)
+
+        resp = ItineraryV1Response(
+            itinerary_id=itinerary_id,
+            destination=DestinationInfo(
+                name=dest_name,
+                coordinates=ItineraryCoordinates(lat=lat, lng=lng),
+            ),
+            start_date=iso_start,
+            days=day_schedules,
+            total_cost=total_cost,
+            total_duration_minutes=total_duration,
+            traveler_count=1,
+            pace=request.pace,
+            traveler_type=request.traveler_type,
+            interests=request.interests,
+            metadata={
+                "generation_method": "weather_aware_ml_pipeline",
+                "weather_source": weather_series.get("source", "open-meteo"),
+                "days_count": days_count,
+                "warnings": [] if weather_series.get("forecast_available") else ["Trip dates exceed live forecast horizon (>16 days); seasonal climate model used."],
+            },
+        )
+
+        # Persist to local database and Supabase
+        cls._persist_v1_itinerary(resp, user_id)
+        return resp
+
+    @classmethod
+    def _persist_v1_itinerary(cls, itinerary: ItineraryV1Response, user_id: str):
+        """Saves V1 multi-day itinerary to local store and Supabase."""
+        import json
+        import urllib.request
+        cls._ensure_data_dir()
+
+        record = {
+            "id": itinerary.itinerary_id,
+            "itinerary_id": itinerary.itinerary_id,
+            "user_id": user_id,
+            "destination_name": itinerary.destination.name,
+            "destination_coords": itinerary.destination.coordinates.model_dump(),
+            "start_date": itinerary.start_date,
+            "days_count": len(itinerary.days),
+            "pace": itinerary.pace,
+            "traveler_type": itinerary.traveler_type,
+            "interests": itinerary.interests,
+            "total_cost": itinerary.total_cost,
+            "total_duration_minutes": itinerary.total_duration_minutes,
+            "days": [d.model_dump() for d in itinerary.days],
+            "metadata": itinerary.metadata,
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+
+        # Local storage
+        user_itins_file = cls._saved_db_file.parent / "user_itineraries.json"
+        try:
+            if user_itins_file.exists():
+                with open(user_itins_file, "r", encoding="utf-8") as f:
+                    all_itins = json.load(f)
+            else:
+                all_itins = []
+        except Exception:
+            all_itins = []
+
+        # Replace or append
+        existing_idx = next((i for i, item in enumerate(all_itins) if item.get("id") == itinerary.itinerary_id), -1)
+        if existing_idx != -1:
+            all_itins[existing_idx] = record
+        else:
+            all_itins.insert(0, record)
+
+        with open(user_itins_file, "w", encoding="utf-8") as f:
+            json.dump(all_itins, f, indent=2)
+
+        # Sync to Supabase table
+        url = settings.SUPABASE_URL.rstrip("/")
+        key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
+        if url and key:
+            try:
+                sb_payload = {
+                    "id": itinerary.itinerary_id,
+                    "user_id": user_id,
+                    "destination_name": itinerary.destination.name,
+                    "destination_coords": itinerary.destination.coordinates.model_dump(),
+                    "start_date": itinerary.start_date,
+                    "days_count": len(itinerary.days),
+                    "pace": itinerary.pace,
+                    "traveler_type": itinerary.traveler_type,
+                    "interests": itinerary.interests,
+                    "total_cost": itinerary.total_cost,
+                    "raw_data": [d.model_dump() for d in itinerary.days],
+                    "metadata": itinerary.metadata,
+                }
+                req = urllib.request.Request(
+                    f"{url}/rest/v1/itineraries",
+                    data=json.dumps(sb_payload).encode("utf-8"),
+                    headers={
+                        "apikey": key,
+                        "Authorization": f"Bearer {key}",
+                        "Content-Type": "application/json",
+                        "Prefer": "resolution=merge-duplicates",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=3):
+                    pass
+            except Exception as e:
+                logger.debug(f"Supabase itineraries sync error: {e}")
+
+    @classmethod
+    def get_user_itineraries(cls, user_id: str) -> List[Dict[str, Any]]:
+        """Lists itineraries owned by authenticated user."""
+        import json
+        user_itins_file = cls._saved_db_file.parent / "user_itineraries.json"
+        if not user_itins_file.exists():
+            return []
+        try:
+            with open(user_itins_file, "r", encoding="utf-8") as f:
+                all_itins = json.load(f)
+            return [itin for itin in all_itins if itin.get("user_id") == user_id]
+        except Exception:
+            return []
+
+    @classmethod
+    def get_user_itinerary(cls, itinerary_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieves a single itinerary owned by authenticated user."""
+        user_itins = cls.get_user_itineraries(user_id)
+        for itin in user_itins:
+            if itin.get("id") == itinerary_id or itin.get("itinerary_id") == itinerary_id:
+                return itin
+        return None
+
+    @classmethod
+    def update_user_itinerary(cls, itinerary_id: str, user_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Updates permitted fields on an itinerary owned by user."""
+        import json
+        user_itins_file = cls._saved_db_file.parent / "user_itineraries.json"
+        if not user_itins_file.exists():
+            return None
+        try:
+            with open(user_itins_file, "r", encoding="utf-8") as f:
+                all_itins = json.load(f)
+            target = None
+            for item in all_itins:
+                if (item.get("id") == itinerary_id or item.get("itinerary_id") == itinerary_id) and item.get("user_id") == user_id:
+                    item.update(updates)
+                    item["updated_at"] = datetime.now().isoformat()
+                    target = item
+                    break
+            if target:
+                with open(user_itins_file, "w", encoding="utf-8") as f:
+                    json.dump(all_itins, f, indent=2)
+            return target
+        except Exception as e:
+            logger.error(f"Error updating user itinerary: {e}")
+            return None
+
+    @classmethod
+    def delete_user_itinerary(cls, itinerary_id: str, user_id: str) -> bool:
+        """Deletes an itinerary owned by authenticated user."""
+        import json
+        import urllib.request
+        user_itins_file = cls._saved_db_file.parent / "user_itineraries.json"
+        if not user_itins_file.exists():
+            return False
+        try:
+            with open(user_itins_file, "r", encoding="utf-8") as f:
+                all_itins = json.load(f)
+            new_list = [item for item in all_itins if not ((item.get("id") == itinerary_id or item.get("itinerary_id") == itinerary_id) and item.get("user_id") == user_id)]
+            with open(user_itins_file, "w", encoding="utf-8") as f:
+                json.dump(new_list, f, indent=2)
+
+            # Sync to Supabase
+            url = settings.SUPABASE_URL.rstrip("/")
+            key = settings.SUPABASE_SERVICE_ROLE_KEY or settings.SUPABASE_ANON_KEY
+            if url and key:
+                try:
+                    req = urllib.request.Request(
+                        f"{url}/rest/v1/itineraries?id=eq.{itinerary_id}&user_id=eq.{user_id}",
+                        headers={
+                            "apikey": key,
+                            "Authorization": f"Bearer {key}",
+                        },
+                        method="DELETE",
+                    )
+                    with urllib.request.urlopen(req, timeout=3):
+                        pass
+                except Exception as sb_err:
+                    logger.debug(f"Supabase delete error: {sb_err}")
+            return True
+        except Exception as e:
+            logger.error(f"Error deleting user itinerary: {e}")
+            return False

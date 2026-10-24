@@ -260,7 +260,7 @@ export default function GeneratedItineraryDetailPage({ params }: { params: Promi
               center={
                 mapMarkers.length > 0
                   ? [mapMarkers[0].latitude, mapMarkers[0].longitude]
-                  : [19.076, 72.8777]
+                  : [itinerary.startLat || 20.5937, itinerary.startLon || 78.9629]
               }
               zoom={13}
               showPolyline={true}

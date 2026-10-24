@@ -19,16 +19,18 @@ import {
   Sparkles,
 } from 'lucide-react';
 
+import { DestinationSearchAutocomplete } from '@/components/home/DestinationSearchAutocomplete';
+
 export function TopHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { isStormy, weather, toggleStormDemo } = useTheme();
-  const { destination, setDestination } = useItinerary();
+  const { destination, setDestination, setCanonicalDestination } = useItinerary();
   const [isWeatherOpen, setIsWeatherOpen] = useState(false);
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
 
-  const majorCities = ['Mumbai', 'Navi Mumbai', 'Alibaug', 'Lonavala', 'Goa', 'Jaipur', 'Pune'];
+  const majorCities = ['Mumbai', 'Pune', 'Jaipur', 'Delhi', 'Goa', 'Bengaluru', 'Hyderabad'];
 
   const WeatherIcon =
     weather.iconName === 'CloudRain'
@@ -78,33 +80,51 @@ export function TopHeader() {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-muted dark:bg-slate-800 hover:bg-black/5 dark:hover:bg-white/10 transition-all text-xs font-semibold"
               >
                 <MapPin className="w-3.5 h-3.5 text-primary" />
-                <span className="max-w-[90px] sm:max-w-[140px] truncate">{destination}</span>
+                <span className="max-w-[90px] sm:max-w-[140px] truncate">
+                  {destination || 'Select Destination'}
+                </span>
               </button>
 
               {isCityDropdownOpen && (
-                <div className="absolute top-full left-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-2xl shadow-floating border border-[#EAE8E3] dark:border-slate-700 py-2 z-50 animate-in fade-in zoom-in-95">
-                  <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-ink-secondary dark:text-slate-400">
-                    Select Destination
+                <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-white dark:bg-slate-800 rounded-2xl shadow-floating border border-[#EAE8E3] dark:border-slate-700 p-3 z-50 animate-in fade-in zoom-in-95">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-ink-secondary dark:text-slate-400 mb-2">
+                    Search Any Destination
                   </div>
-                  {majorCities.map((city) => (
-                    <button
-                      key={city}
-                      onClick={() => {
-                        setDestination(city);
-                        setIsCityDropdownOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left text-xs font-medium hover:bg-primary-soft dark:hover:bg-primary/20 hover:text-primary transition-colors flex items-center justify-between ${
-                        destination.toLowerCase() === city.toLowerCase()
-                          ? 'text-primary font-bold'
-                          : 'text-[#1A1A1A] dark:text-white'
-                      }`}
-                    >
-                      {city}
-                      {destination.toLowerCase() === city.toLowerCase() && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                      )}
-                    </button>
-                  ))}
+                  <DestinationSearchAutocomplete
+                    value={destination}
+                    onSelect={(canonical) => {
+                      setCanonicalDestination(canonical);
+                      setIsCityDropdownOpen(false);
+                    }}
+                    placeholder="Search city, state, or region..."
+                  />
+
+                  <div className="mt-3 pt-2.5 border-t border-[#EAE8E3] dark:border-slate-700">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-ink-secondary dark:text-slate-400 mb-1.5">
+                      Popular Hubs
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      {majorCities.map((city) => (
+                        <button
+                          key={city}
+                          onClick={() => {
+                            setDestination(city);
+                            setIsCityDropdownOpen(false);
+                          }}
+                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs font-medium hover:bg-primary-soft dark:hover:bg-primary/20 hover:text-primary transition-colors flex items-center justify-between ${
+                            destination.toLowerCase() === city.toLowerCase()
+                              ? 'text-primary font-bold bg-primary-soft/40 dark:bg-primary/10'
+                              : 'text-[#1A1A1A] dark:text-white'
+                          }`}
+                        >
+                          <span>{city}</span>
+                          {destination.toLowerCase() === city.toLowerCase() && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

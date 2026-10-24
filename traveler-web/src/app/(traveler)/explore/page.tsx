@@ -15,7 +15,7 @@ const InteractiveMap = dynamic(
 );
 
 export default function ExplorePage() {
-  const { destination, recommendations } = useItinerary();
+  const { destination, recommendations, latitude, longitude } = useItinerary();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
@@ -110,7 +110,7 @@ export default function ExplorePage() {
               center={
                 mapMarkers.length > 0
                   ? [mapMarkers[0].latitude, mapMarkers[0].longitude]
-                  : [19.076, 72.8777]
+                  : [latitude || 20.5937, longitude || 78.9629]
               }
               zoom={12}
               showPolyline={false}

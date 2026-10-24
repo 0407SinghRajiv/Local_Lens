@@ -12,18 +12,35 @@ if str(_workspace_root) not in sys.path:
 if str(_backend_dir) not in sys.path:
     sys.path.insert(0, str(_backend_dir))
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-try:
-    from backend.app.core.config import settings
-    from backend.app.api.recommendations.recommendation_routes import router as recommendation_router
-    from backend.app.api.itinerary.itinerary_routes import router as itinerary_router
-except ImportError:
-    from app.core.config import settings
-    from app.api.recommendations.recommendation_routes import router as recommendation_router
-    from app.api.itinerary.itinerary_routes import router as itinerary_router
+
+from backend.app.core.config import settings
+from backend.app.core.exceptions import (
+    TravelerApiException,
+    global_exception_handler,
+    traveler_api_exception_handler,
+    validation_exception_handler,
+)
+from backend.app.core.logging import RequestIdMiddleware, setup_logging
+
+# Existing legacy / client compatibility routers
+from backend.app.api.recommendations.recommendation_routes import router as recommendation_router
+from backend.app.api.itinerary.itinerary_routes import router as itinerary_router
+
+# Production V1 Architecture Routers
+from backend.app.api.routes.health import router as health_router
+from backend.app.api.routes.profiles import router as profiles_router
+from backend.app.api.routes.destinations import router as destinations_router
+from backend.app.api.routes.weather import router as weather_router
+from backend.app.api.routes.discovery import router as discovery_router
+from backend.app.api.routes.itineraries import router as itineraries_v1_router
+from backend.app.api.routes.saved_places import router as saved_places_router
+from backend.app.api.routes.feedback import router as feedback_router
+
+# Setup structured logging
+setup_logging()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -32,6 +49,14 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+# Exception handlers
+app.add_exception_handler(TravelerApiException, traveler_api_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, global_exception_handler)
+
+# Request ID tracking middleware
+app.add_middleware(RequestIdMiddleware)
 
 # CORS Middleware configuration
 app.add_middleware(
@@ -42,18 +67,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ------------------------------------------------------------------------------
+# Include Routers
+# ------------------------------------------------------------------------------
 
-@app.get("/health", tags=["Health"])
-async def health_check():
-    """
-    Health check endpoint for container probes and service verification.
-    """
-    return {"status": "ok"}
+# Health
+app.include_router(health_router)
 
+# V1 API Routes
+app.include_router(profiles_router, prefix=settings.API_V1_STR)
+app.include_router(destinations_router, prefix=settings.API_V1_STR)
+app.include_router(weather_router, prefix=settings.API_V1_STR)
+app.include_router(discovery_router, prefix=settings.API_V1_STR)
+app.include_router(itineraries_v1_router, prefix=settings.API_V1_STR)
+app.include_router(saved_places_router, prefix=settings.API_V1_STR)
+app.include_router(feedback_router, prefix=settings.API_V1_STR)
 
-# Include API Routers
+# Existing / Backwards-compatibility Routes (used by existing web & mobile screens)
 app.include_router(recommendation_router, prefix="/api/recommendations")
 app.include_router(recommendation_router, prefix=f"{settings.API_V1_STR}/recommendations")
 app.include_router(itinerary_router, prefix="/api/itinerary")
 app.include_router(itinerary_router, prefix=f"{settings.API_V1_STR}/itinerary")
-
