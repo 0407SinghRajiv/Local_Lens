@@ -60,10 +60,12 @@ export default function ExperienceDetailsPage({ params }: { params: Promise<{ id
     Culture: '/assets/images/destinations/heritage_walk.png',
   };
 
+  const rawImage = experience.imageUrl || experience.image || '';
+  const isExternal = rawImage.startsWith('http://') || rawImage.startsWith('https://');
   const imageSrc =
-    experience.image && experience.image.startsWith('/')
-      ? experience.image
-      : fallbackImages[experience.category] || '/assets/images/destinations/food_trail.png';
+    rawImage ||
+    fallbackImages[experience.category] ||
+    '/assets/images/destinations/food_trail.png';
 
   function handleBookRide() {
     setLocations({
@@ -115,7 +117,7 @@ export default function ExperienceDetailsPage({ params }: { params: Promise<{ id
 
       {/* Hero Image */}
       <div className="relative aspect-[16/9] w-full rounded-3xl overflow-hidden shadow-floating bg-slate-100 dark:bg-slate-900">
-        <Image src={imageSrc} alt={experience.name} fill className="object-cover" priority />
+        <Image src={imageSrc} alt={experience.name} fill unoptimized={isExternal} className="object-cover" priority />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
 
         <div className="absolute top-4 left-4 flex items-center gap-2">

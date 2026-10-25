@@ -1,13 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { RecommendationModel } from '@/types';
 import { useItinerary } from '@/context/ItineraryContext';
 import { useRide } from '@/context/RideContext';
-import { Star, Clock, MapPin, Heart, Car, Plus, Check } from 'lucide-react';
+import { Star, Clock, MapPin, Heart, Car, Plus, Check, ShieldCheck, Image as ImageIcon } from 'lucide-react';
 
 interface ExperienceCardProps {
   experience: RecommendationModel;
@@ -17,23 +17,15 @@ export function ExperienceCard({ experience }: ExperienceCardProps) {
   const router = useRouter();
   const { wishlist, toggleWishlist, selectedExperienceIds, toggleExperienceSelection } = useItinerary();
   const { setLocations } = useRide();
+  const [imgError, setImgError] = useState(false);
 
   const isSaved = wishlist.includes(experience.experienceId);
   const isSelectedForTrip = selectedExperienceIds.includes(experience.experienceId);
 
-  const fallbackImages: Record<string, string> = {
-    Beach: '/assets/images/destinations/beach_cafe.png',
-    Food: '/assets/images/destinations/food_trail.png',
-    Adventure: '/assets/images/destinations/waterfall.png',
-    Heritage: '/assets/images/destinations/heritage_walk.png',
-    Nature: '/assets/images/destinations/waterfall.png',
-    Culture: '/assets/images/destinations/heritage_walk.png',
-  };
-
-  const imageSrc =
-    experience.image && experience.image.startsWith('/')
-      ? experience.image
-      : fallbackImages[experience.category] || '/assets/images/destinations/food_trail.png';
+  // Determine actual image source
+  const rawImage = experience.imageUrl || experience.image || '';
+  const isExternal = rawImage.startsWith('http://') || rawImage.startsWith('https://');
+  const hasValidImage = Boolean(rawImage && rawImage.trim().length > 0 && !imgError);
 
   function handleBookRide(e: React.MouseEvent) {
     e.preventDefault();
@@ -51,21 +43,35 @@ export function ExperienceCard({ experience }: ExperienceCardProps) {
     <div className="group flex flex-col bg-white dark:bg-slate-800 rounded-3xl overflow-hidden border border-[#EAE8E3] dark:border-slate-700 shadow-soft hover:shadow-floating transition-all duration-300">
       {/* Top Image & Visual Badges */}
       <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100 dark:bg-slate-900">
-        <Link href={`/experience/${experience.experienceId}`} className="block w-full h-full">
-          <Image
-            src={imageSrc}
-            alt={experience.name}
-            fill
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-          />
+        <Link href={`/experience/${experience.experienceId}`} className="block w-full h-full relative">
+          {hasValidImage ? (
+            <Image
+              src={rawImage}
+              alt={experience.name}
+              fill
+              unoptimized={isExternal}
+              onError={() => setImgError(true)}
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-900 text-slate-400 p-4 text-center">
+              <ImageIcon className="w-10 h-10 mb-2 opacity-40 text-slate-500" />
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{experience.name}</span>
+              <span className="text-[10px] text-slate-400 mt-0.5">Authentic Experience</span>
+            </div>
+          )}
         </Link>
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none" />
 
-        {/* Category Badge */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 pointer-events-none">
+        {/* Category & Verification Badges */}
+        <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5 pointer-events-none">
           <span className="px-2.5 py-1 rounded-full bg-white/90 dark:bg-slate-900/90 backdrop-blur-md text-[11px] font-bold text-primary shadow-sm">
             {experience.category}
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600/95 text-white backdrop-blur-md text-[10px] font-bold shadow-sm">
+            <ShieldCheck className="w-3 h-3" />
+            <span>Verified Photo</span>
           </span>
           {experience.hiddenGem && (
             <span className="px-2.5 py-1 rounded-full bg-amber-500/90 text-white backdrop-blur-md text-[10px] font-bold shadow-sm">
