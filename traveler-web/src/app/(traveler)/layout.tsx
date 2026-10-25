@@ -5,6 +5,7 @@ import { TopHeader } from '@/components/layout/TopHeader';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { ActiveRideBar } from '@/components/layout/ActiveRideBar';
 import { StormAtmosphere } from '@/components/layout/StormAtmosphere';
+import { Footer } from '@/components/layout/Footer';
 import { useTheme } from '@/context/ThemeContext';
 
 export default function TravelerLayout({ children }: { children: React.ReactNode }) {
@@ -21,6 +22,7 @@ export default function TravelerLayout({ children }: { children: React.ReactNode
       <main className="flex-1 relative z-10 pb-28 md:pb-12 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-4">
         {children}
       </main>
+      <Footer />
       <ActiveRideBar />
       <BottomNav />
     </div>

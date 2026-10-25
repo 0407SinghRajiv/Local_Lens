@@ -11,18 +11,24 @@ import {
   ShoppingBag,
   Moon,
   Sparkles,
+  Calendar,
+  Palette,
+  Gem,
 } from 'lucide-react';
 
 export const CATEGORIES = [
-  { id: 'All', label: 'All', icon: Sparkles },
-  { id: 'Food', label: 'Food & Dining', icon: Utensils },
-  { id: 'Culture', label: 'Culture & Temples', icon: Landmark },
+  { id: 'All', label: 'All Experiences', icon: Sparkles },
+  { id: 'Nature', label: 'Nature & Landscapes', icon: Trees },
   { id: 'Adventure', label: 'Adventure & Treks', icon: Compass },
-  { id: 'Nature', label: 'Nature & Parks', icon: Trees },
+  { id: 'Food', label: 'Food & Local Cuisine', icon: Utensils },
+  { id: 'Culture', label: 'Culture & Temples', icon: Landmark },
   { id: 'Heritage', label: 'Heritage & Forts', icon: Castle },
   { id: 'Beach', label: 'Beaches & Coast', icon: Waves },
+  { id: 'Hidden Gems', label: 'Hidden Gems', icon: Gem },
+  { id: 'Events', label: 'Festivals & Events', icon: Calendar },
   { id: 'Shopping', label: 'Bazaars & Crafts', icon: ShoppingBag },
   { id: 'Nightlife', label: 'Nightlife & Lounges', icon: Moon },
+  { id: 'Workshops', label: 'Workshops & Local Arts', icon: Palette },
 ];
 
 interface CategoryChipsProps {

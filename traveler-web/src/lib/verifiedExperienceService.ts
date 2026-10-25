@@ -352,6 +352,47 @@ export const VerifiedExperienceService = {
   },
 
   /**
+   * Fetch a single experience by ID or experience_id from Supabase
+   */
+  async getExperienceById(id: string): Promise<{
+    record: VerifiedExperienceRecord | null;
+    recommendation: RecommendationModel | null;
+  }> {
+    if (!id || typeof id !== 'string') return { record: null, recommendation: null };
+
+    const tableName = await getActiveTableName();
+    try {
+      // First try matching experience_id
+      let { data, error } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('experience_id', id)
+        .maybeSingle();
+
+      // If not found and id is numeric, try matching integer id
+      if (!data && !isNaN(Number(id))) {
+        const numericRes = await supabase
+          .from(tableName)
+          .select('*')
+          .eq('id', Number(id))
+          .maybeSingle();
+        data = numericRes.data;
+      }
+
+      if (error || !data) {
+        return { record: null, recommendation: null };
+      }
+
+      const record = data as VerifiedExperienceRecord;
+      const recommendation = mapRecordToRecommendation(record);
+      return { record, recommendation };
+    } catch (err) {
+      console.error('[VerifiedExperienceService] getExperienceById error:', err);
+      return { record: null, recommendation: null };
+    }
+  },
+
+  /**
    * Subscribe to realtime database changes for verified experiences.
    * Enables automatic updates when records are added, updated, or removed.
    */

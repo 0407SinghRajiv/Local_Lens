@@ -68,6 +68,7 @@ interface ItineraryContextType {
   applySmartSearchResult: (parsedIntent: Record<string, any>, recs: RecommendationModel[]) => void;
   updateExperienceExpense: (itemId: string, expense: number) => void;
   completeExperience: (itemId: string, rating?: number, review?: string, expense?: number) => void;
+  deleteTrip: (id: string) => void;
   toggleWishlist: (id: string) => void;
   setWeatherCondition: (cond: string) => void;
   resetForNewTrip: () => void;
@@ -469,6 +470,15 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
     ApiService.saveItineraryToDatabase(updated);
   }
 
+  function deleteTrip(id: string) {
+    const updated = savedTrips.filter((t) => t.id !== id);
+    setSavedTrips(updated);
+    StorageService.saveTrips(updated);
+    if (generatedItinerary?.id === id) {
+      setGeneratedItinerary(updated[0] || null);
+    }
+  }
+
   function toggleWishlist(id: string) {
     const updated = StorageService.toggleWishlist(id);
     setWishlist(updated);
@@ -535,6 +545,7 @@ export function ItineraryProvider({ children }: { children: ReactNode }) {
         applySmartSearchResult,
         updateExperienceExpense,
         completeExperience,
+        deleteTrip,
         toggleWishlist,
         setWeatherCondition: setActiveWeatherCondition,
         resetForNewTrip,

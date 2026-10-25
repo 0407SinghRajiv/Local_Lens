@@ -30,6 +30,8 @@ export function TopHeader() {
   const [isWeatherOpen, setIsWeatherOpen] = useState(false);
   const [isCityDropdownOpen, setIsCityDropdownOpen] = useState(false);
 
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
   const majorCities = ['Mumbai', 'Pune', 'Jaipur', 'Delhi', 'Goa', 'Bengaluru', 'Hyderabad'];
 
   const WeatherIcon =
@@ -40,6 +42,12 @@ export function TopHeader() {
       : weather.iconName === 'Cloud'
       ? Cloud
       : Sun;
+
+  async function handleSignOut() {
+    setIsProfileOpen(false);
+    await signOut();
+    router.push('/login');
+  }
 
   return (
     <>
@@ -131,20 +139,23 @@ export function TopHeader() {
           </div>
 
           {/* Center: Desktop Navigation Bar */}
-          <nav className="hidden md:flex items-center gap-1 lg:gap-2">
+          <nav className="hidden lg:flex items-center gap-1">
             {[
               { label: 'Explore', href: '/home' },
-              { label: 'Trips', href: '/trips' },
-              { label: 'Plan Itinerary', href: '/itinerary/create' },
-              { label: 'Lens Rides', href: '/rides/book' },
+              { label: 'Discover Places', href: '/explore' },
+              { label: 'AI Itinerary', href: '/itinerary/create' },
+              { label: 'My Trips', href: '/trips' },
               { label: 'Saved', href: '/saved' },
+              { label: 'Rides', href: '/rides/book' },
             ].map((link) => {
-              const active = pathname === link.href || (link.href !== '/home' && pathname.startsWith(link.href));
+              const active =
+                pathname === link.href ||
+                (link.href !== '/home' && pathname.startsWith(link.href));
               return (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`px-3 py-1.5 rounded-xl text-sm font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     active
                       ? 'bg-primary text-white shadow-soft'
                       : isStormy
@@ -158,12 +169,12 @@ export function TopHeader() {
             })}
           </nav>
 
-          {/* Right: Weather Pill, Simulation Trigger & User Avatar */}
+          {/* Right: Weather Pill, Storm Toggle, Notifications & Profile */}
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Live Weather Pill */}
             <button
               onClick={() => setIsWeatherOpen(true)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all active:scale-95 ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1.5 rounded-full border transition-all active:scale-95 ${
                 isStormy
                   ? 'bg-sky-950/60 border-sky-500/40 text-sky-300'
                   : 'bg-amber-500/10 border-amber-200 text-amber-700'
@@ -197,27 +208,86 @@ export function TopHeader() {
               <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-primary" />
             </Link>
 
-            {/* User Profile Avatar with storm glow */}
-            <Link
-              href="/profile"
-              className={`relative rounded-full p-0.5 transition-all ${
-                isStormy ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-900' : 'ring-1 ring-[#1A1A1A]/20'
-              }`}
-            >
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-white flex items-center justify-center font-bold text-primary text-sm">
-                {user?.photoUrl ? (
-                  <Image
-                    src={user.photoUrl}
-                    alt={user.displayName}
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span>{user?.displayName ? user.displayName[0].toUpperCase() : 'T'}</span>
-                )}
-              </div>
-            </Link>
+            {/* User Profile Avatar with dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setIsProfileOpen(!isProfileOpen)}
+                className={`relative rounded-full p-0.5 transition-all ${
+                  isStormy
+                    ? 'ring-2 ring-sky-400 ring-offset-2 ring-offset-slate-900'
+                    : 'ring-1 ring-[#1A1A1A]/20 hover:ring-primary'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-white flex items-center justify-center font-bold text-primary text-sm shadow-sm">
+                  {user?.photoUrl ? (
+                    <Image
+                      src={user.photoUrl}
+                      alt={user.displayName}
+                      width={32}
+                      height={32}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{user?.displayName ? user.displayName[0].toUpperCase() : 'T'}</span>
+                  )}
+                </div>
+              </button>
+
+              {isProfileOpen && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-floating border border-[#EAE8E3] dark:border-slate-700 py-2 z-50 animate-in fade-in zoom-in-95">
+                  <div className="px-4 py-2 border-b border-[#EAE8E3] dark:border-slate-700">
+                    <p className="text-xs font-bold text-[#1A1A1A] dark:text-white truncate">
+                      {user?.displayName || 'Traveler'}
+                    </p>
+                    <p className="text-[11px] text-ink-muted truncate">
+                      {user?.email || 'traveler@locallens.app'}
+                    </p>
+                  </div>
+
+                  <Link
+                    href="/profile"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="block px-4 py-2 text-xs font-medium text-ink-secondary dark:text-slate-300 hover:bg-primary-soft dark:hover:bg-primary/20 hover:text-primary transition-colors"
+                  >
+                    Traveler Profile
+                  </Link>
+
+                  <Link
+                    href="/trips"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="block px-4 py-2 text-xs font-medium text-ink-secondary dark:text-slate-300 hover:bg-primary-soft dark:hover:bg-primary/20 hover:text-primary transition-colors"
+                  >
+                    My Itineraries
+                  </Link>
+
+                  <Link
+                    href="/saved"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="block px-4 py-2 text-xs font-medium text-ink-secondary dark:text-slate-300 hover:bg-primary-soft dark:hover:bg-primary/20 hover:text-primary transition-colors"
+                  >
+                    Saved Places
+                  </Link>
+
+                  <Link
+                    href="/profile/personality"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="block px-4 py-2 text-xs font-medium text-ink-secondary dark:text-slate-300 hover:bg-primary-soft dark:hover:bg-primary/20 hover:text-primary transition-colors"
+                  >
+                    Travel Personality
+                  </Link>
+
+                  <div className="border-t border-[#EAE8E3] dark:border-slate-700 my-1" />
+
+                  <button
+                    onClick={handleSignOut}
+                    className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 flex items-center gap-2 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>

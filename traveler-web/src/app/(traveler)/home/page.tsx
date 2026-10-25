@@ -5,10 +5,14 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useItinerary } from '@/context/ItineraryContext';
+import { ImmersiveHero } from '@/components/home/ImmersiveHero';
 import { SmartSearchBar } from '@/components/home/SmartSearchBar';
 import { SponsoredCarousel } from '@/components/home/SponsoredCarousel';
 import { CategoryChips } from '@/components/home/CategoryChips';
 import { ExperienceCard } from '@/components/home/ExperienceCard';
+import { TrendingDestinations } from '@/components/home/TrendingDestinations';
+import { WeatherAwareDiscovery } from '@/components/home/WeatherAwareDiscovery';
+import { TravelInspiration } from '@/components/home/TravelInspiration';
 import { RecommendationModel } from '@/types';
 import {
   VerifiedExperienceService,
@@ -16,7 +20,6 @@ import {
 } from '@/lib/verifiedExperienceService';
 import {
   Sparkles,
-  CloudRain,
   Compass,
   ArrowRight,
   ShieldCheck,
@@ -32,8 +35,7 @@ const PAGE_SIZE = 12;
 
 export default function HomePage() {
   const { user } = useAuth();
-  const { isStormy, weather } = useTheme();
-  const { destination: contextDestination } = useItinerary();
+  const { destination: contextDestination, setDestination } = useItinerary();
 
   // State for verified Supabase experiences
   const [displayedItems, setDisplayedItems] = useState<RecommendationModel[]>([]);
@@ -49,8 +51,18 @@ export default function HomePage() {
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [availableDestinations, setAvailableDestinations] = useState<string[]>([]);
 
+  // DOM ref to scroll down to experiences
+  const experiencesSectionRef = useRef<HTMLElement>(null);
+
   // Prevent race conditions with request tracking
   const requestIdRef = useRef<number>(0);
+
+  // Sync with context destination if set
+  useEffect(() => {
+    if (contextDestination && contextDestination !== 'Select Destination' && contextDestination !== 'Mumbai') {
+      setSelectedDestination(contextDestination);
+    }
+  }, [contextDestination]);
 
   // Fetch available destinations dynamically from verified Supabase records
   useEffect(() => {
@@ -123,7 +135,6 @@ export default function HomePage() {
   // Realtime database subscription to automatically update when database changes
   useEffect(() => {
     const unsubscribe = VerifiedExperienceService.subscribeToChanges(() => {
-      // Re-fetch current view when matching records are inserted, updated, or deleted
       loadVerifiedExperiences(1, false);
     });
 
@@ -131,6 +142,11 @@ export default function HomePage() {
       unsubscribe();
     };
   }, [loadVerifiedExperiences]);
+
+  // Scroll to experiences helper
+  function scrollToExperiences() {
+    experiencesSectionRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }
 
   // Load more pagination handler
   function handleLoadMore() {
@@ -151,93 +167,91 @@ export default function HomePage() {
     searchFilter.trim() !== '';
 
   return (
-    <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-      {/* Editorial Welcome Header */}
-      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 pt-2">
-        <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary-soft dark:bg-primary/20 text-primary mb-2 text-xs font-bold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Intelligent Local Discovery</span>
-          </div>
-          <h1 className="font-display font-extrabold text-2xl sm:text-3xl lg:text-4xl tracking-tight text-[#1A1A1A] dark:text-white">
-            Namaste, {user?.displayName || 'Traveler'}! 🙏
-          </h1>
-          <p className="text-sm sm:text-base text-ink-secondary dark:text-slate-400 mt-1 max-w-xl">
-            Explore authentic local treasures, taste street secrets, and build your personalized trip in{' '}
-            <span className="font-bold text-[#1A1A1A] dark:text-white">{contextDestination}</span>.
-          </p>
-        </div>
+    <div className="space-y-8 sm:space-y-12 animate-in fade-in duration-300">
+      {/* 1. Immersive Editorial Hero with Multi-Criteria Planner Search */}
+      <ImmersiveHero onScrollToExperiences={scrollToExperiences} />
 
-        <Link
-          href="/itinerary/create"
-          className="self-start sm:self-auto px-5 py-3 rounded-2xl bg-primary hover:bg-primary-dark text-white font-bold text-sm shadow-soft flex items-center gap-2 active:scale-95 transition-all"
-        >
-          <Compass className="w-4 h-4" />
-          <span>Plan Itinerary</span>
-        </Link>
+      {/* 2. Weather-Aware Discovery Strip */}
+      <WeatherAwareDiscovery
+        onFilterOutdoor={() => {
+          setSelectedCategory('Nature');
+          scrollToExperiences();
+        }}
+        onFilterIndoor={() => {
+          setSelectedCategory('Food');
+          scrollToExperiences();
+        }}
+      />
+
+      {/* 3. AI Smart Search Prompt (Natural language & Hindi queries) */}
+      <div className="space-y-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-ink-secondary dark:text-slate-400">
+            Intelligent Query Search
+          </span>
+        </div>
+        <SmartSearchBar />
       </div>
 
-      {/* Groq AI Smart Search Prompt */}
-      <SmartSearchBar />
-
-      {/* Weather Disruption Banner (Active when storm is triggered) */}
-      {isStormy && (
-        <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-sky-950 via-slate-900 to-indigo-950 border border-sky-500/50 text-white shadow-floating flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center shrink-0">
-              <CloudRain className="w-6 h-6 animate-bounce" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold bg-sky-500 text-slate-950 uppercase tracking-wider">
-                  Live Monsoon Alert
-                </span>
-                <span className="text-xs font-semibold text-sky-200">{weather.tempCelsius}</span>
-              </div>
-              <h4 className="text-base font-bold mt-0.5">Heavy Rain & Thunderstorm Detected</h4>
-              <p className="text-xs text-sky-200/80 mt-0.5 max-w-md">
-                Indoor artisan cafes, heritage museums, and sheltered food trails have been prioritized for your comfort.
-              </p>
-            </div>
-          </div>
-
+      {/* 4. Category Exploration Bar */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-extrabold uppercase tracking-wider text-ink-secondary dark:text-slate-400">
+            Browse by Travel Vibe
+          </span>
           <Link
-            href="/itinerary/create"
-            className="px-4 py-2 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 text-xs font-bold transition-all shrink-0 active:scale-95"
+            href="/explore"
+            className="text-xs font-bold text-primary hover:text-primary-dark transition-colors flex items-center gap-1"
           >
-            Adapt Route
+            <span>All Categories</span>
+            <ArrowRight className="w-3 h-3" />
           </Link>
         </div>
-      )}
+        <CategoryChips
+          selectedCategory={selectedCategory}
+          onSelectCategory={(cat) => {
+            setSelectedCategory(cat);
+            scrollToExperiences();
+          }}
+        />
+      </div>
 
-      {/* Sponsored Local Experiences Carousel */}
+      {/* 5. Trending Destinations Grid */}
+      <TrendingDestinations
+        onSelectDestination={(city) => {
+          setSelectedDestination(city);
+          scrollToExperiences();
+        }}
+      />
+
+      {/* 6. Sponsored Local Experiences Carousel */}
       <SponsoredCarousel />
 
       {/* ========================================================================= */}
-      {/* VERIFIED SUPABASE EXPERIENCES SECTION */}
+      {/* 7. DISCOVER AUTHENTIC EXPERIENCES (Supabase verified exact match) */}
       {/* ========================================================================= */}
-      <section className="space-y-4 pt-2">
+      <section ref={experiencesSectionRef} className="space-y-5 pt-2">
         {/* Section Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-3 border-b border-[#EAE8E3] dark:border-slate-800 pb-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs font-bold">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                <span>Verified Exact Match</span>
+                <span>Verified Exact Match Guarantee</span>
               </span>
               <span className="text-xs font-semibold text-ink-muted dark:text-slate-400">
-                • {totalCount} {totalCount === 1 ? 'place' : 'places'} verified
+                • {totalCount} verified places found
               </span>
             </div>
             <h2 className="font-display font-extrabold text-xl sm:text-2xl lg:text-3xl tracking-tight text-[#1A1A1A] dark:text-white">
               Discover Authentic Experiences
             </h2>
             <p className="text-xs sm:text-sm text-ink-secondary dark:text-slate-400 mt-1 max-w-2xl">
-              Explore handpicked destinations and experiences with verified real-world photographs.
+              Real-world destinations verified with authentic photography, transparent pricing, and local heritage.
             </p>
           </div>
 
-          {/* Quick Refresh Button */}
+          {/* Quick Refresh Button & Link to Explore */}
           <div className="flex items-center gap-2 self-start md:self-auto">
             <button
               onClick={() => loadVerifiedExperiences(1, false)}
@@ -246,13 +260,13 @@ export default function HomePage() {
               className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-[#EAE8E3] dark:border-slate-700 hover:border-primary/40 text-ink-secondary dark:text-slate-300 hover:text-primary transition-all active:scale-95 text-xs font-medium flex items-center gap-1.5 shadow-sm disabled:opacity-50"
             >
               <RotateCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-primary' : ''}`} />
-              <span className="hidden sm:inline">Refresh</span>
+              <span className="hidden sm:inline">Refresh Data</span>
             </button>
             <Link
               href="/explore"
-              className="px-3.5 py-2 rounded-xl bg-primary-soft dark:bg-primary/20 text-primary font-bold text-xs hover:bg-primary hover:text-white transition-all flex items-center gap-1"
+              className="px-3.5 py-2 rounded-xl bg-primary-soft dark:bg-primary/20 text-primary font-bold text-xs hover:bg-primary hover:text-white transition-all flex items-center gap-1 shadow-sm"
             >
-              <span>Explore All</span>
+              <span>Explore Map & Grid</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -268,8 +282,8 @@ export default function HomePage() {
                 type="text"
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                placeholder="Filter verified experiences by name or tags..."
-                className="w-full h-10 pl-10 pr-4 rounded-xl bg-white dark:bg-slate-800 border border-[#EAE8E3] dark:border-slate-700 text-xs text-[#1A1A1A] dark:text-white placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
+                placeholder="Filter verified experiences by name, food, or activity..."
+                className="w-full h-11 pl-10 pr-4 rounded-xl bg-white dark:bg-slate-800 border border-[#EAE8E3] dark:border-slate-700 text-xs text-[#1A1A1A] dark:text-white placeholder:text-ink-muted focus:outline-none focus:ring-2 focus:ring-primary/30"
               />
               {searchFilter && (
                 <button
@@ -286,8 +300,13 @@ export default function HomePage() {
               <MapPin className="w-3.5 h-3.5 text-primary absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
               <select
                 value={selectedDestination}
-                onChange={(e) => setSelectedDestination(e.target.value)}
-                className="w-full h-10 pl-9 pr-8 rounded-xl bg-white dark:bg-slate-800 border border-[#EAE8E3] dark:border-slate-700 text-xs font-medium text-[#1A1A1A] dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none cursor-pointer"
+                onChange={(e) => {
+                  setSelectedDestination(e.target.value);
+                  if (e.target.value !== 'All') {
+                    setDestination(e.target.value);
+                  }
+                }}
+                className="w-full h-11 pl-9 pr-8 rounded-xl bg-white dark:bg-slate-800 border border-[#EAE8E3] dark:border-slate-700 text-xs font-semibold text-[#1A1A1A] dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/30 appearance-none cursor-pointer"
               >
                 <option value="All">All Destinations</option>
                 {availableDestinations.map((d) => (
@@ -305,19 +324,13 @@ export default function HomePage() {
             {hasActiveFilters && (
               <button
                 onClick={handleResetFilters}
-                className="px-3 h-10 rounded-xl bg-slate-100 dark:bg-slate-700 text-ink-secondary dark:text-slate-300 hover:text-primary text-xs font-semibold transition-colors shrink-0 flex items-center gap-1"
+                className="px-3 h-11 rounded-xl bg-slate-100 dark:bg-slate-700 text-ink-secondary dark:text-slate-300 hover:text-primary text-xs font-semibold transition-colors shrink-0 flex items-center gap-1"
               >
                 <Filter className="w-3 h-3" />
                 <span>Clear Filters</span>
               </button>
             )}
           </div>
-
-          {/* Category Filter Chips */}
-          <CategoryChips
-            selectedCategory={selectedCategory}
-            onSelectCategory={setSelectedCategory}
-          />
         </div>
 
         {/* Discovery Grid & States */}
@@ -405,16 +418,19 @@ export default function HomePage() {
         )}
       </section>
 
-      {/* Bottom Itinerary Synthesis Call-to-Action */}
-      <div className="p-6 sm:p-8 rounded-3xl bg-gradient-to-r from-primary via-[#FA7252] to-amber-500 text-white shadow-floating flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+      {/* 8. Travel Inspiration & Stories */}
+      <TravelInspiration />
+
+      {/* 9. Bottom Itinerary Synthesis Call-to-Action */}
+      <div className="p-6 sm:p-10 rounded-3xl bg-gradient-to-r from-primary via-[#FA7252] to-amber-500 text-white shadow-floating flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
         <div>
           <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-md text-xs font-bold uppercase tracking-wider">
             AI Journey Optimizer
           </span>
-          <h3 className="font-display font-extrabold text-xl sm:text-2xl mt-2 leading-tight">
+          <h3 className="font-display font-black text-2xl sm:text-3xl mt-2 leading-tight">
             Ready to craft your ideal day in {contextDestination}?
           </h3>
-          <p className="text-xs sm:text-sm text-white/90 mt-1 max-w-lg">
+          <p className="text-xs sm:text-sm text-white/90 mt-1 max-w-lg leading-relaxed">
             Tell us your budget, traveler group, and hours. We will synthesize the optimal geographic route, schedule stops, and coordinate rides.
           </p>
         </div>
