@@ -11,11 +11,9 @@ import {
   Sparkles,
   MapPin,
   Heart,
-  Send,
   ArrowRight,
-  Sun,
-  CloudRain,
   ExternalLink,
+  Briefcase,
 } from 'lucide-react';
 
 export function Footer() {
@@ -48,6 +46,11 @@ export function Footer() {
     { label: 'Lens Rides & Transit', href: '/rides/book' },
     { label: 'My Saved Places', href: '/saved' },
     { label: 'Traveler Profile', href: '/profile' },
+    {
+      label: 'Become a Provider',
+      href: 'https://provider-web-local-lense.vercel.app',
+      external: true,
+    },
   ];
 
   return (
@@ -75,7 +78,7 @@ export function Footer() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
             <Link
               href="/itinerary/create"
               className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-primary hover:bg-primary-dark text-white font-bold text-xs sm:text-sm shadow-soft flex items-center justify-center gap-2 active:scale-95 transition-all"
@@ -90,6 +93,16 @@ export function Footer() {
               <span>Explore Places</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
+            <a
+              href="https://provider-web-local-lense.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm shadow-soft flex items-center justify-center gap-2 active:scale-95 transition-all cursor-pointer"
+            >
+              <Briefcase className="w-4 h-4" />
+              <span>Become a Provider</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+            </a>
           </div>
         </div>
       </div>
@@ -128,6 +141,31 @@ export function Footer() {
               <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
               <span>100% Verified Real Photographs Guarantee</span>
             </div>
+
+            {/* Provider Portal Callout */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-[#EAE8E3] dark:border-slate-700 shadow-soft max-w-sm space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-bold text-[#1A1A1A] dark:text-white">
+                  <Briefcase className="w-4 h-4 text-emerald-600" />
+                  <span>Are you a Local Experience Host?</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                  Partner
+                </span>
+              </div>
+              <p className="text-xs text-ink-secondary dark:text-slate-400">
+                List your guided tours, heritage trails, workshops, or food walks and reach travelers across India.
+              </p>
+              <a
+                href="https://provider-web-local-lense.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer mt-1"
+              >
+                <span>Become a Provider</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
           </div>
 
           {/* Popular Hubs */}
@@ -143,7 +181,7 @@ export function Footer() {
                       setDestination(city);
                       window.scrollTo({ top: 0, behavior: 'smooth' });
                     }}
-                    className="text-xs text-ink-secondary dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1.5"
+                    className="text-xs text-ink-secondary dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer"
                   >
                     <MapPin className="w-3 h-3 text-primary/70" />
                     <span>{city}</span>
@@ -172,7 +210,7 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Travel Tools */}
+          {/* Travel Tools & Provider Link */}
           <div className="space-y-3">
             <h4 className="font-display font-extrabold text-sm uppercase tracking-wider text-[#1A1A1A] dark:text-white">
               Intelligent Tools
@@ -180,12 +218,24 @@ export function Footer() {
             <ul className="space-y-2">
               {tools.map((tool) => (
                 <li key={tool.label}>
-                  <Link
-                    href={tool.href}
-                    className="text-xs text-ink-secondary dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors"
-                  >
-                    {tool.label}
-                  </Link>
+                  {tool.external ? (
+                    <a
+                      href={tool.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                    >
+                      <span>{tool.label}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ) : (
+                    <Link
+                      href={tool.href}
+                      className="text-xs text-ink-secondary dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-colors"
+                    >
+                      {tool.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -195,7 +245,17 @@ export function Footer() {
         {/* Bottom Sub-bar */}
         <div className="mt-12 pt-8 border-t border-black/5 dark:border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-muted dark:text-slate-500">
           <p>© {new Date().getFullYear()} LocalLens Traveler. All rights reserved.</p>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <a
+              href="https://provider-web-local-lense.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-700 dark:text-emerald-300 font-bold border border-emerald-600/20 transition-all text-xs cursor-pointer"
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>Become a Provider</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
             <span className="flex items-center gap-1 text-ink-secondary dark:text-slate-400">
               Made with <Heart className="w-3.5 h-3.5 fill-red-500 text-red-500" /> for passionate explorers
             </span>
